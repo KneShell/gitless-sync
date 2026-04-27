@@ -1,0 +1,22 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Env / Secrets
+.env
+.env.local
+*.pem
+*.key
+
+# Logs
+*.log
