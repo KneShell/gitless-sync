@@ -1,9 +1,9 @@
 # Implementation Plan: gitless-sync v0.1
 
 ## Status
-- Last updated: 2026-04-28T12:30:00Z (T11 in progress)
+- Last updated: 2026-04-28T13:00:00Z (T11 complete)
 - Total tasks: 15
-- Completed: 12 / 15
+- Completed: 13 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -196,7 +196,7 @@ L5 (human):    T13
   - `[AUTO]` PRD 시나리오 14 (`--status drift` → drift 항목만 files[]에 + summary는 전체).
   - `[AUTO]` PRD 시나리오 15 (partial failure → exit 4 + summary.failed > 0).
   - `[AUTO]` `cargo test --test integration` 통과.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### T12. tarpaulin 80% 커버리지 게이트 통과
 - **Spec reference**: `CLAUDE.md` § Test coverage, `docs/ralph/project-ops.md` § Coverage, G-007
