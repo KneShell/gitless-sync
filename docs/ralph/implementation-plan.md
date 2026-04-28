@@ -1,7 +1,7 @@
 # Implementation Plan: gitless-sync v0.1
 
 ## Status
-- Last updated: 2026-04-28T00:02:00Z (T05 complete)
+- Last updated: 2026-04-28T00:03:00Z (T06 in progress)
 - Total tasks: 13
 - Completed: 5 / 13
 
@@ -110,7 +110,7 @@ L5 (human):    T13          |
   - `[AUTO]` mockito 5xx → `GitlessError::Http(...)`.
   - `[AUTO]` `User-Agent: gitless-sync/0.1` 헤더 송신 (mockito match로 검증).
   - `[AUTO]` `Authorization: Bearer <token>` 헤더 송신.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### T07. github::fetch_blob + mockito tests
 - **Spec reference**: `docs/specs/spec-github-api.md` § fetch_blob
