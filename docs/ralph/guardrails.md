@@ -52,4 +52,4 @@
 
 ## G-013: cargo deny는 deny.toml 부재 시 모든 라이선스 reject
 - **문제**: `cargo deny check`를 config 없이 실행하면 default 정책이 모든 라이선스를 reject (adler2 `0BSD OR MIT OR Apache-2.0`, aho-corasick `Unlicense OR MIT` 등). T07에서 base64 = "0.22"를 직접 의존으로 추가했을 때 첫 발현. 단 base64는 이미 Cargo.lock에 transitive로 박혀 있던 동일 버전이라 dep tree 자체는 무변화 (`Cargo.lock` diff 1 line, `+ "base64"` 한 줄만 추가).
-- **해결**: T07~T08 같은 단일 dep 추가 task는 (a) `cargo audit` 통과(exit 0) + (b) Cargo.lock에 새 transitive crate가 등장하지 않음을 확인하면 cargo deny 게이트 보류 가능. 정식 `deny.toml`(허용 라이선스 화이트리스트, advisory 정책) 작성은 T09가 rayon 등 신규 transitive를 도입할 때 또는 별도 인프라 task로 분리. project-ops.md의 cargo deny 항목은 deny.toml 작성 후 강제. 현재까지 audit-only 운영.
+- **해결**: T07~T08 같은 단일 dep 추가 task는 (a) `cargo audit` 통과(exit 0) + (b) Cargo.lock에 새 transitive crate가 등장하지 않음을 확인하면 cargo deny 게이트 보류 가능. 정식 `deny.toml`(허용 라이선스 화이트리스트, advisory 정책) 작성은 T09가 rayon 등 신규 transitive를 도입할 때 또는 별도 인프라 task로 분리. project-ops.md의 cargo deny 항목은 deny.toml 작성 후 강제. T09c에서 workspace root `deny.toml` 작성 완료(2026-04-28); 이후 cargo deny check 정상 강제.
