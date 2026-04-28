@@ -235,4 +235,4 @@ L5 (human):    T13
   - `[HUMAN]` Fine-grained PAT (`Contents: Read` 권한만)로 실제 GitHub repo에 `gitless-sync scan` 실행 → 정상 JSON 출력.
   - `[HUMAN]` Trees + Commits API 모두 작동 확인. 실패 시 더 넓은 권한 필요한지 확인.
   - `[HUMAN]` 결과를 `docs/roadmap.md` Open Questions 섹션에서 제거. 추가로 발견된 함정은 `guardrails.md`에 추가.
-- **Status**: `[ ]`
+- **Status**: `[ ]` — 1차 smoke test 통과 (2026-04-29, `gh auth token` 사용 → 37 identical / 0 drift, Trees API OK, Commits API는 drift 0이라 미호출). 정식 Fine-grained PAT로 Contents: Read 권한 범위 검증 + Commits API 호출 검증은 미완.
