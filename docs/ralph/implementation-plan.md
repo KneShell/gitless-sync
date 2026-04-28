@@ -1,9 +1,9 @@
 # Implementation Plan: gitless-sync v0.1
 
 ## Status
-- Last updated: 2026-04-28T10:30:00Z (T09c in progress)
+- Last updated: 2026-04-28T11:00:00Z (T09c complete)
 - Total tasks: 15
-- Completed: 10 / 15
+- Completed: 11 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -168,7 +168,7 @@ L5 (human):    T13
   - `[AUTO]` T09a의 직렬 `fetch_last_commit_at` 호출을 `paths.par_iter().map(|p| github::fetch_last_commit_at(...)).collect::<Result<Vec<_>, _>>()` 패턴으로 변경. default 8 concurrent (G-011, `rayon::ThreadPoolBuilder::new().num_threads(8).build()` 또는 동등 수단).
   - `[AUTO]` 의존성 변경 후 `cargo deny check` + `cargo audit` 통과 (project-ops.md).
   - `[AUTO]` `cargo test scan` 통과 (병렬 호출 시에도 결과 일관성 보장).
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### T10. diff::run unified diff 출력
 - **Spec reference**: `docs/specs/spec-cli-interface.md` § diff

@@ -7,7 +7,8 @@ use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::path::Path;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
+use rayon::prelude::*;
 
 use crate::shared::config;
 use crate::shared::error::GitlessError;
@@ -19,6 +20,9 @@ use self::compare::{FileEntry, Status, classify};
 use self::github::RemoteFile;
 use self::output::{SCHEMA_VERSION, ScanReport, Summary};
 use self::walker::LocalFile;
+
+/// Max concurrent `fetch_last_commit_at` calls (G-011: GitHub abuse detection avoidance).
+const MAX_COMMITS_CONCURRENCY: usize = 8;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, clap::ValueEnum)]
 #[clap(rename_all = "lowercase")]
@@ -195,8 +199,10 @@ fn parse_status_token(s: &str) -> Result<Status, GitlessError> {
 ///
 /// Calls `fetch_last_commit_at_with_base` only for paths whose SHA differs on
 /// both sides — identical files and one-sided files don't trigger a Commits
-/// API call (G-003). Hash failures on a local file don't abort: the file is
-/// recorded as [`Status::Failed`] and `failed_count` increments.
+/// API call (G-003). Commits API calls are issued in parallel with up to
+/// [`MAX_COMMITS_CONCURRENCY`] threads (G-011). Hash failures on a local file
+/// don't abort: the file is recorded as [`Status::Failed`] and `failed_count`
+/// increments.
 ///
 /// # Errors
 /// Propagates GitHub API errors from the Commits call. Local hash failures do
@@ -221,77 +227,202 @@ fn assemble_entries(
     all_paths.extend(local_map.keys().copied());
     all_paths.extend(remote_map.keys().copied());
 
-    let mut entries: Vec<FileEntry> = Vec::with_capacity(all_paths.len());
-    let mut summary = Summary::default();
-    let mut failed_count = 0usize;
+    let pending = build_pre_entries(&all_paths, &local_map, &remote_map, keep_bom);
+    let commit_map = fetch_commit_map(&pending, base, repo, branch, token)?;
+    Ok(finalize_entries(pending, &commit_map))
+}
 
+/// Pass 1: hash local files and capture per-path state without calling the
+/// Commits API. Hash failures are recorded as [`PreState::Failed`] so the
+/// subsequent passes can fold them into the summary.
+fn build_pre_entries(
+    all_paths: &BTreeSet<&str>,
+    local_map: &HashMap<&str, &LocalFile>,
+    remote_map: &HashMap<&str, &RemoteFile>,
+    keep_bom: bool,
+) -> Vec<PreEntry> {
+    let mut pending: Vec<PreEntry> = Vec::with_capacity(all_paths.len());
     for path in all_paths {
         let local = local_map.get(path).copied();
         let remote = remote_map.get(path).copied();
-
-        let (local_sha, local_mtime, is_binary) = match local {
-            Some(lf) => match try_hash_local(&lf.absolute_path, keep_bom) {
-                Ok((sha, bin)) => (Some(sha), Some(lf.mtime), bin),
-                Err(err) => {
-                    eprintln!("warning: failed to hash {path}: {err}");
-                    entries.push(FileEntry {
-                        path: path.to_string(),
-                        status: Status::Failed,
-                        local_sha: None,
-                        remote_sha: remote.map(|r| r.sha.clone()),
-                        local_mtime: Some(lf.mtime),
-                        remote_last_commit_at: None,
-                        is_binary: false,
-                    });
-                    summary.failed += 1;
-                    failed_count += 1;
-                    continue;
-                }
-            },
-            None => (None, None, false),
-        };
-
         let remote_sha = remote.map(|r| r.sha.clone());
 
-        let need_commit_api = matches!(
-            (local_sha.as_deref(), remote_sha.as_deref()),
-            (Some(l), Some(r)) if l != r
-        );
-        let remote_last_commit_at = if need_commit_api {
-            Some(github::fetch_last_commit_at_with_base(
-                base, repo, branch, path, token,
-            )?)
-        } else {
-            None
+        let state = match local {
+            Some(lf) => match try_hash_local(&lf.absolute_path, keep_bom) {
+                Ok((sha, is_binary)) => PreState::Hashed {
+                    local_sha: Some(sha),
+                    remote_sha,
+                    local_mtime: Some(lf.mtime),
+                    is_binary,
+                },
+                Err(err) => {
+                    eprintln!("warning: failed to hash {path}: {err}");
+                    PreState::Failed {
+                        remote_sha,
+                        local_mtime: Some(lf.mtime),
+                    }
+                }
+            },
+            None => PreState::Hashed {
+                local_sha: None,
+                remote_sha,
+                local_mtime: None,
+                is_binary: false,
+            },
         };
 
-        let status = classify(
-            local_sha.as_deref(),
-            remote_sha.as_deref(),
-            local_mtime,
-            remote_last_commit_at,
-        );
-
-        match status {
-            Status::Identical => summary.identical += 1,
-            Status::LocalOnlyChanged => summary.local_only_changed += 1,
-            Status::RemoteOnlyChanged => summary.remote_only_changed += 1,
-            Status::Drift => summary.drift += 1,
-            Status::Failed => summary.failed += 1,
-        }
-
-        entries.push(FileEntry {
-            path: path.to_string(),
-            status,
-            local_sha,
-            remote_sha,
-            local_mtime,
-            remote_last_commit_at,
-            is_binary,
+        pending.push(PreEntry {
+            path: (*path).to_string(),
+            state,
         });
     }
+    pending
+}
 
-    Ok((entries, summary, failed_count))
+/// Pass 2: collect paths that need a Commits API lookup and fetch their dates
+/// in parallel (G-003 + G-011). The returned map is keyed by path so pass 3
+/// can stitch the dates back in.
+///
+/// # Errors
+/// Propagates the first error from any concurrent
+/// [`github::fetch_last_commit_at_with_base`] call.
+fn fetch_commit_map(
+    pending: &[PreEntry],
+    base: &str,
+    repo: &str,
+    branch: &str,
+    token: &str,
+) -> Result<HashMap<String, DateTime<Utc>>, GitlessError> {
+    let commit_paths: Vec<String> = pending
+        .iter()
+        .filter_map(|p| match &p.state {
+            PreState::Hashed {
+                local_sha: Some(l),
+                remote_sha: Some(r),
+                ..
+            } if l != r => Some(p.path.clone()),
+            _ => None,
+        })
+        .collect();
+    let commit_path_refs: Vec<&str> = commit_paths.iter().map(String::as_str).collect();
+    let commit_dates = fetch_commit_dates_parallel(base, repo, branch, token, &commit_path_refs)?;
+    Ok(commit_paths.into_iter().zip(commit_dates).collect())
+}
+
+/// Pass 3: classify each pending entry and emit `FileEntry` rows in input
+/// (`BTreeSet`) order. Returns the entries, summary counters, and the count of
+/// hash failures so the caller can map to [`GitlessError::PartialFailure`].
+fn finalize_entries(
+    pending: Vec<PreEntry>,
+    commit_map: &HashMap<String, DateTime<Utc>>,
+) -> (Vec<FileEntry>, Summary, usize) {
+    let mut entries: Vec<FileEntry> = Vec::with_capacity(pending.len());
+    let mut summary = Summary::default();
+    let mut failed_count = 0usize;
+
+    for pre in pending {
+        let entry = match pre.state {
+            PreState::Failed {
+                remote_sha,
+                local_mtime,
+            } => {
+                summary.failed += 1;
+                failed_count += 1;
+                FileEntry {
+                    path: pre.path,
+                    status: Status::Failed,
+                    local_sha: None,
+                    remote_sha,
+                    local_mtime,
+                    remote_last_commit_at: None,
+                    is_binary: false,
+                }
+            }
+            PreState::Hashed {
+                local_sha,
+                remote_sha,
+                local_mtime,
+                is_binary,
+            } => {
+                let remote_last_commit_at = commit_map.get(pre.path.as_str()).copied();
+                let status = classify(
+                    local_sha.as_deref(),
+                    remote_sha.as_deref(),
+                    local_mtime,
+                    remote_last_commit_at,
+                );
+                match status {
+                    Status::Identical => summary.identical += 1,
+                    Status::LocalOnlyChanged => summary.local_only_changed += 1,
+                    Status::RemoteOnlyChanged => summary.remote_only_changed += 1,
+                    Status::Drift => summary.drift += 1,
+                    Status::Failed => summary.failed += 1,
+                }
+                FileEntry {
+                    path: pre.path,
+                    status,
+                    local_sha,
+                    remote_sha,
+                    local_mtime,
+                    remote_last_commit_at,
+                    is_binary,
+                }
+            }
+        };
+        entries.push(entry);
+    }
+
+    (entries, summary, failed_count)
+}
+
+/// Hash result + remote SHA carried between pass 1 (hashing) and pass 3
+/// (classification) of [`assemble_entries`].
+enum PreState {
+    Failed {
+        remote_sha: Option<String>,
+        local_mtime: Option<DateTime<Utc>>,
+    },
+    Hashed {
+        local_sha: Option<String>,
+        remote_sha: Option<String>,
+        local_mtime: Option<DateTime<Utc>>,
+        is_binary: bool,
+    },
+}
+
+struct PreEntry {
+    path: String,
+    state: PreState,
+}
+
+/// Fetch `commit.committer.date` for each path in parallel (G-011: max 8 threads).
+///
+/// Empty input short-circuits to `Ok(vec![])` without spawning a thread pool.
+/// Result order matches input order.
+///
+/// # Errors
+/// Propagates the first error from any concurrent
+/// [`github::fetch_last_commit_at_with_base`] call.
+fn fetch_commit_dates_parallel(
+    base: &str,
+    repo: &str,
+    branch: &str,
+    token: &str,
+    paths: &[&str],
+) -> Result<Vec<DateTime<Utc>>, GitlessError> {
+    if paths.is_empty() {
+        return Ok(Vec::new());
+    }
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(MAX_COMMITS_CONCURRENCY)
+        .build()
+        .expect("rayon thread pool build");
+    pool.install(|| {
+        paths
+            .par_iter()
+            .map(|p| github::fetch_last_commit_at_with_base(base, repo, branch, p, token))
+            .collect::<Result<Vec<_>, _>>()
+    })
 }
 
 fn try_hash_local(path: &Path, keep_bom: bool) -> Result<(String, bool), std::io::Error> {
@@ -964,5 +1095,64 @@ mod tests {
             assert_eq!(report.summary.identical, 1);
             assert!(report.files.is_some());
         }
+    }
+
+    #[test]
+    fn build_report_drift_multiple_paths_invokes_commits_api_per_path() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("a.md"), "alpha\n").unwrap();
+        fs::write(dir.path().join("b.md"), "beta\n").unwrap();
+        fs::write(dir.path().join("c.md"), "gamma\n").unwrap();
+
+        let mut server = Server::new();
+        let trees_body = r#"{"sha":"x","tree":[
+            {"path":"a.md","mode":"100644","type":"blob","sha":"remote-a","size":6},
+            {"path":"b.md","mode":"100644","type":"blob","sha":"remote-b","size":5},
+            {"path":"c.md","mode":"100644","type":"blob","sha":"remote-c","size":6}
+        ],"truncated":false}"#;
+        let _t = server
+            .mock("GET", "/repos/o/r/git/trees/main")
+            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
+            .with_status(200)
+            .with_body(trees_body)
+            .create();
+        // One shared mock for all three concurrent commits calls. expect(3)
+        // makes the test fail if any path's request is dropped or duplicated.
+        let commits_mock = server
+            .mock("GET", "/repos/o/r/commits")
+            .match_query(Matcher::AllOf(vec![
+                Matcher::UrlEncoded("sha".into(), "main".into()),
+                Matcher::UrlEncoded("per_page".into(), "1".into()),
+            ]))
+            .with_status(200)
+            .with_body(COMMITS_BODY)
+            .expect(3)
+            .create();
+
+        let args = args_for(dir.path(), Some("o/r"), Some("tok"));
+        let (report, failed) = build_report(&args, &server.url()).unwrap();
+        assert_eq!(failed, 0);
+
+        let entries = report.files.unwrap();
+        assert_eq!(entries.len(), 3);
+        let paths: Vec<&str> = entries.iter().map(|e| e.path.as_str()).collect();
+        assert_eq!(paths, vec!["a.md", "b.md", "c.md"]);
+        for e in &entries {
+            assert!(
+                e.remote_last_commit_at.is_some(),
+                "drift entry {} should have commit timestamp",
+                e.path
+            );
+        }
+        commits_mock.assert();
+    }
+
+    #[test]
+    fn fetch_commit_dates_parallel_short_circuits_on_empty_input() {
+        // Unreachable URL — proves no HTTP call is issued when there are no
+        // paths needing the Commits API.
+        let result =
+            fetch_commit_dates_parallel("http://127.0.0.1:0", "o/r", "main", "tok", &[]).unwrap();
+        assert!(result.is_empty());
     }
 }
