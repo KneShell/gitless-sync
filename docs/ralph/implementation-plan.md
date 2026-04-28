@@ -1,7 +1,7 @@
 # Implementation Plan: gitless-sync v0.1
 
 ## Status
-- Last updated: 2026-04-28T12:00:00Z (T10 complete)
+- Last updated: 2026-04-28T12:30:00Z (T11 in progress)
 - Total tasks: 15
 - Completed: 12 / 15
 
@@ -184,7 +184,7 @@ L5 (human):    T13
 
 ### T11. End-to-end 통합 테스트 (PRD 검증 시나리오 자동화)
 - **Spec reference**: 전 spec의 acceptance criteria 통합. 자동화 가능한 PRD 검증 시나리오 14항목 중 unit test로 안 잡히는 부분.
-- **Files**: `crates/gitless-sync/tests/integration.rs` (새 파일), 필요 시 Cargo.toml dev-deps에 `assert_cmd` + `predicates` 추가.
+- **Files**: `crates/gitless-sync/tests/integration.rs` (새 파일), `crates/gitless-sync/Cargo.toml` (dev-deps에 `assert_cmd` + `predicates` 추가), `crates/gitless-sync/src/main.rs` (테스트 전용 `GITLESS_API_BASE` env 오버라이드 — mockito 서버 URL 주입용 testability scaffolding).
 - **Depends on**: T09a, T09b, T09c, T10
 - **Acceptance criteria**:
   - `[AUTO]` PRD 시나리오 1~4 (4상태 분류) end-to-end: tempfile 디렉토리 + mockito GitHub API → 실제 binary 실행 → stdout JSON 파싱 → 4상태 카운트 검증.
@@ -196,7 +196,7 @@ L5 (human):    T13
   - `[AUTO]` PRD 시나리오 14 (`--status drift` → drift 항목만 files[]에 + summary는 전체).
   - `[AUTO]` PRD 시나리오 15 (partial failure → exit 4 + summary.failed > 0).
   - `[AUTO]` `cargo test --test integration` 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### T12. tarpaulin 80% 커버리지 게이트 통과
 - **Spec reference**: `CLAUDE.md` § Test coverage, `docs/ralph/project-ops.md` § Coverage, G-007
