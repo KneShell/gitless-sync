@@ -1,4 +1,4 @@
-// TODO(v0.1 cleanup): remove once all module functions are wired up.
+// Removing the allow surfaces real dead code in commands/scan (T14 owns the fix; see G-014).
 #![allow(dead_code, clippy::needless_pass_by_value)]
 
 use std::process::ExitCode;

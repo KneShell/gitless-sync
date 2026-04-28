@@ -1,9 +1,9 @@
 # Implementation Plan: gitless-sync v0.1
 
 ## Status
-- Last updated: 2026-04-28T13:30:00Z (T12 in progress)
-- Total tasks: 15
-- Completed: 13 / 15
+- Last updated: 2026-04-28T14:00:00Z (T12 BLOCKED, T14 added)
+- Total tasks: 16
+- Completed: 13 / 16
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -22,8 +22,9 @@ L2 (L1 deps):  T05  T06  T07  T08
 L3 (orchestr): T09a ─→ T09b ─→ T09c
                                   ↓
                                  T10
-L4 (validate): T11 ── T12
-                |
+L4 (validate): T11 ── T12 (BLOCKED, T14 unblocks)
+                |       ↑
+                |      T14 (cleanup, no deps)
 L5 (human):    T13
 ```
 
@@ -208,7 +209,23 @@ L5 (human):    T13
   - `[AUTO]` 통합 테스트는 별도 카운트, 80% 게이트엔 미반영 (project-ops.md 정책).
   - `[AUTO]` Windows 환경에서 LLVM 백엔드 false positive/negative 의심 시 G-007 참조 + guardrails 갱신.
   - `[AUTO]` Baseline cleanup: `crates/gitless-sync/src/main.rs` 첫 두 줄의 TODO 주석 + `#![allow(dead_code, clippy::needless_pass_by_value)]` 제거 후 `cargo clippy --all-targets -- -D warnings` 재통과. 만약 잔존 dead_code가 잡히면 해당 함수가 진짜 unwired된 것이므로 별도 fix task를 plan에 추가 후 `[!]` BLOCKED 처리.
-- **Status**: `[~]`
+- **Status**: `[!]` — baseline cleanup이 dead `pub fn` 4개 + 미사용 필드 surface (G-014). T14에서 정리한 뒤 사람이 `[ ]`로 reset 후 재시작.
+
+### T14. scan 모듈 dead_code 청산 + needless_pass_by_value 정리
+- **Spec reference**: T12 baseline cleanup 후 surface된 lint, G-014.
+- **Files**: `crates/gitless-sync/src/main.rs`, `crates/gitless-sync/src/commands/scan/mod.rs`, `crates/gitless-sync/src/commands/scan/github.rs`, `crates/gitless-sync/src/commands/scan/walker.rs`, `crates/gitless-sync/src/commands/diff/mod.rs`
+- **Depends on**: none (T12 BLOCKED 해제용 선행 cleanup)
+- **Acceptance criteria**:
+  - `[AUTO]` `commands/scan/mod.rs::run` 삭제 (main.rs는 `run_with_base` 사용 중, 영구 미사용).
+  - `[AUTO]` `commands/scan/github.rs`의 `fetch_tree` / `fetch_blob` / `fetch_last_commit_at` 비-`_with_base` 래퍼 3개 삭제 (모두 `_with_base` 형제로 대체됨).
+  - `[AUTO]` `RemoteFile.mode` / `RemoteFile.size` 필드 처리: production read 경로가 없으므로 (a) 두 필드 삭제 + 테스트 어서션 제거, 또는 (b) struct 자체 단순화. 테스트가 mode/size 필드를 더 이상 build할 필요 없도록 정리.
+  - `[AUTO]` `commands/scan/mod.rs::run_with_base(args: ScanArgs, …)` 시그니처를 `args: &ScanArgs`로 변경. 호출 측 (`main.rs`)도 갱신.
+  - `[AUTO]` `commands/diff/mod.rs::run_with_base(args: DiffArgs, …)` 시그니처도 동일 처리.
+  - `[AUTO]` `commands/scan/walker.rs::walkdir_to_io(err: walkdir::Error)` → `err: &walkdir::Error`. 호출 측 갱신.
+  - `[AUTO]` `crates/gitless-sync/src/main.rs` 첫 두 줄의 TODO 주석 + `#![allow(dead_code, clippy::needless_pass_by_value)]` 제거.
+  - `[AUTO]` `cargo fmt --check` + `cargo clippy --all-targets -- -D warnings` + `cargo test --workspace` 모두 통과.
+  - `[AUTO]` 완료 후 사람이 T12 status를 `[!]` → `[ ]`로 되돌리고 다음 ralph build iteration에서 T12 진행.
+- **Status**: `[ ]`
 
 ### T13. [HUMAN] 실제 GitHub repo + Fine-grained PAT 통합 검증
 - **Spec reference**: `docs/specs/spec-github-api.md` § Open Question, `docs/roadmap.md` § Open Questions
