@@ -1,7 +1,7 @@
 # Implementation Plan: gitless-sync v0.1
 
 ## Status
-- Last updated: 2026-04-28T09:30:00Z (T09a complete)
+- Last updated: 2026-04-28T09:45:00Z (T09b in progress)
 - Total tasks: 15
 - Completed: 9 / 15
 
@@ -157,7 +157,7 @@ L5 (human):    T13
   - `[AUTO]` `-v` (info) / `-vv` (debug) flag를 `main.rs`에 추가 + `scan::run`에서 stderr 로그 분기 (기본 warning 이상).
   - `[AUTO]` `--backend rest|graphql` flag를 `main.rs`에 추가 (clap enum). `scan::run` 진입부에서 분기 — `rest`(기본): 정상 흐름. `graphql`: 즉시 `GitlessError::Config("GraphQL backend not implemented in v0.1; use --backend rest. Phase 4 ETA.")` 반환, exit code 1.
   - `[AUTO]` `cargo test scan` 통과 (필터 + verbose + backend stub 케이스 모두).
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### T09c. Commits API 병렬화 (rayon)
 - **Spec reference**: `docs/specs/spec-github-api.md` § 병렬 호출 정책, G-011
