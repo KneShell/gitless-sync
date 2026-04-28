@@ -1,9 +1,9 @@
 # Implementation Plan: gitless-sync v0.1
 
 ## Status
-- Last updated: 2026-04-28T14:00:00Z (T12 BLOCKED, T14 added)
+- Last updated: 2026-04-29T00:00:00Z (T14 + T12 complete; v0.1 auto portion done)
 - Total tasks: 16
-- Completed: 13 / 16
+- Completed: 15 / 16
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -209,7 +209,7 @@ L5 (human):    T13
   - `[AUTO]` 통합 테스트는 별도 카운트, 80% 게이트엔 미반영 (project-ops.md 정책).
   - `[AUTO]` Windows 환경에서 LLVM 백엔드 false positive/negative 의심 시 G-007 참조 + guardrails 갱신.
   - `[AUTO]` Baseline cleanup: `crates/gitless-sync/src/main.rs` 첫 두 줄의 TODO 주석 + `#![allow(dead_code, clippy::needless_pass_by_value)]` 제거 후 `cargo clippy --all-targets -- -D warnings` 재통과. 만약 잔존 dead_code가 잡히면 해당 함수가 진짜 unwired된 것이므로 별도 fix task를 plan에 추가 후 `[!]` BLOCKED 처리.
-- **Status**: `[!]` — baseline cleanup이 dead `pub fn` 4개 + 미사용 필드 surface (G-014). T14에서 정리한 뒤 사람이 `[ ]`로 reset 후 재시작.
+- **Status**: `[x]` — T14 cleanup 완료 후 tarpaulin 95.87% (441/460 lines) 측정, 80% 게이트 통과.
 
 ### T14. scan 모듈 dead_code 청산 + needless_pass_by_value 정리
 - **Spec reference**: T12 baseline cleanup 후 surface된 lint, G-014.
@@ -225,7 +225,7 @@ L5 (human):    T13
   - `[AUTO]` `crates/gitless-sync/src/main.rs` 첫 두 줄의 TODO 주석 + `#![allow(dead_code, clippy::needless_pass_by_value)]` 제거.
   - `[AUTO]` `cargo fmt --check` + `cargo clippy --all-targets -- -D warnings` + `cargo test --workspace` 모두 통과.
   - `[AUTO]` 완료 후 사람이 T12 status를 `[!]` → `[ ]`로 되돌리고 다음 ralph build iteration에서 T12 진행.
-- **Status**: `[ ]`
+- **Status**: `[x]`
 
 ### T13. [HUMAN] 실제 GitHub repo + Fine-grained PAT 통합 검증
 - **Spec reference**: `docs/specs/spec-github-api.md` § Open Question, `docs/roadmap.md` § Open Questions

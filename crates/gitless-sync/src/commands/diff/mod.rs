@@ -26,16 +26,8 @@ pub struct DiffArgs {
 /// Returns any [`GitlessError`] raised by config loading, GitHub API calls,
 /// or local IO. Returns [`GitlessError::Config`] when the requested path
 /// exists on neither side.
-pub fn run(args: DiffArgs) -> Result<(), GitlessError> {
-    run_with_base(args, github::GITHUB_API_BASE)
-}
-
-/// Same as [`run`], but with an injectable GitHub API base URL for tests.
-///
-/// # Errors
-/// Identical to [`run`].
-pub(crate) fn run_with_base(args: DiffArgs, base: &str) -> Result<(), GitlessError> {
-    let outcome = compute_diff(&args, base)?;
+pub(crate) fn run_with_base(args: &DiffArgs, base: &str) -> Result<(), GitlessError> {
+    let outcome = compute_diff(args, base)?;
     if !outcome.stderr_message.is_empty() {
         eprintln!("{}", outcome.stderr_message);
     }
@@ -472,7 +464,7 @@ mod tests {
         let args = args_for(dir.path(), "only.md");
         // Smoke test: just verify run_with_base doesn't error in the
         // common one-sided case.
-        run_with_base(args, &server.url()).unwrap();
+        run_with_base(&args, &server.url()).unwrap();
     }
 
     #[test]

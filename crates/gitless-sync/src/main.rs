@@ -1,6 +1,3 @@
-// Removing the allow surfaces real dead code in commands/scan (T14 owns the fix; see G-014).
-#![allow(dead_code, clippy::needless_pass_by_value)]
-
 use std::process::ExitCode;
 
 use clap::{ArgAction, Parser, Subcommand};
@@ -87,7 +84,7 @@ fn main() -> ExitCode {
             summary_only,
             status,
         } => commands::scan::run_with_base(
-            commands::scan::ScanArgs {
+            &commands::scan::ScanArgs {
                 repo: cli.repo,
                 branch: cli.branch,
                 local: cli.local,
@@ -103,7 +100,7 @@ fn main() -> ExitCode {
             &api_base,
         ),
         Commands::Diff { path } => commands::diff::run_with_base(
-            commands::diff::DiffArgs {
+            &commands::diff::DiffArgs {
                 repo: cli.repo,
                 branch: cli.branch,
                 local: cli.local,

@@ -45,7 +45,7 @@ pub fn walk(root: &Path, matcher: &IgnoreMatcher) -> Result<Vec<LocalFile>, Gitl
         });
 
     for entry in walker {
-        let entry = entry.map_err(walkdir_to_io)?;
+        let entry = entry.map_err(|e| walkdir_to_io(&e))?;
 
         if !entry.file_type().is_file() {
             continue;
@@ -59,7 +59,7 @@ pub fn walk(root: &Path, matcher: &IgnoreMatcher) -> Result<Vec<LocalFile>, Gitl
             continue;
         }
 
-        let metadata = entry.metadata().map_err(walkdir_to_io)?;
+        let metadata = entry.metadata().map_err(|e| walkdir_to_io(&e))?;
         let modified = metadata.modified()?;
         let mtime: DateTime<Utc> = modified.into();
 
@@ -78,7 +78,7 @@ fn relative_path(root: &Path, path: &Path) -> Option<String> {
     Some(rel.to_string_lossy().replace('\\', "/"))
 }
 
-fn walkdir_to_io(err: walkdir::Error) -> GitlessError {
+fn walkdir_to_io(err: &walkdir::Error) -> GitlessError {
     GitlessError::Io(std::io::Error::other(err.to_string()))
 }
 
