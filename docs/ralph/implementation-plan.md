@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-04-28T00:00:00Z (initial draft, hand-written to skip ralph plan mode)
 - Total tasks: 13
-- Completed: 1 / 13
+- Completed: 2 / 13
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -54,7 +54,7 @@ L5 (human):    T13          |
   - `[AUTO]` env 변수 미설정 시 `GitlessError::AuthFailed` (exit 2). (PRD 시나리오 10 일부)
   - `[AUTO]` 우선순위 검증 헬퍼 또는 `scan::run`에서 처리 — CLI > env > toml > 기본값.
   - `[AUTO]` `cargo test config` 통과.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### T03. shared 단위 테스트 보강 (hash + normalize)
 - **Spec reference**: `docs/specs/spec-hash-and-normalize.md`
