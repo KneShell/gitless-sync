@@ -132,7 +132,7 @@ L5 (human):    T13          |
   - `[AUTO]` 빈 commits 배열 응답 → `GitlessError::Http(...)`.
   - `[AUTO]` 인증·rate limit 매핑 T06과 동일.
   - `[AUTO]` v0.1는 REST backend (본 함수)만 활성. GraphQL backend는 별도 함수로 박지 않음 — T09 `--backend graphql` 분기에서 stub 에러로 처리.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### T09. scan::run 오케스트레이터 + 필터 + verbose 플래그 + 병렬 commits + backend flag
 - **Spec reference**: `docs/specs/spec-output-schema.md`, `docs/specs/spec-error-contracts.md`, `docs/specs/spec-cli-interface.md` § Backend 분기, `docs/specs/spec-github-api.md` § 병렬 호출 정책 + § Backend 선택
