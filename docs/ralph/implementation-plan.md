@@ -83,7 +83,7 @@ L5 (human):    T13          |
   - `[AUTO]` 양쪽 다른 SHA + `local_mtime == remote_last_commit_at` → `Drift` (G-005). (PRD 시나리오 4)
   - `[AUTO]` 양쪽 다른 SHA + 한쪽 시간 None → `Drift`.
   - `[AUTO]` `compare::tests::*` 모든 케이스 + edge case 커버.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### T05. walker::walk 디렉토리 순회
 - **Spec reference**: `docs/specs/spec-ignore-policy.md` § 매칭 동작 + G-004
