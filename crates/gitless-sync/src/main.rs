@@ -3,10 +3,12 @@
 
 use std::process::ExitCode;
 
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand};
 
 mod commands;
 mod shared;
+
+use commands::scan::Backend;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -38,6 +40,12 @@ struct Cli {
 
     #[arg(long, global = true)]
     pretty: bool,
+
+    #[arg(long, global = true, value_enum, default_value_t = Backend::Rest)]
+    backend: Backend,
+
+    #[arg(short = 'v', long = "verbose", global = true, action = ArgAction::Count)]
+    verbose: u8,
 }
 
 #[derive(Subcommand, Debug)]
@@ -71,6 +79,8 @@ fn main() -> ExitCode {
             pretty: cli.pretty,
             summary_only,
             status,
+            backend: cli.backend,
+            verbose: cli.verbose,
         }),
         Commands::Diff { path } => commands::diff::run(commands::diff::DiffArgs {
             repo: cli.repo,
