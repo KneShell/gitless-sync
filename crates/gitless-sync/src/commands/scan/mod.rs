@@ -49,25 +49,21 @@ pub struct ScanArgs {
 
 /// Run the `scan` command and write the resulting JSON report to stdout.
 ///
+/// `base` is injectable so integration tests can point the binary at a mockito
+/// server via `GITLESS_API_BASE`. Production callers pass
+/// [`github::GITHUB_API_BASE`] (resolved in `main.rs`).
+///
 /// # Errors
 /// Returns any [`GitlessError`] raised by config loading, GitHub API calls,
 /// or local IO. Returns [`GitlessError::PartialFailure`] when one or more
 /// files could not be hashed.
-pub fn run(args: ScanArgs) -> Result<(), GitlessError> {
-    run_with_base(args, github::GITHUB_API_BASE)
-}
-
-/// Same as [`run`], but with an injectable GitHub API base URL for tests.
-///
-/// # Errors
-/// Identical to [`run`].
-pub(crate) fn run_with_base(args: ScanArgs, base: &str) -> Result<(), GitlessError> {
+pub(crate) fn run_with_base(args: &ScanArgs, base: &str) -> Result<(), GitlessError> {
     if args.backend == Backend::Graphql {
         return Err(GitlessError::Config(
             "GraphQL backend not implemented in v0.1; use --backend rest. Phase 4 ETA.".to_string(),
         ));
     }
-    let (report, failed_count) = build_report(&args, base)?;
+    let (report, failed_count) = build_report(args, base)?;
     let json = output::serialize(&report, args.pretty).expect("ScanReport serialization is total");
     println!("{json}");
     if failed_count > 0 {
@@ -748,8 +744,6 @@ mod tests {
         let remote = RemoteFile {
             path: "ghost.md".to_string(),
             sha: "remote-sha".to_string(),
-            mode: "100644".to_string(),
-            size: None,
         };
 
         let (entries, summary, failed) = assemble_entries(
@@ -785,8 +779,6 @@ mod tests {
         let remote = RemoteFile {
             path: "ok.md".to_string(),
             sha: sha.clone(),
-            mode: "100644".to_string(),
-            size: None,
         };
 
         // base is intentionally unreachable — the test fails if the code
@@ -913,7 +905,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let mut args = args_for(dir.path(), Some("o/r"), Some("tok"));
         args.backend = Backend::Graphql;
-        let err = run_with_base(args, "http://127.0.0.1:0").unwrap_err();
+        let err = run_with_base(&args, "http://127.0.0.1:0").unwrap_err();
         assert!(matches!(err, GitlessError::Config(ref msg) if msg.contains("GraphQL")));
         assert_eq!(err.exit_code(), 1);
     }
@@ -931,7 +923,7 @@ mod tests {
 
         let args = args_for(dir.path(), Some("o/r"), Some("tok"));
         // Backend defaults to Rest via args_for. Should succeed.
-        run_with_base(args, &server.url()).unwrap();
+        run_with_base(&args, &server.url()).unwrap();
     }
 
     #[test]

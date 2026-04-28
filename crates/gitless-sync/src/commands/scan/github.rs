@@ -13,8 +13,6 @@ const USER_AGENT: &str = "gitless-sync/0.1";
 pub struct RemoteFile {
     pub path: String,
     pub sha: String,
-    pub mode: String,
-    pub size: Option<u64>,
 }
 
 /// Fetch the recursive tree of `branch` from a GitHub repository.
@@ -24,20 +22,15 @@ pub struct RemoteFile {
 /// unsupported modes (`100755`, `120000`, `160000`, …) with a stderr warning
 /// (G-010).
 ///
+/// `base` is injectable so integration tests can point at a mockito server.
+/// Production callers pass [`GITHUB_API_BASE`].
+///
 /// # Errors
 /// - [`GitlessError::TreesTruncated`] when the API response sets `truncated: true` (G-002).
 /// - [`GitlessError::AuthFailed`] on HTTP 401.
 /// - [`GitlessError::RateLimitExceeded`] on HTTP 403 with `X-RateLimit-Remaining: 0`.
 /// - [`GitlessError::Http`] for other non-2xx responses, transport failures,
 ///   and JSON decode errors.
-pub fn fetch_tree(repo: &str, branch: &str, token: &str) -> Result<Vec<RemoteFile>, GitlessError> {
-    fetch_tree_with_base(GITHUB_API_BASE, repo, branch, token)
-}
-
-/// Same as [`fetch_tree`], but with an injectable base URL for tests.
-///
-/// # Errors
-/// Identical to [`fetch_tree`]; this is the inner implementation.
 pub(crate) fn fetch_tree_with_base(
     base: &str,
     repo: &str,
@@ -75,8 +68,6 @@ pub(crate) fn fetch_tree_with_base(
             files.push(RemoteFile {
                 path: entry.path,
                 sha: entry.sha,
-                mode: entry.mode,
-                size: entry.size,
             });
         } else {
             eprintln!(
@@ -96,19 +87,14 @@ pub(crate) fn fetch_tree_with_base(
 /// inside the base64 payload (the API line-wraps every 60 chars) is stripped
 /// before decoding.
 ///
+/// `base` is injectable so integration tests can point at a mockito server.
+/// Production callers pass [`GITHUB_API_BASE`].
+///
 /// # Errors
 /// - [`GitlessError::AuthFailed`] on HTTP 401.
 /// - [`GitlessError::RateLimitExceeded`] on HTTP 403 with `X-RateLimit-Remaining: 0`.
 /// - [`GitlessError::Http`] for other non-2xx responses, transport failures,
 ///   unexpected `encoding` values, and base64 decode errors.
-pub fn fetch_blob(repo: &str, sha: &str, token: &str) -> Result<Vec<u8>, GitlessError> {
-    fetch_blob_with_base(GITHUB_API_BASE, repo, sha, token)
-}
-
-/// Same as [`fetch_blob`], but with an injectable base URL for tests.
-///
-/// # Errors
-/// Identical to [`fetch_blob`]; this is the inner implementation.
 pub(crate) fn fetch_blob_with_base(
     base: &str,
     repo: &str,
@@ -154,24 +140,14 @@ pub(crate) fn fetch_blob_with_base(
 /// call (G-003). Concurrent invocation across threads is safe; ureq's HTTP
 /// path is stateless and the function holds no shared mutable state.
 ///
+/// `base` is injectable so integration tests can point at a mockito server.
+/// Production callers pass [`GITHUB_API_BASE`].
+///
 /// # Errors
 /// - [`GitlessError::AuthFailed`] on HTTP 401.
 /// - [`GitlessError::RateLimitExceeded`] on HTTP 403 with `X-RateLimit-Remaining: 0`.
 /// - [`GitlessError::Http`] for other non-2xx responses, transport failures,
 ///   JSON decode errors, an empty commits array, or an unparseable date.
-pub fn fetch_last_commit_at(
-    repo: &str,
-    branch: &str,
-    path: &str,
-    token: &str,
-) -> Result<DateTime<Utc>, GitlessError> {
-    fetch_last_commit_at_with_base(GITHUB_API_BASE, repo, branch, path, token)
-}
-
-/// Same as [`fetch_last_commit_at`], but with an injectable base URL for tests.
-///
-/// # Errors
-/// Identical to [`fetch_last_commit_at`]; this is the inner implementation.
 pub(crate) fn fetch_last_commit_at_with_base(
     base: &str,
     repo: &str,
@@ -243,8 +219,6 @@ struct TreeEntry {
     #[serde(rename = "type")]
     entry_type: String,
     sha: String,
-    #[serde(default)]
-    size: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -299,8 +273,6 @@ mod tests {
         assert_eq!(files.len(), 2);
         assert_eq!(files[0].path, "README.md");
         assert_eq!(files[0].sha, "sha1");
-        assert_eq!(files[0].mode, "100644");
-        assert_eq!(files[0].size, Some(100));
         assert_eq!(files[1].path, "src/main.rs");
         assert_eq!(files[1].sha, "sha2");
 
