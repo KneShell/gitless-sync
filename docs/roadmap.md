@@ -44,6 +44,8 @@
 #### gh subprocess 방식 회고
 Phase 3 (`gitless-push`) 들어가기 전, v0.1의 ureq 직접 호출 vs gh CLI subprocess 두 방식을 비교한다. v0.1는 ureq로 갔지만 회고적으로 gh subprocess가 더 단순했을 가능성 — 결정의 적정성 재검토.
 
+**Claude Code 친화성 기준 추가 (2026-04-29)**: 6인 tribunal은 4기준 (우아함/속도/GitHub 친화성/v0.1 정신)으로 평가, 이 기준 누락. 사용자가 사후에 "Claude Code 친화 CLI 만드는 게 핵심 use case"임을 명시. ureq 직접 HTTP면 Claude Code가 매번 `--token env:GITHUB_TOKEN` 인자 필요 또는 사용자 env var 사전 setup, gh subprocess면 Claude Code 환경의 gh 인증을 자동 활용 → 0-마찰. Phase 3 진입 시 재검토 시 이 기준이 가장 무거움.
+
 - **gh로 갔을 때 얻는 것**: 인증·rate limit·abuse detection·GraphQL 호출 모두 gh에 위임. `shared/error.rs`의 HTTP 관련 variant + G-003 / G-011 guardrail 상당 부분 무용. 코드 베이스 슬림.
 - **gh로 갔을 때 잃는 것**: gh 설치 의존성. 단 PRD 정신("git 없는 환경")과 모순 X — iCloud는 `git init`을 막지 gh API 호출을 막지 않음. subprocess 호출 비용은 GraphQL batching이면 무관 (한 번만 fork).
 - **결정 산출물**: 이 회고 결과로 (1) Phase 3 push 도구의 HTTP 방식, (2) Phase 4 batching 구현 (ureq+GraphQL vs gh+GraphQL) 동시 결정. 결정 시 `gitless-sync` v0.1를 갈아엎을지 (사실 가능성 낮음, 단순 정리만), Phase 3+4 신규 코드만 새 방식으로 갈지 분기.

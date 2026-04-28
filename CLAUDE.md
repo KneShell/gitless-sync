@@ -1,5 +1,16 @@
 # gitless-sync
 
+## Current State (2026-04-29)
+
+**v0.1 자동 부분 완료** (T01~T12, T14 모두 `[x]`, 145 tests pass, tarpaulin 95.87%).
+
+**남은 작업**:
+- T13 `[HUMAN]`: Fine-grained PAT (Contents: Read만)로 Trees + Commits API 정식 권한 검증. 1차 smoke test는 `$env:GITHUB_TOKEN = (gh auth token)`으로 통과 (37 identical / 0 drift, Commits API 미호출).
+
+**미결정 (Phase 3 진입 전 결정 필수)**: ureq 직접 HTTP vs gh subprocess. 6인 tribunal은 4기준 (우아함 / 속도 / GitHub 친화성 / v0.1 정신)으로 ureq 선택했지만 **"Claude Code 친화성" 기준은 평가 안 됨** — 사용자가 사후에 이게 핵심 기준임을 명시 (ureq면 Claude Code가 매번 token 인자 필요, gh subprocess면 자동 인증). Trade-off 디테일은 `docs/roadmap.md` § Phase 4 § gh subprocess 회고.
+
+**다음 세션 진입점 후보**: (1) T13 정식 PAT 검증으로 v0.1 정식 출하 / (2) Phase 2 (`gitless-sync init`) 시작 / (3) Phase 3 (`gitless-push`) 진입 — gh subprocess 결정 동시.
+
 ## Project Overview
 git이 없는 로컬 디렉토리를 GitHub repo와 단방향으로 비교해, 드리프트를 정량적으로 보고하는 read-only AI 친화 CLI. iCloud 동기화 디렉토리처럼 git 사용 자체가 불가능한 환경에서 "평행우주 드리프트"를 막기 위한 도구. 도구는 사실(4분류 JSON)만 제공하고 결정은 호출자(사람 또는 AI)에게 맡긴다.
 
