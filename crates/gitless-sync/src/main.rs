@@ -1,11 +1,12 @@
+// TODO(v0.1 cleanup): remove once all module functions are wired up.
+#![allow(dead_code, clippy::needless_pass_by_value)]
+
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 
 mod commands;
 mod shared;
-
-use shared::error::GitlessError;
 
 #[derive(Parser, Debug)]
 #[command(
