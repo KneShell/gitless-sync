@@ -1,7 +1,7 @@
 # Implementation Plan: gitless-sync v0.1
 
 ## Status
-- Last updated: 2026-04-28T08:00:00Z (T08 complete)
+- Last updated: 2026-04-28T09:00:00Z (T09a in progress)
 - Total tasks: 15
 - Completed: 8 / 15
 
@@ -145,7 +145,7 @@ L5 (human):    T13
   - `[AUTO]` Partial failure: 해시 실패 파일은 `Status::Failed` + `summary.failed` 증가 + exit code 4. 전체 결과는 정상 출력.
   - `[AUTO]` 정상 종료 → exit 0. stdout JSON 한 덩어리 (`serde_json::from_str` 가능, G-008).
   - `[AUTO]` `cargo test scan` 통과 (정상 흐름 + partial failure 케이스).
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### T09b. CLI 옵션 처리 (필터 + verbose + backend stub)
 - **Spec reference**: `docs/specs/spec-cli-interface.md` § Backend 분기, `docs/specs/spec-output-schema.md`
