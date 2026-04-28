@@ -180,7 +180,7 @@ L5 (human):    T13
   - `[AUTO]` 파일이 한쪽에만 있으면 stderr 메시지 ("(remote only)" / "(local only)") + 빈 stdout 또는 한쪽 내용 그대로.
   - `[AUTO]` 바이너리 파일이면 diff 안 하고 stderr 메시지 ("binary file, diff skipped"). exit 0.
   - `[AUTO]` `cargo test diff` 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### T11. End-to-end 통합 테스트 (PRD 검증 시나리오 자동화)
 - **Spec reference**: 전 spec의 acceptance criteria 통합. 자동화 가능한 PRD 검증 시나리오 14항목 중 unit test로 안 잡히는 부분.
