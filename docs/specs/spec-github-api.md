@@ -38,6 +38,15 @@ GitHub Trees / Blobs / Commits API를 blocking `ureq`로 호출. 인증·rate li
 ### Truncation 감지
 Trees API 응답 JSON에 `truncated: true` → 즉시 `TreesTruncated` 반환. 부분 결과 사용 금지.
 
+### 병렬 호출 정책 (Latency)
+- `fetch_last_commit_at`은 차이 있는 파일 N개에 대해 직렬로 호출하면 N × 100~300ms latency 누적 → 1000 drift 파일이면 분 단위 대기. rate limit(5,000/h) 한참 전에 사용자 인내심 한계.
+- 해결: T09 (`scan::run` orchestrator)에서 **rayon으로 병렬 호출**, default **8 concurrent**.
+- 패턴: `paths.par_iter().map(|p| github::fetch_last_commit_at(repo, branch, p, token)).collect::<Result<Vec<_>, _>>()`.
+- ureq의 `Agent`는 thread-safe — caller가 한 번 생성하여 여러 thread에서 공유 가능 (또는 stateless 호출).
+- 동시 요청 수 상한 = 8 (G-011, GitHub abuse detection 회피). 변경 시 G-011 갱신.
+- burst 시 429 응답 가능성 → `GitlessError::Http(...)`로 매핑 후 즉시 종료. exponential backoff은 v0.1 비목표 (Phase 4).
+- `fetch_tree`와 `fetch_blob`은 호출 횟수 자체가 적으므로 (Trees는 1회, Blob은 diff 명령에서만) 병렬화 대상 아님.
+
 ## Acceptance Criteria
 - `[AUTO]` `fetch_tree`가 mockito 200 응답에서 `Vec<RemoteFile>` 반환 (blob entry만 필터). 단위 테스트.
 - `[AUTO]` `fetch_tree`가 mockito 응답 `truncated: true` → `GitlessError::TreesTruncated` (PRD 검증 시나리오 12).
@@ -49,4 +58,5 @@ Trees API 응답 JSON에 `truncated: true` → 즉시 `TreesTruncated` 반환. �
 - `[AUTO]` `fetch_last_commit_at`가 mockito 응답에서 첫 commit의 date를 `DateTime<Utc>`로 파싱.
 - `[AUTO]` `fetch_last_commit_at`가 빈 commits 배열 응답 → `GitlessError::Http(...)` (예상 외 케이스).
 - `[AUTO]` 모든 함수가 `User-Agent: gitless-sync/0.1` 헤더 송신 (mockito match로 검증).
+- `[AUTO]` `fetch_last_commit_at`은 `Send + Sync` 호출 가능 (caller가 rayon `par_iter`로 동시 호출해도 안전). 단위 테스트에서 동일 함수를 여러 thread에서 동시 호출 → 모두 정상 결과.
 - `[HUMAN]` 실제 GitHub repo + 실제 PAT(Fine-grained `Contents: Read`)로 `fetch_tree` 1회 통합 검증. `docs/roadmap.md` Open Question 해소용.
