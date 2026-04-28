@@ -185,6 +185,7 @@ L5 (human):    T13          |
   - `[AUTO]` 미달 시 부족한 모듈에 unit test 추가하여 80% 도달. 어느 모듈이 부족한지는 tarpaulin 출력에서 확인.
   - `[AUTO]` 통합 테스트는 별도 카운트, 80% 게이트엔 미반영 (project-ops.md 정책).
   - `[AUTO]` Windows 환경에서 LLVM 백엔드 false positive/negative 의심 시 G-007 참조 + guardrails 갱신.
+  - `[AUTO]` Baseline cleanup: `crates/gitless-sync/src/main.rs` 첫 두 줄의 TODO 주석 + `#![allow(dead_code, clippy::needless_pass_by_value)]` 제거 후 `cargo clippy --all-targets -- -D warnings` 재통과. 만약 잔존 dead_code가 잡히면 해당 함수가 진짜 unwired된 것이므로 별도 fix task를 plan에 추가 후 `[!]` BLOCKED 처리.
 - **Status**: `[ ]`
 
 ### T13. [HUMAN] 실제 GitHub repo + Fine-grained PAT 통합 검증
