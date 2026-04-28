@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-04-28T00:00:00Z (initial draft, hand-written to skip ralph plan mode)
 - Total tasks: 13
-- Completed: 0 / 13
+- Completed: 1 / 13
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -40,7 +40,7 @@ L5 (human):    T13          |
   - `[AUTO]` `.gitignore` + `--ignore` 합집합 동작 (tempfile 통합 테스트, PRD 시나리오 9).
   - `[AUTO]` 매칭 키는 forward slash (Windows 백슬래시 입력도 정규화).
   - `[AUTO]` `cargo test ignore` 통과.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### T02. config::load + Token 파싱 헬퍼
 - **Spec reference**: `docs/specs/spec-config.md`
