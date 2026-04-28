@@ -68,7 +68,7 @@ L5 (human):    T13          |
   - `[AUTO]` `normalize::tests::prepare_for_hash_returns_correct_flag` — binary 입력 `(_, true)`, text 입력 `(_, false)`.
   - `[AUTO]` `hash::tests::same_binary_same_sha` — 동일 raw bytes → 동일 SHA. (PRD 시나리오 8)
   - `[AUTO]` `cargo test --workspace` 통과. PRD 시나리오 5~8 단위 테스트로 모두 검증.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### T04. compare::classify 4상태 판정
 - **Spec reference**: `docs/specs/spec-classification.md`
