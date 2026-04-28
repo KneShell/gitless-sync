@@ -28,6 +28,8 @@
 #### GraphQL batching 도입
 `fetch_last_commit_at`의 N×round-trip 비효율을 GraphQL alias batching으로 단축. v0.1의 REST + rayon 8 concurrent (1000 path = 25초)를 1~10 round-trip (수 초)로 줄임.
 
+**v0.1 인터페이스 박힘**: `--backend graphql` flag는 v0.1에 stub로 이미 존재 (`spec-cli-interface.md` § Backend 분기, `spec-github-api.md` § Backend 선택). Phase 4에서 backend 본체만 채우면 호출자(LLM) 코드 변경 0. forward-compat 보장.
+
 - **GitHub GraphQL 공식 한도 (fact-checked 2026-04-28)**:
   - 단일 query 최대 **500,000 nodes**
   - rate limit: **5,000 points/hour** + **2,000 points/minute** (per user)
