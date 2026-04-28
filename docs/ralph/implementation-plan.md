@@ -1,7 +1,7 @@
 # Implementation Plan: gitless-sync v0.1
 
 ## Status
-- Last updated: 2026-04-28T13:00:00Z (T11 complete)
+- Last updated: 2026-04-28T13:30:00Z (T12 in progress)
 - Total tasks: 15
 - Completed: 13 / 15
 
@@ -208,7 +208,7 @@ L5 (human):    T13
   - `[AUTO]` 통합 테스트는 별도 카운트, 80% 게이트엔 미반영 (project-ops.md 정책).
   - `[AUTO]` Windows 환경에서 LLVM 백엔드 false positive/negative 의심 시 G-007 참조 + guardrails 갱신.
   - `[AUTO]` Baseline cleanup: `crates/gitless-sync/src/main.rs` 첫 두 줄의 TODO 주석 + `#![allow(dead_code, clippy::needless_pass_by_value)]` 제거 후 `cargo clippy --all-targets -- -D warnings` 재통과. 만약 잔존 dead_code가 잡히면 해당 함수가 진짜 unwired된 것이므로 별도 fix task를 plan에 추가 후 `[!]` BLOCKED 처리.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### T13. [HUMAN] 실제 GitHub repo + Fine-grained PAT 통합 검증
 - **Spec reference**: `docs/specs/spec-github-api.md` § Open Question, `docs/roadmap.md` § Open Questions
