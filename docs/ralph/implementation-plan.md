@@ -131,23 +131,25 @@ L5 (human):    T13          |
   - `[AUTO]` mockito 응답 첫 commit의 `commit.committer.date` → `DateTime<Utc>` 파싱.
   - `[AUTO]` 빈 commits 배열 응답 → `GitlessError::Http(...)`.
   - `[AUTO]` 인증·rate limit 매핑 T06과 동일.
+  - `[AUTO]` v0.1는 REST backend (본 함수)만 활성. GraphQL backend는 별도 함수로 박지 않음 — T09 `--backend graphql` 분기에서 stub 에러로 처리.
 - **Status**: `[ ]`
 
-### T09. scan::run 오케스트레이터 + 필터 + verbose 플래그 + 병렬 commits
-- **Spec reference**: `docs/specs/spec-output-schema.md`, `docs/specs/spec-error-contracts.md`, `docs/specs/spec-cli-interface.md`, `docs/specs/spec-github-api.md` § 병렬 호출 정책
+### T09. scan::run 오케스트레이터 + 필터 + verbose 플래그 + 병렬 commits + backend flag
+- **Spec reference**: `docs/specs/spec-output-schema.md`, `docs/specs/spec-error-contracts.md`, `docs/specs/spec-cli-interface.md` § Backend 분기, `docs/specs/spec-github-api.md` § 병렬 호출 정책 + § Backend 선택
 - **Files**: `crates/gitless-sync/src/commands/scan/mod.rs`, `crates/gitless-sync/src/main.rs`, `crates/gitless-sync/Cargo.toml`
 - **Depends on**: T01, T02, T03, T04, T05, T06, T07, T08
 - **Acceptance criteria**:
   - `[AUTO]` 흐름: `config::load` → token 결정 → `fetch_tree` → `walker::walk` → 각 파일 SHA 계산 → 차이 있는 파일에만 `fetch_last_commit_at` (G-003) → `classify` → `ScanReport` 조립 → `serialize` → stdout.
+  - `[AUTO]` `--backend rest|graphql` flag를 `main.rs`에 추가 (clap enum). `scan::run` 진입부에서 분기 — `rest`(기본): 정상 흐름. `graphql`: 즉시 `GitlessError::Config("GraphQL backend not implemented in v0.1; use --backend rest. Phase 4 ETA.")` 반환, exit code 1.
   - `[AUTO]` Commits API는 SHA 다른 파일에만 호출. identical에는 호출 금지.
-  - `[AUTO]` **Commits API 병렬 호출**: `Cargo.toml`에 `rayon = "1"` 추가 + `Cargo.lock` 갱신. `paths.par_iter().map(|p| github::fetch_last_commit_at(...)).collect::<Result<Vec<_>, _>>()` 패턴. default 8 concurrent (G-011, `rayon::ThreadPoolBuilder::new().num_threads(8).build()` 또는 동등 수단).
+  - `[AUTO]` **Commits API 병렬 호출** (REST backend 한정): `Cargo.toml`에 `rayon = "1"` 추가 + `Cargo.lock` 갱신. `paths.par_iter().map(|p| github::fetch_last_commit_at(...)).collect::<Result<Vec<_>, _>>()` 패턴. default 8 concurrent (G-011, `rayon::ThreadPoolBuilder::new().num_threads(8).build()` 또는 동등 수단).
   - `[AUTO]` 의존성 변경 후 `cargo deny check` + `cargo audit` 통과 (project-ops.md).
   - `[AUTO]` `--summary-only` 시 `ScanReport.files = None` → 출력 JSON에 `files` 키 omit. (PRD 시나리오 13)
   - `[AUTO]` `--status drift,local_only_changed` 시 해당 status만 `files[]`. summary는 전체 카운트 유지. (PRD 시나리오 14)
   - `[AUTO]` `-v` (info) / `-vv` (debug) flag를 `main.rs`에 추가 + scan::run에서 stderr 로그 분기.
   - `[AUTO]` Partial failure: 해시 실패 파일은 `Status::Failed` + `summary.failed` 증가 + exit code 4. 전체 결과는 정상 출력.
   - `[AUTO]` 정상 종료 → exit 0. stdout JSON 한 덩어리 (`serde_json::from_str` 가능, G-008).
-  - `[AUTO]` `cargo test scan` 통과.
+  - `[AUTO]` `cargo test scan` 통과 (REST backend 정상 동작 + `--backend graphql` stub 에러 케이스 둘 다).
 - **Status**: `[ ]`
 
 ### T10. diff::run unified diff 출력

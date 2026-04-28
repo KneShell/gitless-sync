@@ -38,6 +38,13 @@ GitHub Trees / Blobs / Commits API를 blocking `ureq`로 호출. 인증·rate li
 ### Truncation 감지
 Trees API 응답 JSON에 `truncated: true` → 즉시 `TreesTruncated` 반환. 부분 결과 사용 금지.
 
+### Backend 선택 (v0.1 stub + Phase 4 활성화)
+- v0.1는 **REST backend만 활성**. GraphQL backend는 인터페이스만 박고 본체는 stub.
+- `--backend rest` (기본): 본 spec § fetch_tree / fetch_blob / fetch_last_commit_at + § 병렬 호출 정책 그대로 동작.
+- `--backend graphql`: `GitlessError::Config("GraphQL backend not implemented in v0.1; use --backend rest. Phase 4 ETA.")` 즉시 반환, exit code 1. (orchestrator `scan::run` 진입부에서 분기.)
+- forward-compatibility 의도: 호출자(LLM)가 v0.1부터 `--backend graphql`을 명시 가능. Phase 4에서 GraphQL backend 본체 채울 때 호출자 코드 변경 0.
+- Phase 4 활성화 시 본 섹션을 갱신: GraphQL endpoint (`/graphql`), alias batching 패턴, GraphQL 응답 → `Vec<RemoteFile>` / `DateTime<Utc>` 매핑.
+
 ### 병렬 호출 정책 (Latency)
 - `fetch_last_commit_at`은 차이 있는 파일 N개에 대해 직렬로 호출하면 N × 100~300ms latency 누적 → 1000 drift 파일이면 분 단위 대기. rate limit(5,000/h) 한참 전에 사용자 인내심 한계.
 - 해결: T09 (`scan::run` orchestrator)에서 **rayon으로 병렬 호출**, default **8 concurrent**.
