@@ -1,9 +1,9 @@
 # Implementation Plan: gitless-sync v0.1
 
 ## Status
-- Last updated: 2026-04-28T00:30:00Z (T07 in progress)
+- Last updated: 2026-04-28T00:50:00Z (T07 complete)
 - Total tasks: 13
-- Completed: 6 / 13
+- Completed: 7 / 13
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -121,7 +121,7 @@ L5 (human):    T13          |
   - `[AUTO]` 잘못된 base64 응답 → `GitlessError::Http(...)`.
   - `[AUTO]` 인증·rate limit 매핑 T06과 동일 룰.
   - `[AUTO]` `User-Agent` + `Authorization` 헤더 송신.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### T08. github::fetch_last_commit_at + mockito tests
 - **Spec reference**: `docs/specs/spec-github-api.md` § fetch_last_commit_at
