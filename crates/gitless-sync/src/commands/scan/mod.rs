@@ -20,6 +20,14 @@ use self::github::RemoteFile;
 use self::output::{SCHEMA_VERSION, ScanReport, Summary};
 use self::walker::LocalFile;
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, clap::ValueEnum)]
+#[clap(rename_all = "lowercase")]
+pub enum Backend {
+    #[default]
+    Rest,
+    Graphql,
+}
+
 #[derive(Debug)]
 pub struct ScanArgs {
     pub repo: Option<String>,
@@ -31,6 +39,8 @@ pub struct ScanArgs {
     pub pretty: bool,
     pub summary_only: bool,
     pub status: Option<String>,
+    pub backend: Backend,
+    pub verbose: u8,
 }
 
 /// Run the `scan` command and write the resulting JSON report to stdout.
@@ -48,6 +58,11 @@ pub fn run(args: ScanArgs) -> Result<(), GitlessError> {
 /// # Errors
 /// Identical to [`run`].
 pub(crate) fn run_with_base(args: ScanArgs, base: &str) -> Result<(), GitlessError> {
+    if args.backend == Backend::Graphql {
+        return Err(GitlessError::Config(
+            "GraphQL backend not implemented in v0.1; use --backend rest. Phase 4 ETA.".to_string(),
+        ));
+    }
     let (report, failed_count) = build_report(&args, base)?;
     let json = output::serialize(&report, args.pretty).expect("ScanReport serialization is total");
     println!("{json}");
@@ -86,10 +101,28 @@ fn build_report(args: &ScanArgs, base: &str) -> Result<(ScanReport, usize), Gitl
     let token = config::resolve_token(token_spec)?;
 
     let matcher = IgnoreMatcher::new(local_root, &ignore_patterns)?;
+
+    if args.verbose >= 1 {
+        eprintln!("info: scanning {} against {repo}@{branch}", args.local);
+    }
+
     let remote_files = github::fetch_tree_with_base(base, &repo, &branch, &token)?;
     let local_files = walker::walk(local_root, &matcher)?;
 
-    let (entries, summary, failed_count) = assemble_entries(
+    if args.verbose >= 1 {
+        eprintln!(
+            "info: found {} local files, {} remote files",
+            local_files.len(),
+            remote_files.len()
+        );
+    }
+    if args.verbose >= 2 {
+        for lf in &local_files {
+            eprintln!("debug: local entry {}", lf.relative_path);
+        }
+    }
+
+    let (mut entries, summary, failed_count) = assemble_entries(
         &local_files,
         &remote_files,
         base,
@@ -99,6 +132,16 @@ fn build_report(args: &ScanArgs, base: &str) -> Result<(ScanReport, usize), Gitl
         args.keep_bom,
     )?;
 
+    if let Some(filter) = parse_status_filter(args.status.as_deref())? {
+        entries.retain(|e| filter.contains(&e.status));
+    }
+
+    let files = if args.summary_only {
+        None
+    } else {
+        Some(entries)
+    };
+
     let report = ScanReport {
         schema_version: SCHEMA_VERSION.to_string(),
         scanned_at: Utc::now(),
@@ -106,10 +149,46 @@ fn build_report(args: &ScanArgs, base: &str) -> Result<(ScanReport, usize), Gitl
         branch,
         local_root: args.local.clone(),
         summary,
-        files: Some(entries),
+        files,
     };
 
     Ok((report, failed_count))
+}
+
+/// Parse the comma-separated `--status` filter into a list of [`Status`].
+///
+/// Returns `Ok(None)` when no filter is set, `Ok(Some(vec))` when one or more
+/// valid status names are provided, and [`GitlessError::Config`] for any
+/// unrecognized token.
+fn parse_status_filter(raw: Option<&str>) -> Result<Option<Vec<Status>>, GitlessError> {
+    let Some(s) = raw else {
+        return Ok(None);
+    };
+    let mut out = Vec::new();
+    for tok in s.split(',') {
+        let trimmed = tok.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        out.push(parse_status_token(trimmed)?);
+    }
+    if out.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(out))
+}
+
+fn parse_status_token(s: &str) -> Result<Status, GitlessError> {
+    match s {
+        "identical" => Ok(Status::Identical),
+        "local_only_changed" => Ok(Status::LocalOnlyChanged),
+        "remote_only_changed" => Ok(Status::RemoteOnlyChanged),
+        "drift" => Ok(Status::Drift),
+        "failed" => Ok(Status::Failed),
+        other => Err(GitlessError::Config(format!(
+            "invalid --status value: {other}"
+        ))),
+    }
 }
 
 /// Compare matched local/remote files and produce the per-entry report rows.
@@ -252,6 +331,8 @@ mod tests {
             pretty: false,
             summary_only: false,
             status: None,
+            backend: Backend::Rest,
+            verbose: 0,
         }
     }
 
@@ -640,5 +721,248 @@ mod tests {
         assert_eq!(report.repo, "o/r");
         assert_eq!(report.branch, "main");
         assert!(report.files.is_some());
+    }
+
+    #[test]
+    fn parse_status_filter_returns_none_when_arg_absent() {
+        assert!(parse_status_filter(None).unwrap().is_none());
+    }
+
+    #[test]
+    fn parse_status_filter_returns_none_for_empty_or_whitespace() {
+        assert!(parse_status_filter(Some("")).unwrap().is_none());
+        assert!(parse_status_filter(Some(" , ")).unwrap().is_none());
+    }
+
+    #[test]
+    fn parse_status_filter_parses_single_value() {
+        let v = parse_status_filter(Some("drift")).unwrap().unwrap();
+        assert_eq!(v, vec![Status::Drift]);
+    }
+
+    #[test]
+    fn parse_status_filter_parses_multiple_values_with_whitespace() {
+        let v = parse_status_filter(Some("drift, local_only_changed ,identical"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            v,
+            vec![Status::Drift, Status::LocalOnlyChanged, Status::Identical]
+        );
+    }
+
+    #[test]
+    fn parse_status_filter_accepts_all_known_tokens() {
+        let v = parse_status_filter(Some(
+            "identical,local_only_changed,remote_only_changed,drift,failed",
+        ))
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            v,
+            vec![
+                Status::Identical,
+                Status::LocalOnlyChanged,
+                Status::RemoteOnlyChanged,
+                Status::Drift,
+                Status::Failed,
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_status_filter_errors_on_unknown_token() {
+        let err = parse_status_filter(Some("nonsense")).unwrap_err();
+        assert!(matches!(&err, GitlessError::Config(msg) if msg.contains("nonsense")));
+        assert_eq!(err.exit_code(), 1);
+    }
+
+    #[test]
+    fn run_with_base_returns_config_error_for_graphql_backend() {
+        let dir = TempDir::new().unwrap();
+        let mut args = args_for(dir.path(), Some("o/r"), Some("tok"));
+        args.backend = Backend::Graphql;
+        let err = run_with_base(args, "http://127.0.0.1:0").unwrap_err();
+        assert!(matches!(err, GitlessError::Config(ref msg) if msg.contains("GraphQL")));
+        assert_eq!(err.exit_code(), 1);
+    }
+
+    #[test]
+    fn run_with_base_uses_rest_backend_by_default() {
+        let dir = TempDir::new().unwrap();
+        let mut server = Server::new();
+        let _t = server
+            .mock("GET", "/repos/o/r/git/trees/main")
+            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
+            .with_status(200)
+            .with_body(r#"{"sha":"x","tree":[],"truncated":false}"#)
+            .create();
+
+        let args = args_for(dir.path(), Some("o/r"), Some("tok"));
+        // Backend defaults to Rest via args_for. Should succeed.
+        run_with_base(args, &server.url()).unwrap();
+    }
+
+    #[test]
+    fn build_report_summary_only_drops_files_field() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("a.md"), "alpha\n").unwrap();
+        let local_a = blob_hash(b"alpha\n");
+
+        let mut server = Server::new();
+        let trees_body = format!(
+            r#"{{"sha":"x","tree":[{{"path":"a.md","mode":"100644","type":"blob","sha":"{local_a}","size":6}}],"truncated":false}}"#
+        );
+        let _t = server
+            .mock("GET", "/repos/o/r/git/trees/main")
+            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
+            .with_status(200)
+            .with_body(&trees_body)
+            .create();
+
+        let mut args = args_for(dir.path(), Some("o/r"), Some("tok"));
+        args.summary_only = true;
+        let (report, _) = build_report(&args, &server.url()).unwrap();
+        assert!(report.files.is_none());
+        assert_eq!(report.summary.identical, 1);
+        let json = output::serialize(&report, false).unwrap();
+        assert!(!json.contains("\"files\""));
+    }
+
+    #[test]
+    fn build_report_status_filter_keeps_only_matching_entries() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("identical.md"), "alpha\n").unwrap();
+        fs::write(dir.path().join("local_only.md"), "beta\n").unwrap();
+        let local_a = blob_hash(b"alpha\n");
+
+        let mut server = Server::new();
+        let trees_body = format!(
+            r#"{{"sha":"x","tree":[{{"path":"identical.md","mode":"100644","type":"blob","sha":"{local_a}","size":6}}],"truncated":false}}"#
+        );
+        let _t = server
+            .mock("GET", "/repos/o/r/git/trees/main")
+            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
+            .with_status(200)
+            .with_body(&trees_body)
+            .create();
+
+        let mut args = args_for(dir.path(), Some("o/r"), Some("tok"));
+        args.status = Some("local_only_changed".to_string());
+        let (report, _) = build_report(&args, &server.url()).unwrap();
+
+        // Summary still reflects total counts, not the filter
+        assert_eq!(report.summary.identical, 1);
+        assert_eq!(report.summary.local_only_changed, 1);
+
+        let entries = report.files.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].status, Status::LocalOnlyChanged);
+        assert_eq!(entries[0].path, "local_only.md");
+    }
+
+    #[test]
+    fn build_report_status_filter_supports_multiple_values() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("identical.md"), "alpha\n").unwrap();
+        fs::write(dir.path().join("local_only.md"), "beta\n").unwrap();
+        let local_a = blob_hash(b"alpha\n");
+
+        let mut server = Server::new();
+        let trees_body = format!(
+            r#"{{"sha":"x","tree":[{{"path":"identical.md","mode":"100644","type":"blob","sha":"{local_a}","size":6}},{{"path":"remote_only.md","mode":"100644","type":"blob","sha":"deadbeef","size":3}}],"truncated":false}}"#
+        );
+        let _t = server
+            .mock("GET", "/repos/o/r/git/trees/main")
+            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
+            .with_status(200)
+            .with_body(&trees_body)
+            .create();
+
+        let mut args = args_for(dir.path(), Some("o/r"), Some("tok"));
+        args.status = Some("local_only_changed,remote_only_changed".to_string());
+        let (report, _) = build_report(&args, &server.url()).unwrap();
+
+        let entries = report.files.unwrap();
+        assert_eq!(entries.len(), 2);
+        for e in &entries {
+            assert!(matches!(
+                e.status,
+                Status::LocalOnlyChanged | Status::RemoteOnlyChanged
+            ));
+        }
+    }
+
+    #[test]
+    fn build_report_summary_only_overrides_status_filter() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("a.md"), "alpha\n").unwrap();
+        let local_a = blob_hash(b"alpha\n");
+
+        let mut server = Server::new();
+        let trees_body = format!(
+            r#"{{"sha":"x","tree":[{{"path":"a.md","mode":"100644","type":"blob","sha":"{local_a}","size":6}}],"truncated":false}}"#
+        );
+        let _t = server
+            .mock("GET", "/repos/o/r/git/trees/main")
+            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
+            .with_status(200)
+            .with_body(&trees_body)
+            .create();
+
+        let mut args = args_for(dir.path(), Some("o/r"), Some("tok"));
+        args.summary_only = true;
+        args.status = Some("drift".to_string());
+        let (report, _) = build_report(&args, &server.url()).unwrap();
+
+        // summary_only wins regardless of status filter
+        assert!(report.files.is_none());
+        assert_eq!(report.summary.identical, 1);
+    }
+
+    #[test]
+    fn build_report_invalid_status_filter_yields_config_error() {
+        let dir = TempDir::new().unwrap();
+        let mut server = Server::new();
+        let _t = server
+            .mock("GET", "/repos/o/r/git/trees/main")
+            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
+            .with_status(200)
+            .with_body(r#"{"sha":"x","tree":[],"truncated":false}"#)
+            .create();
+
+        let mut args = args_for(dir.path(), Some("o/r"), Some("tok"));
+        args.status = Some("nonsense".to_string());
+        let err = build_report(&args, &server.url()).unwrap_err();
+        assert!(matches!(err, GitlessError::Config(_)));
+        assert_eq!(err.exit_code(), 1);
+    }
+
+    #[test]
+    fn build_report_verbose_levels_do_not_change_report() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("a.md"), "alpha\n").unwrap();
+        let local_a = blob_hash(b"alpha\n");
+
+        let mut server = Server::new();
+        let trees_body = format!(
+            r#"{{"sha":"x","tree":[{{"path":"a.md","mode":"100644","type":"blob","sha":"{local_a}","size":6}}],"truncated":false}}"#
+        );
+        let _t = server
+            .mock("GET", "/repos/o/r/git/trees/main")
+            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
+            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
+            .with_status(200)
+            .with_body(&trees_body)
+            .expect_at_least(1)
+            .create();
+
+        for level in [0u8, 1, 2] {
+            let mut args = args_for(dir.path(), Some("o/r"), Some("tok"));
+            args.verbose = level;
+            let (report, _) = build_report(&args, &server.url()).unwrap();
+            assert_eq!(report.summary.identical, 1);
+            assert!(report.files.is_some());
+        }
     }
 }
