@@ -133,13 +133,15 @@ L5 (human):    T13          |
   - `[AUTO]` 인증·rate limit 매핑 T06과 동일.
 - **Status**: `[ ]`
 
-### T09. scan::run 오케스트레이터 + 필터 + verbose 플래그
-- **Spec reference**: `docs/specs/spec-output-schema.md`, `docs/specs/spec-error-contracts.md`, `docs/specs/spec-cli-interface.md`
-- **Files**: `crates/gitless-sync/src/commands/scan/mod.rs`, `crates/gitless-sync/src/main.rs`
+### T09. scan::run 오케스트레이터 + 필터 + verbose 플래그 + 병렬 commits
+- **Spec reference**: `docs/specs/spec-output-schema.md`, `docs/specs/spec-error-contracts.md`, `docs/specs/spec-cli-interface.md`, `docs/specs/spec-github-api.md` § 병렬 호출 정책
+- **Files**: `crates/gitless-sync/src/commands/scan/mod.rs`, `crates/gitless-sync/src/main.rs`, `crates/gitless-sync/Cargo.toml`
 - **Depends on**: T01, T02, T03, T04, T05, T06, T07, T08
 - **Acceptance criteria**:
   - `[AUTO]` 흐름: `config::load` → token 결정 → `fetch_tree` → `walker::walk` → 각 파일 SHA 계산 → 차이 있는 파일에만 `fetch_last_commit_at` (G-003) → `classify` → `ScanReport` 조립 → `serialize` → stdout.
   - `[AUTO]` Commits API는 SHA 다른 파일에만 호출. identical에는 호출 금지.
+  - `[AUTO]` **Commits API 병렬 호출**: `Cargo.toml`에 `rayon = "1"` 추가 + `Cargo.lock` 갱신. `paths.par_iter().map(|p| github::fetch_last_commit_at(...)).collect::<Result<Vec<_>, _>>()` 패턴. default 8 concurrent (G-011, `rayon::ThreadPoolBuilder::new().num_threads(8).build()` 또는 동등 수단).
+  - `[AUTO]` 의존성 변경 후 `cargo deny check` + `cargo audit` 통과 (project-ops.md).
   - `[AUTO]` `--summary-only` 시 `ScanReport.files = None` → 출력 JSON에 `files` 키 omit. (PRD 시나리오 13)
   - `[AUTO]` `--status drift,local_only_changed` 시 해당 status만 `files[]`. summary는 전체 카운트 유지. (PRD 시나리오 14)
   - `[AUTO]` `-v` (info) / `-vv` (debug) flag를 `main.rs`에 추가 + scan::run에서 stderr 로그 분기.

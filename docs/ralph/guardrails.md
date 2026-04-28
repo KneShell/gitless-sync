@@ -41,3 +41,7 @@
 ## G-010: 빈 파일 / 특수 mode entry
 - **문제**: 빈 파일의 SHA-1 (`e69de29bb2d1d6434b8b29ae775ad8c2e48c5391`), Trees mode `160000` (submodule), `120000` (symlink), `100755` (executable) 등 v0.1에서 검증되지 않은 케이스.
 - **해결**: 빈 파일은 처리하되 테스트로 검증 (이미 `hash::tests::empty_blob_matches_git`). submodule / symlink / executable mode entry는 v0.1에서 만나면 skip + warning(stderr) 또는 `failed[]` 처리. 본격 지원은 Phase 5.
+
+## G-011: GitHub abuse detection / 동시 요청 제한
+- **문제**: rate limit (5,000/h, G-003)와 별개로, GitHub은 burst가 큰 동시 요청에 abuse detection을 발동시켜 일시 차단할 수 있다. T09에서 rayon으로 commits API 병렬 호출 시 무제한으로 풀면 위험.
+- **해결**: 동시 요청 수 = **8** (default). rayon thread pool 크기를 명시 제어: `rayon::ThreadPoolBuilder::new().num_threads(8).build().unwrap().install(|| paths.par_iter()...)` 또는 동등 수단. burst 시 server 측 throttle (429 응답) 가능성 있으나 exponential backoff은 v0.1 비목표 — `GitlessError::Http(...)`로 매핑 후 즉시 종료. 동시 요청 수 변경 시 본 G와 `spec-github-api.md` § 병렬 호출 정책 동시 갱신.
