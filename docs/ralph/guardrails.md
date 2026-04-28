@@ -49,3 +49,7 @@
 ## G-012: 전체 80% 커버리지 게이트는 T12에서 통과
 - **문제**: ralph build iteration의 step 4 (`cargo tarpaulin --engine llvm --workspace --out Stdout` ≥ 80%)는 T01~T11 진행 중에는 자연스럽게 미달. 다수 모듈이 `todo!()` 스텁 상태이므로 자기 task 내에서 80%를 끌어올릴 수단이 없다 (다른 task 파일을 건드리면 "Do NOT modify other tasks' files" 위배). T01~T03 모두 동일 조건에서 `[x]`로 완료된 선례가 있다.
 - **해결**: 개별 task는 (a) 해당 task 파일의 라인 커버리지가 합리적 (≥80% 또는 100%), (b) `cargo fmt`/`clippy`/`cargo test` 통과를 충족하면 BLOCKED 처리하지 않고 진행. 전체 워크스페이스 80% 게이트는 T12의 명시적 책임이며, T12가 부족 모듈 식별 + 추가 테스트로 끌어올린다. 본 G의 예외는 T12에서 마지막으로 검증하므로 누적 위험 없음.
+
+## G-013: cargo deny는 deny.toml 부재 시 모든 라이선스 reject
+- **문제**: `cargo deny check`를 config 없이 실행하면 default 정책이 모든 라이선스를 reject (adler2 `0BSD OR MIT OR Apache-2.0`, aho-corasick `Unlicense OR MIT` 등). T07에서 base64 = "0.22"를 직접 의존으로 추가했을 때 첫 발현. 단 base64는 이미 Cargo.lock에 transitive로 박혀 있던 동일 버전이라 dep tree 자체는 무변화 (`Cargo.lock` diff 1 line, `+ "base64"` 한 줄만 추가).
+- **해결**: T07~T08 같은 단일 dep 추가 task는 (a) `cargo audit` 통과(exit 0) + (b) Cargo.lock에 새 transitive crate가 등장하지 않음을 확인하면 cargo deny 게이트 보류 가능. 정식 `deny.toml`(허용 라이선스 화이트리스트, advisory 정책) 작성은 T09가 rayon 등 신규 transitive를 도입할 때 또는 별도 인프라 task로 분리. project-ops.md의 cargo deny 항목은 deny.toml 작성 후 강제. 현재까지 audit-only 운영.
