@@ -136,14 +136,60 @@ fn fetch_blob_with_base(
         .map_err(|e| GitlessError::Http(format!("decode blob base64: {e}")))
 }
 
+/// Fetch the timestamp of the most recent commit that touched `path` on `branch`.
+///
+/// Calls `GET /repos/{repo}/commits?sha={branch}&path={path}&per_page=1` and
+/// returns the `commit.committer.date` of the first item.
+///
+/// Callers MUST gate this on a known SHA difference — the Commits API counts
+/// against the 5,000 req/h rate limit, so identical files must not trigger a
+/// call (G-003). Concurrent invocation across threads is safe; ureq's HTTP
+/// path is stateless and the function holds no shared mutable state.
+///
+/// # Errors
+/// - [`GitlessError::AuthFailed`] on HTTP 401.
+/// - [`GitlessError::RateLimitExceeded`] on HTTP 403 with `X-RateLimit-Remaining: 0`.
+/// - [`GitlessError::Http`] for other non-2xx responses, transport failures,
+///   JSON decode errors, an empty commits array, or an unparseable date.
 pub fn fetch_last_commit_at(
     repo: &str,
     branch: &str,
     path: &str,
     token: &str,
 ) -> Result<DateTime<Utc>, GitlessError> {
-    let _ = (repo, branch, path, token);
-    todo!("GET /repos/{repo}/commits?sha={branch}&path={path}&per_page=1")
+    fetch_last_commit_at_with_base(GITHUB_API_BASE, repo, branch, path, token)
+}
+
+fn fetch_last_commit_at_with_base(
+    base: &str,
+    repo: &str,
+    branch: &str,
+    path: &str,
+    token: &str,
+) -> Result<DateTime<Utc>, GitlessError> {
+    let url = format!("{base}/repos/{repo}/commits");
+    let response = ureq::get(&url)
+        .set("Authorization", &format!("Bearer {token}"))
+        .set("User-Agent", USER_AGENT)
+        .set("Accept", "application/vnd.github+json")
+        .query("sha", branch)
+        .query("path", path)
+        .query("per_page", "1")
+        .call()
+        .map_err(map_ureq_error)?;
+
+    let body: Vec<CommitItem> = response
+        .into_json()
+        .map_err(|e| GitlessError::Http(format!("decode commits response: {e}")))?;
+
+    let first = body
+        .into_iter()
+        .next()
+        .ok_or_else(|| GitlessError::Http(format!("no commits found for path: {path}")))?;
+
+    DateTime::parse_from_rfc3339(&first.commit.committer.date)
+        .map(|dt| dt.with_timezone(&Utc))
+        .map_err(|e| GitlessError::Http(format!("parse commit date: {e}")))
 }
 
 fn map_ureq_error(err: UreqError) -> GitlessError {
@@ -187,6 +233,21 @@ struct TreeEntry {
     sha: String,
     #[serde(default)]
     size: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CommitItem {
+    commit: CommitInner,
+}
+
+#[derive(Debug, Deserialize)]
+struct CommitInner {
+    committer: CommitActor,
+}
+
+#[derive(Debug, Deserialize)]
+struct CommitActor {
+    date: String,
 }
 
 #[cfg(test)]
@@ -540,6 +601,217 @@ mod tests {
 
         let bytes = fetch_blob_with_base(&server.url(), "o/r", "abc", "my_secret").unwrap();
         assert!(bytes.is_empty());
+        mock.assert();
+    }
+
+    fn ok_commits_body() -> &'static str {
+        r#"[
+            {
+                "sha": "c1",
+                "commit": {
+                    "author":    {"name": "a", "email": "a@e", "date": "2024-01-15T09:00:00Z"},
+                    "committer": {"name": "c", "email": "c@e", "date": "2024-01-15T10:30:00Z"},
+                    "message": "msg"
+                },
+                "url": "u"
+            }
+        ]"#
+    }
+
+    #[test]
+    fn fetch_last_commit_at_returns_committer_date() {
+        let mut server = Server::new();
+        let mock = server
+            .mock("GET", "/repos/owner/repo/commits")
+            .match_query(Matcher::AllOf(vec![
+                Matcher::UrlEncoded("sha".into(), "main".into()),
+                Matcher::UrlEncoded("path".into(), "README.md".into()),
+                Matcher::UrlEncoded("per_page".into(), "1".into()),
+            ]))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(ok_commits_body())
+            .create();
+
+        let dt =
+            fetch_last_commit_at_with_base(&server.url(), "owner/repo", "main", "README.md", "tok")
+                .unwrap();
+        assert_eq!(dt.to_rfc3339(), "2024-01-15T10:30:00+00:00");
+
+        mock.assert();
+    }
+
+    #[test]
+    fn fetch_last_commit_at_empty_array_returns_http_error() {
+        let mut server = Server::new();
+        let _m = server
+            .mock("GET", "/repos/o/r/commits")
+            .match_query(Matcher::AllOf(vec![
+                Matcher::UrlEncoded("sha".into(), "main".into()),
+                Matcher::UrlEncoded("path".into(), "missing.md".into()),
+                Matcher::UrlEncoded("per_page".into(), "1".into()),
+            ]))
+            .with_status(200)
+            .with_body("[]")
+            .create();
+
+        let err = fetch_last_commit_at_with_base(&server.url(), "o/r", "main", "missing.md", "t")
+            .unwrap_err();
+        match err {
+            GitlessError::Http(msg) => assert!(msg.contains("no commits"), "got: {msg}"),
+            other => panic!("expected Http, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn fetch_last_commit_at_invalid_date_returns_http_error() {
+        let mut server = Server::new();
+        let body = r#"[{"sha":"c1","commit":{"committer":{"name":"c","email":"e","date":"not-a-date"},"author":{"name":"a","email":"e","date":"not-a-date"},"message":"m"},"url":"u"}]"#;
+        let _m = server
+            .mock("GET", "/repos/o/r/commits")
+            .match_query(Matcher::Any)
+            .with_status(200)
+            .with_body(body)
+            .create();
+
+        let err =
+            fetch_last_commit_at_with_base(&server.url(), "o/r", "main", "f.md", "t").unwrap_err();
+        match err {
+            GitlessError::Http(msg) => assert!(msg.contains("parse commit date"), "got: {msg}"),
+            other => panic!("expected Http, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn fetch_last_commit_at_invalid_json_returns_http_error() {
+        let mut server = Server::new();
+        let _m = server
+            .mock("GET", "/repos/o/r/commits")
+            .match_query(Matcher::Any)
+            .with_status(200)
+            .with_body("not json at all")
+            .create();
+
+        let err =
+            fetch_last_commit_at_with_base(&server.url(), "o/r", "main", "f.md", "t").unwrap_err();
+        assert!(matches!(err, GitlessError::Http(_)));
+    }
+
+    #[test]
+    fn fetch_last_commit_at_401_returns_auth_failed() {
+        let mut server = Server::new();
+        let _m = server
+            .mock("GET", "/repos/o/r/commits")
+            .match_query(Matcher::Any)
+            .with_status(401)
+            .with_body(r#"{"message":"Bad credentials"}"#)
+            .create();
+
+        let err =
+            fetch_last_commit_at_with_base(&server.url(), "o/r", "main", "f.md", "t").unwrap_err();
+        assert!(matches!(err, GitlessError::AuthFailed));
+        assert_eq!(err.exit_code(), 2);
+    }
+
+    #[test]
+    fn fetch_last_commit_at_403_with_zero_remaining_returns_rate_limit() {
+        let mut server = Server::new();
+        let _m = server
+            .mock("GET", "/repos/o/r/commits")
+            .match_query(Matcher::Any)
+            .with_status(403)
+            .with_header("x-ratelimit-remaining", "0")
+            .with_header("x-ratelimit-reset", "1700000000")
+            .with_body(r#"{"message":"rate limit"}"#)
+            .create();
+
+        let err =
+            fetch_last_commit_at_with_base(&server.url(), "o/r", "main", "f.md", "t").unwrap_err();
+        match err {
+            GitlessError::RateLimitExceeded { reset_at } => {
+                assert!(
+                    reset_at.starts_with("2023-11-14"),
+                    "expected ISO timestamp, got {reset_at}"
+                );
+            }
+            other => panic!("expected RateLimitExceeded, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn fetch_last_commit_at_500_returns_http_error() {
+        let mut server = Server::new();
+        let _m = server
+            .mock("GET", "/repos/o/r/commits")
+            .match_query(Matcher::Any)
+            .with_status(500)
+            .with_body("internal error")
+            .create();
+
+        let err =
+            fetch_last_commit_at_with_base(&server.url(), "o/r", "main", "f.md", "t").unwrap_err();
+        assert!(matches!(err, GitlessError::Http(_)));
+        assert_eq!(err.exit_code(), 3);
+    }
+
+    #[test]
+    fn fetch_last_commit_at_sends_required_headers_and_query() {
+        let mut server = Server::new();
+        let mock = server
+            .mock("GET", "/repos/o/r/commits")
+            .match_query(Matcher::AllOf(vec![
+                Matcher::UrlEncoded("sha".into(), "dev".into()),
+                Matcher::UrlEncoded("path".into(), "src/lib.rs".into()),
+                Matcher::UrlEncoded("per_page".into(), "1".into()),
+            ]))
+            .match_header("authorization", "Bearer my_secret")
+            .match_header("user-agent", "gitless-sync/0.1")
+            .match_header("accept", "application/vnd.github+json")
+            .with_status(200)
+            .with_body(ok_commits_body())
+            .create();
+
+        let dt =
+            fetch_last_commit_at_with_base(&server.url(), "o/r", "dev", "src/lib.rs", "my_secret")
+                .unwrap();
+        assert_eq!(dt.to_rfc3339(), "2024-01-15T10:30:00+00:00");
+        mock.assert();
+    }
+
+    #[test]
+    fn fetch_last_commit_at_is_callable_concurrently() {
+        let mut server = Server::new();
+        let mock = server
+            .mock("GET", "/repos/o/r/commits")
+            .match_query(Matcher::AllOf(vec![
+                Matcher::UrlEncoded("sha".into(), "main".into()),
+                Matcher::UrlEncoded("per_page".into(), "1".into()),
+            ]))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(ok_commits_body())
+            .expect_at_least(8)
+            .create();
+
+        let base = server.url();
+        let handles: Vec<_> = (0..8)
+            .map(|i| {
+                let base = base.clone();
+                std::thread::spawn(move || {
+                    let path = format!("file{i}.md");
+                    fetch_last_commit_at_with_base(&base, "o/r", "main", &path, "t")
+                })
+            })
+            .collect();
+
+        for handle in handles {
+            let dt = handle
+                .join()
+                .expect("thread panicked")
+                .expect("call failed");
+            assert_eq!(dt.to_rfc3339(), "2024-01-15T10:30:00+00:00");
+        }
+
         mock.assert();
     }
 }

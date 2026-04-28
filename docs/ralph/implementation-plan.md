@@ -1,9 +1,9 @@
 # Implementation Plan: gitless-sync v0.1
 
 ## Status
-- Last updated: 2026-04-28T00:50:00Z (T07 complete)
+- Last updated: 2026-04-28T08:00:00Z (T08 complete)
 - Total tasks: 15
-- Completed: 7 / 15
+- Completed: 8 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -133,7 +133,7 @@ L5 (human):    T13
   - `[AUTO]` 빈 commits 배열 응답 → `GitlessError::Http(...)`.
   - `[AUTO]` 인증·rate limit 매핑 T06과 동일.
   - `[AUTO]` v0.1는 REST backend (본 함수)만 활성. GraphQL backend는 별도 함수로 박지 않음 — T09b `--backend graphql` 분기에서 stub 에러로 처리.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### T09a. scan::run 오케스트레이션 (정상 흐름) + partial failure
 - **Spec reference**: `docs/specs/spec-output-schema.md`, `docs/specs/spec-error-contracts.md`
