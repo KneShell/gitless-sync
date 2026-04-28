@@ -1,7 +1,7 @@
 # Implementation Plan: gitless-sync v0.1
 
 ## Status
-- Last updated: 2026-04-28T00:00:00Z (initial draft, hand-written to skip ralph plan mode)
+- Last updated: 2026-04-28T00:01:00Z (T05 in progress)
 - Total tasks: 13
 - Completed: 4 / 13
 
@@ -96,7 +96,7 @@ L5 (human):    T13          |
   - `[AUTO]` 빈 디렉토리는 결과에 포함 안 됨 (파일만 반환).
   - `[AUTO]` 심볼릭 링크는 v0.1에서 skip (G-010, Phase 5에서 처리).
   - `[AUTO]` `walker::tests::*` (tempfile 기반) 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### T06. github::fetch_tree + mockito tests
 - **Spec reference**: `docs/specs/spec-github-api.md` § fetch_tree
