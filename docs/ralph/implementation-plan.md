@@ -2,8 +2,8 @@
 
 ## Status
 - Last updated: 2026-04-28T00:50:00Z (T07 complete)
-- Total tasks: 13
-- Completed: 7 / 13
+- Total tasks: 15
+- Completed: 7 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -19,11 +19,12 @@ L2 (L1 deps):  T05  T06  T07  T08
                             |
                           (T02 deps)
                             ↓
-L3 (orchestr): T09 ──────── T10
-                |            |
-L4 (validate): T11 ── T12   |
-                |            |
-L5 (human):    T13          |
+L3 (orchestr): T09a ─→ T09b ─→ T09c
+                                  ↓
+                                 T10
+L4 (validate): T11 ── T12
+                |
+L5 (human):    T13
 ```
 
 ## Tasks
@@ -131,25 +132,42 @@ L5 (human):    T13          |
   - `[AUTO]` mockito 응답 첫 commit의 `commit.committer.date` → `DateTime<Utc>` 파싱.
   - `[AUTO]` 빈 commits 배열 응답 → `GitlessError::Http(...)`.
   - `[AUTO]` 인증·rate limit 매핑 T06과 동일.
-  - `[AUTO]` v0.1는 REST backend (본 함수)만 활성. GraphQL backend는 별도 함수로 박지 않음 — T09 `--backend graphql` 분기에서 stub 에러로 처리.
-- **Status**: `[~]`
+  - `[AUTO]` v0.1는 REST backend (본 함수)만 활성. GraphQL backend는 별도 함수로 박지 않음 — T09b `--backend graphql` 분기에서 stub 에러로 처리.
+- **Status**: `[ ]`
 
-### T09. scan::run 오케스트레이터 + 필터 + verbose 플래그 + 병렬 commits + backend flag
-- **Spec reference**: `docs/specs/spec-output-schema.md`, `docs/specs/spec-error-contracts.md`, `docs/specs/spec-cli-interface.md` § Backend 분기, `docs/specs/spec-github-api.md` § 병렬 호출 정책 + § Backend 선택
-- **Files**: `crates/gitless-sync/src/commands/scan/mod.rs`, `crates/gitless-sync/src/main.rs`, `crates/gitless-sync/Cargo.toml`
+### T09a. scan::run 오케스트레이션 (정상 흐름) + partial failure
+- **Spec reference**: `docs/specs/spec-output-schema.md`, `docs/specs/spec-error-contracts.md`
+- **Files**: `crates/gitless-sync/src/commands/scan/mod.rs`
 - **Depends on**: T01, T02, T03, T04, T05, T06, T07, T08
 - **Acceptance criteria**:
-  - `[AUTO]` 흐름: `config::load` → token 결정 → `fetch_tree` → `walker::walk` → 각 파일 SHA 계산 → 차이 있는 파일에만 `fetch_last_commit_at` (G-003) → `classify` → `ScanReport` 조립 → `serialize` → stdout.
-  - `[AUTO]` `--backend rest|graphql` flag를 `main.rs`에 추가 (clap enum). `scan::run` 진입부에서 분기 — `rest`(기본): 정상 흐름. `graphql`: 즉시 `GitlessError::Config("GraphQL backend not implemented in v0.1; use --backend rest. Phase 4 ETA.")` 반환, exit code 1.
+  - `[AUTO]` 흐름: `config::load` → token 결정 → `fetch_tree` → `walker::walk` → 각 파일 SHA 계산 → 차이 있는 파일에만 `fetch_last_commit_at` (G-003, **직렬 호출 — 병렬화는 T09c**) → `classify` → `ScanReport` 조립 → `serialize` → stdout.
   - `[AUTO]` Commits API는 SHA 다른 파일에만 호출. identical에는 호출 금지.
-  - `[AUTO]` **Commits API 병렬 호출** (REST backend 한정): `Cargo.toml`에 `rayon = "1"` 추가 + `Cargo.lock` 갱신. `paths.par_iter().map(|p| github::fetch_last_commit_at(...)).collect::<Result<Vec<_>, _>>()` 패턴. default 8 concurrent (G-011, `rayon::ThreadPoolBuilder::new().num_threads(8).build()` 또는 동등 수단).
-  - `[AUTO]` 의존성 변경 후 `cargo deny check` + `cargo audit` 통과 (project-ops.md).
-  - `[AUTO]` `--summary-only` 시 `ScanReport.files = None` → 출력 JSON에 `files` 키 omit. (PRD 시나리오 13)
-  - `[AUTO]` `--status drift,local_only_changed` 시 해당 status만 `files[]`. summary는 전체 카운트 유지. (PRD 시나리오 14)
-  - `[AUTO]` `-v` (info) / `-vv` (debug) flag를 `main.rs`에 추가 + scan::run에서 stderr 로그 분기.
   - `[AUTO]` Partial failure: 해시 실패 파일은 `Status::Failed` + `summary.failed` 증가 + exit code 4. 전체 결과는 정상 출력.
   - `[AUTO]` 정상 종료 → exit 0. stdout JSON 한 덩어리 (`serde_json::from_str` 가능, G-008).
-  - `[AUTO]` `cargo test scan` 통과 (REST backend 정상 동작 + `--backend graphql` stub 에러 케이스 둘 다).
+  - `[AUTO]` `cargo test scan` 통과 (정상 흐름 + partial failure 케이스).
+- **Status**: `[ ]`
+
+### T09b. CLI 옵션 처리 (필터 + verbose + backend stub)
+- **Spec reference**: `docs/specs/spec-cli-interface.md` § Backend 분기, `docs/specs/spec-output-schema.md`
+- **Files**: `crates/gitless-sync/src/commands/scan/mod.rs`, `crates/gitless-sync/src/main.rs`
+- **Depends on**: T09a
+- **Acceptance criteria**:
+  - `[AUTO]` `--summary-only` 시 `ScanReport.files = None` → 출력 JSON에 `files` 키 omit. (PRD 시나리오 13)
+  - `[AUTO]` `--status drift,local_only_changed` 시 해당 status만 `files[]`. summary는 전체 카운트 유지. (PRD 시나리오 14)
+  - `[AUTO]` `-v` (info) / `-vv` (debug) flag를 `main.rs`에 추가 + `scan::run`에서 stderr 로그 분기 (기본 warning 이상).
+  - `[AUTO]` `--backend rest|graphql` flag를 `main.rs`에 추가 (clap enum). `scan::run` 진입부에서 분기 — `rest`(기본): 정상 흐름. `graphql`: 즉시 `GitlessError::Config("GraphQL backend not implemented in v0.1; use --backend rest. Phase 4 ETA.")` 반환, exit code 1.
+  - `[AUTO]` `cargo test scan` 통과 (필터 + verbose + backend stub 케이스 모두).
+- **Status**: `[ ]`
+
+### T09c. Commits API 병렬화 (rayon)
+- **Spec reference**: `docs/specs/spec-github-api.md` § 병렬 호출 정책, G-011
+- **Files**: `crates/gitless-sync/src/commands/scan/mod.rs`, `crates/gitless-sync/Cargo.toml`
+- **Depends on**: T09a
+- **Acceptance criteria**:
+  - `[AUTO]` `Cargo.toml`에 `rayon = "1"` 추가 + `Cargo.lock` 갱신.
+  - `[AUTO]` T09a의 직렬 `fetch_last_commit_at` 호출을 `paths.par_iter().map(|p| github::fetch_last_commit_at(...)).collect::<Result<Vec<_>, _>>()` 패턴으로 변경. default 8 concurrent (G-011, `rayon::ThreadPoolBuilder::new().num_threads(8).build()` 또는 동등 수단).
+  - `[AUTO]` 의존성 변경 후 `cargo deny check` + `cargo audit` 통과 (project-ops.md).
+  - `[AUTO]` `cargo test scan` 통과 (병렬 호출 시에도 결과 일관성 보장).
 - **Status**: `[ ]`
 
 ### T10. diff::run unified diff 출력
@@ -167,7 +185,7 @@ L5 (human):    T13          |
 ### T11. End-to-end 통합 테스트 (PRD 검증 시나리오 자동화)
 - **Spec reference**: 전 spec의 acceptance criteria 통합. 자동화 가능한 PRD 검증 시나리오 14항목 중 unit test로 안 잡히는 부분.
 - **Files**: `crates/gitless-sync/tests/integration.rs` (새 파일), 필요 시 Cargo.toml dev-deps에 `assert_cmd` + `predicates` 추가.
-- **Depends on**: T09, T10
+- **Depends on**: T09a, T09b, T09c, T10
 - **Acceptance criteria**:
   - `[AUTO]` PRD 시나리오 1~4 (4상태 분류) end-to-end: tempfile 디렉토리 + mockito GitHub API → 실제 binary 실행 → stdout JSON 파싱 → 4상태 카운트 검증.
   - `[AUTO]` PRD 시나리오 9 (.gitignore + --ignore 합집합) end-to-end.
@@ -195,7 +213,7 @@ L5 (human):    T13          |
 ### T13. [HUMAN] 실제 GitHub repo + Fine-grained PAT 통합 검증
 - **Spec reference**: `docs/specs/spec-github-api.md` § Open Question, `docs/roadmap.md` § Open Questions
 - **Files**: 코드 변경 없음. 사람이 수동 실행 + 결과를 `docs/roadmap.md`에 반영.
-- **Depends on**: T09
+- **Depends on**: T09a
 - **Acceptance criteria**:
   - `[HUMAN]` Fine-grained PAT (`Contents: Read` 권한만)로 실제 GitHub repo에 `gitless-sync scan` 실행 → 정상 JSON 출력.
   - `[HUMAN]` Trees + Commits API 모두 작동 확인. 실패 시 더 넓은 권한 필요한지 확인.
