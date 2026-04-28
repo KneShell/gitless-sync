@@ -17,9 +17,34 @@
 - workspace 안에서 `crates/gitless-sync/src/shared/`를 같이 사용 (또는 `crates/shared/`로 분리 검토).
 
 ## Phase 4 — 성능 최적화
+
+### 조건부 (측정 후 결정)
 - 로컬 SHA mtime 기반 캐시. 큰 vault에서 매번 전체 해시 계산 비용이 문제일 때만 도입.
 - v0.1 성능 측정 결과를 보고 도입 여부 결정 (premature optimization 방지).
 - Trees API sub-tree 재귀 fallback (truncated repo 지원, G-002 해소).
+
+### 확정 (반드시 도달)
+
+#### GraphQL batching 도입
+`fetch_last_commit_at`의 N×round-trip 비효율을 GraphQL alias batching으로 단축. v0.1의 REST + rayon 8 concurrent (1000 path = 25초)를 1~10 round-trip (수 초)로 줄임.
+
+- **GitHub GraphQL 공식 한도 (fact-checked 2026-04-28)**:
+  - 단일 query 최대 **500,000 nodes**
+  - rate limit: **5,000 points/hour** + **2,000 points/minute** (per user)
+  - alias 자체엔 명시적 한도 없음
+  - node 계산: `first`/`last` 인자 곱, 평행 분기 합산
+- **우리 use case 분석**: 한 alias = `history(first: 1, path: ...)` = 1 node. 1000 path = 1000 node = 한도의 0.2%. 한 request에 다 박아도 node 한도 기준 OK.
+- **권장 batch 크기**: 보수적으로 100~200 alias/request. 1000 drift = 5~10 round-trip.
+- **GraphQL endpoint**: `https://api.github.com/graphql`. 인증은 동일 PAT.
+- **Caveat**: GitHub은 batching을 공식 권장하지 않음 ("polling 대신 webhook events"). 합법적 사용이지만 너무 큰 batch는 abuse detection 가능성 — 실제 운영 데이터로 측정 필요. 보수적 batch 크기로 시작.
+- **참조**: https://docs.github.com/en/graphql/overview/resource-limitations
+
+#### gh subprocess 방식 회고
+Phase 3 (`gitless-push`) 들어가기 전, v0.1의 ureq 직접 호출 vs gh CLI subprocess 두 방식을 비교한다. v0.1는 ureq로 갔지만 회고적으로 gh subprocess가 더 단순했을 가능성 — 결정의 적정성 재검토.
+
+- **gh로 갔을 때 얻는 것**: 인증·rate limit·abuse detection·GraphQL 호출 모두 gh에 위임. `shared/error.rs`의 HTTP 관련 variant + G-003 / G-011 guardrail 상당 부분 무용. 코드 베이스 슬림.
+- **gh로 갔을 때 잃는 것**: gh 설치 의존성. 단 PRD 정신("git 없는 환경")과 모순 X — iCloud는 `git init`을 막지 gh API 호출을 막지 않음. subprocess 호출 비용은 GraphQL batching이면 무관 (한 번만 fork).
+- **결정 산출물**: 이 회고 결과로 (1) Phase 3 push 도구의 HTTP 방식, (2) Phase 4 batching 구현 (ureq+GraphQL vs gh+GraphQL) 동시 결정. 결정 시 `gitless-sync` v0.1를 갈아엎을지 (사실 가능성 낮음, 단순 정리만), Phase 3+4 신규 코드만 새 방식으로 갈지 분기.
 
 ## Phase 5 — 도메인 함정 정리
 
