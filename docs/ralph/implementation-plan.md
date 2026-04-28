@@ -40,7 +40,7 @@ L5 (human):    T13          |
   - `[AUTO]` `.gitignore` + `--ignore` 합집합 동작 (tempfile 통합 테스트, PRD 시나리오 9).
   - `[AUTO]` 매칭 키는 forward slash (Windows 백슬래시 입력도 정규화).
   - `[AUTO]` `cargo test ignore` 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### T02. config::load + Token 파싱 헬퍼
 - **Spec reference**: `docs/specs/spec-config.md`
