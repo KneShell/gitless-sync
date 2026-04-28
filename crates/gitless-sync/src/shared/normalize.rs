@@ -33,3 +33,66 @@ pub fn prepare_for_hash(content: &[u8], keep_bom: bool) -> (Vec<u8>, bool) {
         (normalize_text(content, keep_bom), false)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strips_bom_when_keep_bom_false() {
+        let input = [0xEF, 0xBB, 0xBF, b'a'];
+        assert_eq!(normalize_text(&input, false), b"a");
+    }
+
+    #[test]
+    fn keeps_bom_when_keep_bom_true() {
+        let input = [0xEF, 0xBB, 0xBF, b'a'];
+        assert_eq!(normalize_text(&input, true), input);
+    }
+
+    #[test]
+    fn crlf_normalized_to_lf() {
+        assert_eq!(
+            normalize_text(b"hello\r\nworld\r\n", false),
+            b"hello\nworld\n"
+        );
+    }
+
+    #[test]
+    fn lone_cr_is_preserved() {
+        assert_eq!(normalize_text(b"a\rb", false), b"a\rb");
+    }
+
+    #[test]
+    fn detects_binary_with_nul_byte() {
+        assert!(is_binary(&[0u8, 1, 2]));
+        assert!(!is_binary(b"plain text"));
+    }
+
+    #[test]
+    fn binary_probe_is_capped_at_first_8000_bytes() {
+        let mut content = vec![b'a'; 9000];
+        content.push(0);
+        assert!(!is_binary(&content));
+    }
+
+    #[test]
+    fn prepare_for_hash_returns_correct_flag() {
+        let (text_out, text_flag) = prepare_for_hash(b"hello\r\n", false);
+        assert_eq!(text_out, b"hello\n");
+        assert!(!text_flag);
+
+        let binary = [0u8, 1, 2, 3];
+        let (bin_out, bin_flag) = prepare_for_hash(&binary, false);
+        assert_eq!(bin_out, binary);
+        assert!(bin_flag);
+    }
+
+    #[test]
+    fn prepare_for_hash_keeps_bom_when_requested() {
+        let input = [0xEF, 0xBB, 0xBF, b'a'];
+        let (out, is_bin) = prepare_for_hash(&input, true);
+        assert_eq!(out, input);
+        assert!(!is_bin);
+    }
+}
