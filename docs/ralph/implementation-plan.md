@@ -54,7 +54,7 @@ L5 (human):    T13          |
   - `[AUTO]` env 변수 미설정 시 `GitlessError::AuthFailed` (exit 2). (PRD 시나리오 10 일부)
   - `[AUTO]` 우선순위 검증 헬퍼 또는 `scan::run`에서 처리 — CLI > env > toml > 기본값.
   - `[AUTO]` `cargo test config` 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### T03. shared 단위 테스트 보강 (hash + normalize)
 - **Spec reference**: `docs/specs/spec-hash-and-normalize.md`
