@@ -6,7 +6,7 @@ use ureq::Error as UreqError;
 
 use crate::shared::error::GitlessError;
 
-const GITHUB_API_BASE: &str = "https://api.github.com";
+pub(crate) const GITHUB_API_BASE: &str = "https://api.github.com";
 const USER_AGENT: &str = "gitless-sync/0.1";
 
 #[derive(Debug, Clone)]
@@ -34,7 +34,11 @@ pub fn fetch_tree(repo: &str, branch: &str, token: &str) -> Result<Vec<RemoteFil
     fetch_tree_with_base(GITHUB_API_BASE, repo, branch, token)
 }
 
-fn fetch_tree_with_base(
+/// Same as [`fetch_tree`], but with an injectable base URL for tests.
+///
+/// # Errors
+/// Identical to [`fetch_tree`]; this is the inner implementation.
+pub(crate) fn fetch_tree_with_base(
     base: &str,
     repo: &str,
     branch: &str,
@@ -101,7 +105,11 @@ pub fn fetch_blob(repo: &str, sha: &str, token: &str) -> Result<Vec<u8>, Gitless
     fetch_blob_with_base(GITHUB_API_BASE, repo, sha, token)
 }
 
-fn fetch_blob_with_base(
+/// Same as [`fetch_blob`], but with an injectable base URL for tests.
+///
+/// # Errors
+/// Identical to [`fetch_blob`]; this is the inner implementation.
+pub(crate) fn fetch_blob_with_base(
     base: &str,
     repo: &str,
     sha: &str,
@@ -160,7 +168,11 @@ pub fn fetch_last_commit_at(
     fetch_last_commit_at_with_base(GITHUB_API_BASE, repo, branch, path, token)
 }
 
-fn fetch_last_commit_at_with_base(
+/// Same as [`fetch_last_commit_at`], but with an injectable base URL for tests.
+///
+/// # Errors
+/// Identical to [`fetch_last_commit_at`]; this is the inner implementation.
+pub(crate) fn fetch_last_commit_at_with_base(
     base: &str,
     repo: &str,
     branch: &str,
