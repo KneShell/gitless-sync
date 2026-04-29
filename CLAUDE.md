@@ -2,14 +2,21 @@
 
 ## Current State (2026-04-29)
 
-**v0.1 자동 부분 완료** (T01~T12, T14 모두 `[x]`, 145 tests pass, tarpaulin 95.87%).
+**v0.1 정식 출하 가능 상태** (T01~T12, T14 모두 `[x]`, 145 tests pass, tarpaulin 95.87%, vault 실전 검증 통과).
 
-**남은 작업**:
-- T13 `[HUMAN]`: Fine-grained PAT (Contents: Read만)로 Trees + Commits API 정식 권한 검증. 1차 smoke test는 `$env:GITHUB_TOKEN = (gh auth token)`으로 통과 (37 identical / 0 drift, Commits API 미호출).
+**vault 실전 검증** (2026-04-29, OAuth token via `gh auth token`):
+- 대상: `KneShell/obsidian-vault` ↔ `C:\Users\admin\iCloudDrive\iCloud~md~obsidian`
+- 결과: 284 identical / 55 local_only_changed / 17 remote_only_changed / 0 drift / 0 failed (총 356 파일)
+- 도구 동작 자체는 입증됨.
 
-**미결정 (Phase 3 진입 전 결정 필수)**: ureq 직접 HTTP vs gh subprocess. 6인 tribunal은 4기준 (우아함 / 속도 / GitHub 친화성 / v0.1 정신)으로 ureq 선택했지만 **"Claude Code 친화성" 기준은 평가 안 됨** — 사용자가 사후에 이게 핵심 기준임을 명시 (ureq면 Claude Code가 매번 token 인자 필요, gh subprocess면 자동 인증). Trade-off 디테일은 `docs/roadmap.md` § Phase 4 § gh subprocess 회고.
+**T13 `[HUMAN]` 강등** (2026-04-29): Fine-grained PAT 최소 권한 검증은 v0.1 hard blocker → nice-to-have. 본질이 "README 권한 가이드 작성용 검증"이고, Phase 4 § gh subprocess 결정에 따라 권한 가이드 형태가 달라질 수 있어 결정 후 재정의. 디테일은 `docs/ralph/implementation-plan.md` T13.
 
-**다음 세션 진입점 후보**: (1) T13 정식 PAT 검증으로 v0.1 정식 출하 / (2) Phase 2 (`gitless-sync init`) 시작 / (3) Phase 3 (`gitless-push`) 진입 — gh subprocess 결정 동시.
+**미결정 (가장 무거운 다음 결정)**: ureq 직접 HTTP vs gh subprocess. 6인 tribunal은 4기준 (우아함 / 속도 / GitHub 친화성 / v0.1 정신)으로 ureq 선택했지만 **"Claude Code 친화성" 기준은 평가 안 됨** — 사용자가 사후에 이게 핵심 기준임을 명시 (ureq면 Claude Code가 매번 token 인자 필요, gh subprocess면 자동 인증). Trade-off 디테일은 `docs/roadmap.md` § Phase 4 § gh subprocess 회고. T13 강등 결정도 이 회의 결과에 묶여 있음.
+
+**다음 세션 진입점 후보** (우선순위 갱신):
+1. **Phase 4 § gh subprocess 결정 회의** — Claude Code 친화성 기준 추가 후 재평가. T13 권한 가이드 형태 + Phase 3 push 도구 HTTP 방식 + Phase 4 batching 구현 방식 모두 이 결정에 묶임. 가장 레버리지 큰 작업.
+2. Phase 2 (`gitless-sync init`) 시작 — 편의 명령어. gh 결정과 독립적이라 병행 가능.
+3. Phase 3 (`gitless-push`) 진입 — gh subprocess 결정 선행 필수.
 
 ## Project Overview
 git이 없는 로컬 디렉토리를 GitHub repo와 단방향으로 비교해, 드리프트를 정량적으로 보고하는 read-only AI 친화 CLI. iCloud 동기화 디렉토리처럼 git 사용 자체가 불가능한 환경에서 "평행우주 드리프트"를 막기 위한 도구. 도구는 사실(4분류 JSON)만 제공하고 결정은 호출자(사람 또는 AI)에게 맡긴다.

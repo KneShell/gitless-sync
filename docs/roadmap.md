@@ -67,7 +67,7 @@ Phase 3 (`gitless-push`) 들어가기 전, v0.1의 ureq 직접 호출 vs gh CLI 
 
 > Phase 1 진행 중 답을 찾아 해소되면 이 섹션에서 제거 + guardrails나 spec으로 옮긴다.
 
-- **GitHub 토큰 최소 권한 범위.** Fine-grained PAT로 `Contents: Read`만으로 Trees + Commits API 모두 작동하는지 검증 필요. (검증 방법: 실제 PAT 발급 + 통합 테스트 1회.)
+- **GitHub 토큰 최소 권한 범위.** 1차 smoke test 통과 (2026-04-29 vault 356 파일, OAuth token via `gh auth token`, 284 identical / 55 local_only_changed / 17 remote_only_changed / 0 drift). Fine-grained PAT (`Contents: Read`만)로 Trees + Commits API 정식 검증은 보류 — Phase 4 § gh subprocess 결정 후 재정의. gh subprocess 채택 시 PAT 권한 가이드 자체가 도구 책임 밖으로 이동하므로 검증 의미가 달라짐. v0.1 hard blocker에서 nice-to-have로 강등 (2026-04-29).
 - **큰 파일 임계치.** 예: 10MB 이상 파일의 해시 메모리 사용량. Phase 4 캐시와 연결.
 - **CI 플랫폼.** GitHub Actions Windows 러너에서 tarpaulin LLVM 백엔드 안정성 1차 검증 필요.
 
