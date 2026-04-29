@@ -227,12 +227,13 @@ L5 (human):    T13
   - `[AUTO]` 완료 후 사람이 T12 status를 `[!]` → `[ ]`로 되돌리고 다음 ralph build iteration에서 T12 진행.
 - **Status**: `[x]`
 
-### T13. [HUMAN] 실제 GitHub repo + Fine-grained PAT 통합 검증
+### T13. [HUMAN] 실제 GitHub repo + Fine-grained PAT 통합 검증 (v0.1 nice-to-have로 강등)
 - **Spec reference**: `docs/specs/spec-github-api.md` § Open Question, `docs/roadmap.md` § Open Questions
 - **Files**: 코드 변경 없음. 사람이 수동 실행 + 결과를 `docs/roadmap.md`에 반영.
 - **Depends on**: T09a
-- **Acceptance criteria**:
+- **Status downgrade (2026-04-29)**: v0.1 정식 출하 hard blocker → nice-to-have. 도구 동작 자체는 vault 실전 검증 (2026-04-29, 356 파일 OAuth token)으로 입증. 이 task의 본질은 "README 권한 가이드 작성용 검증"이며, Phase 4 § gh subprocess 결정에 따라 권한 가이드 형태가 달라질 수 있어 결정 후 재정의 권장. v0.1 출하 자체는 이 task 없이도 가능.
+- **Acceptance criteria** (보류 — Phase 4 § gh subprocess 결정 후 재검토):
   - `[HUMAN]` Fine-grained PAT (`Contents: Read` 권한만)로 실제 GitHub repo에 `gitless-sync scan` 실행 → 정상 JSON 출력.
   - `[HUMAN]` Trees + Commits API 모두 작동 확인. 실패 시 더 넓은 권한 필요한지 확인.
   - `[HUMAN]` 결과를 `docs/roadmap.md` Open Questions 섹션에서 제거. 추가로 발견된 함정은 `guardrails.md`에 추가.
-- **Status**: `[ ]` — 1차 smoke test 통과 (2026-04-29, `gh auth token` 사용 → 37 identical / 0 drift, Trees API OK, Commits API는 drift 0이라 미호출). 정식 Fine-grained PAT로 Contents: Read 권한 범위 검증 + Commits API 호출 검증은 미완.
+- **Status**: `[ ]` — vault 실전 검증 통과 (2026-04-29, `gh auth token` 사용 → 284 identical / 55 local_only_changed / 17 remote_only_changed / 0 drift, 356 파일). Trees API + 도구 전체 정상. Commits API는 SHA 다른 파일에만 호출되므로 0 drift 케이스에서는 미호출 — 1차 smoke test와 동일 한계. Fine-grained PAT 최소 권한 정식 검증은 Phase 4 후 재정의.
