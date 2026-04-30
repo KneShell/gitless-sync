@@ -1,6 +1,6 @@
 # gitless-sync
 
-## Current State (2026-04-29)
+## Current State (2026-04-30)
 
 **v0.1 정식 출하 가능 상태** (T01~T12, T14 모두 `[x]`, 145 tests pass, tarpaulin 95.87%, vault 실전 검증 통과).
 
@@ -9,14 +9,15 @@
 - 결과: 284 identical / 55 local_only_changed / 17 remote_only_changed / 0 drift / 0 failed (총 356 파일)
 - 도구 동작 자체는 입증됨.
 
-**T13 `[HUMAN]` 강등** (2026-04-29): Fine-grained PAT 최소 권한 검증은 v0.1 hard blocker → nice-to-have. 본질이 "README 권한 가이드 작성용 검증"이고, Phase 4 § gh subprocess 결정에 따라 권한 가이드 형태가 달라질 수 있어 결정 후 재정의. 디테일은 `docs/ralph/implementation-plan.md` T13.
+**ADR 0001 결정 (2026-04-30)**: gh CLI subprocess 채택 + `gitless-push` 영구 폐지. 디테일은 `docs/adr/0001-gh-subprocess-and-drop-push-tool.md`.
+- Phase 4 GraphQL batching부터 `gh api graphql` subprocess로 구현. 인증·rate limit·재시도 모두 gh에 위임.
+- Phase 3 `gitless-push`는 만들지 않음. read-only 영구 결정. push는 Claude Code가 `gh` 명령으로 직접 처리.
+- T13 (Fine-grained PAT 권한 검증)은 obsolete — gh가 인증 책임을 맡으므로 PAT 가이드 자체가 도구 책임 밖.
 
-**미결정 (가장 무거운 다음 결정)**: ureq 직접 HTTP vs gh subprocess. 6인 tribunal은 4기준 (우아함 / 속도 / GitHub 친화성 / v0.1 정신)으로 ureq 선택했지만 **"Claude Code 친화성" 기준은 평가 안 됨** — 사용자가 사후에 이게 핵심 기준임을 명시 (ureq면 Claude Code가 매번 token 인자 필요, gh subprocess면 자동 인증). Trade-off 디테일은 `docs/roadmap.md` § Phase 4 § gh subprocess 회고. T13 강등 결정도 이 회의 결과에 묶여 있음.
-
-**다음 세션 진입점 후보** (우선순위 갱신):
-1. **Phase 4 § gh subprocess 결정 회의** — Claude Code 친화성 기준 추가 후 재평가. T13 권한 가이드 형태 + Phase 3 push 도구 HTTP 방식 + Phase 4 batching 구현 방식 모두 이 결정에 묶임. 가장 레버리지 큰 작업.
-2. Phase 2 (`gitless-sync init`) 시작 — 편의 명령어. gh 결정과 독립적이라 병행 가능.
-3. Phase 3 (`gitless-push`) 진입 — gh subprocess 결정 선행 필수.
+**다음 세션 진입점 후보**:
+1. **v0.1 ureq → gh 마이그레이션 결정** (ADR 0001 follow-up open question #1). Claude Code 마찰 즉시 제거 vs Phase 4까지 점진 전환. 결정 시 별도 ADR.
+2. **Phase 2 (`gitless-sync init`)** — 편의 명령어. ADR 0001과 독립적.
+3. **Phase 4 GraphQL batching 진입** — gh subprocess 기반으로 신규 작성.
 
 ## Project Overview
 git이 없는 로컬 디렉토리를 GitHub repo와 단방향으로 비교해, 드리프트를 정량적으로 보고하는 read-only AI 친화 CLI. iCloud 동기화 디렉토리처럼 git 사용 자체가 불가능한 환경에서 "평행우주 드리프트"를 막기 위한 도구. 도구는 사실(4분류 JSON)만 제공하고 결정은 호출자(사람 또는 AI)에게 맡긴다.
@@ -24,11 +25,11 @@ git이 없는 로컬 디렉토리를 GitHub repo와 단방향으로 비교해, �
 ## Key Constraints
 - **OS**: Windows 1차 타겟. macOS/Linux는 부수효과로 지원하되 검증은 Windows 기준.
 - **Rust**: stable 채널, MSRV 1.95.0. `rust-toolchain.toml`로 고정.
-- **HTTP**: blocking `ureq`. async 도입은 명시적 요구 발생 시까지 보류.
+- **HTTP**: v0.1 코드는 blocking `ureq` (rest backend). Phase 4부터는 `gh` CLI subprocess (ADR 0001). async 도입은 명시적 요구 발생 시까지 보류.
 - **Safety**: `#![forbid(unsafe_code)]` 워크스페이스 lint. release profile `panic = "abort"`.
 - **Cargo.lock**: binary CLI이므로 commit 대상.
 - **Test coverage**: Unit test 라인 커버리지 ≥ 80% (cargo-tarpaulin LLVM 백엔드). 합의된 강제 조건.
-- **Read-only**: 도구는 파일·원격을 절대 수정하지 않는다. write 책임은 별도 도구 (Phase 3 `gitless-push`)로 분리.
+- **Read-only (영구)**: 도구는 파일·원격을 절대 수정하지 않는다. write 작업은 Claude Code가 `gh` 명령으로 직접 처리하므로 별도 push 도구를 만들지 않는다 (ADR 0001).
 
 ## Architecture
 **Vertical slice — 명령어 단위 자체 모듈.** `shared/`는 여러 명령어가 동일 로직 사용하는 진짜 공통만 들어간다.
@@ -39,7 +40,7 @@ crates/gitless-sync/src/
 ├── commands/
 │   ├── scan/              # scan 명령어 자체 모듈
 │   │   ├── mod.rs         # entry point + ScanArgs
-│   │   ├── github.rs      # Trees / Blobs / Commits API (ureq)
+│   │   ├── github.rs      # Trees / Blobs / Commits API (v0.1: ureq, Phase 4+: gh subprocess via ADR 0001)
 │   │   ├── walker.rs      # 로컬 디렉토리 walk (walkdir + ignore)
 │   │   ├── compare.rs     # 4분류 판정 + Status enum + FileEntry
 │   │   └── output.rs      # ScanReport JSON 직렬화
@@ -74,7 +75,7 @@ crates/gitless-sync/src/
 ## Critical Rules
 
 ### 도구 본성
-- **Read-only.** 어떤 task든 파일 쓰기·원격 변경을 도입해서는 안 된다.
+- **Read-only (영구).** 어떤 task든 파일 쓰기·원격 변경을 도입해서는 안 된다. write 도구를 만들지 않는다 (ADR 0001).
 - **사실만 제공.** 도구는 결정을 내리지 않는다. AI/사람이 결과를 보고 다음 액션을 결정.
 - **임의 디렉토리 + 임의 GitHub repo 간 비교.** vault 같은 특정 도메인 종속 금지.
 

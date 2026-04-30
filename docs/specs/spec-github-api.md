@@ -1,7 +1,9 @@
 # Spec: GitHub API Integration
 
+> **2026-04-30 Note (ADR 0001)**: 본 spec은 v0.1 REST backend (`ureq` 기반) 기준으로 박힌 계약이다. Phase 4 GraphQL backend부터는 `gh` CLI subprocess로 구현하며 본 spec은 부분적으로 historical reference가 된다 (인증·rate limit·retry는 gh가 위임 처리). v0.1 ureq 코드 자체의 마이그레이션 시점은 ADR 0001 follow-up open question #1로 별도 결정.
+
 ## 목적
-GitHub Trees / Blobs / Commits API를 blocking `ureq`로 호출. 인증·rate limit·truncation을 구조화 에러로 매핑.
+GitHub Trees / Blobs / Commits API를 blocking `ureq`로 호출 (v0.1). 인증·rate limit·truncation을 구조화 에러로 매핑.
 
 ## 현재 상태
 - `crates/gitless-sync/src/commands/scan/github.rs`에 3개 함수 시그니처 박힘:
@@ -66,4 +68,4 @@ Trees API 응답 JSON에 `truncated: true` → 즉시 `TreesTruncated` 반환. �
 - `[AUTO]` `fetch_last_commit_at`가 빈 commits 배열 응답 → `GitlessError::Http(...)` (예상 외 케이스).
 - `[AUTO]` 모든 함수가 `User-Agent: gitless-sync/0.1` 헤더 송신 (mockito match로 검증).
 - `[AUTO]` `fetch_last_commit_at`은 `Send + Sync` 호출 가능 (caller가 rayon `par_iter`로 동시 호출해도 안전). 단위 테스트에서 동일 함수를 여러 thread에서 동시 호출 → 모두 정상 결과.
-- `[HUMAN]` 실제 GitHub repo + 실제 PAT(Fine-grained `Contents: Read`)로 `fetch_tree` 1회 통합 검증. `docs/roadmap.md` Open Question 해소용.
+- ~~`[HUMAN]` 실제 GitHub repo + 실제 PAT(Fine-grained `Contents: Read`)로 `fetch_tree` 1회 통합 검증.~~ **OBSOLETE (ADR 0001).** vault 실전 검증 (2026-04-29, OAuth via `gh auth token`, 356 파일)으로 입증. PAT 권한 가이드는 gh subprocess 채택으로 도구 책임 밖.
