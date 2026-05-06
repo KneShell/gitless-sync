@@ -2,6 +2,16 @@
 
 > 이 파일은 ralph가 자동 로드하지 않는다. 사람이 v0.1 완료 후 다음 phase 진입할 때 참조.
 
+## Next Up — v0.1 ureq → gh subprocess 일괄 마이그레이션
+
+> ADR 0002 (2026-05-06) 결정. 상세는 `docs/adr/0002-migrate-v0.1-to-gh-subprocess.md`.
+
+- v0.1 scan/diff REST 호출을 `gh api` subprocess로 전환. ureq + mockito 의존성 제거.
+- `--token` 인자 + `resolve_token` 경로 제거. 인증은 `gh auth login`로 단일화.
+- 통합 테스트는 mockito 기반에서 gh stub 기반으로 재설계. 전략 결정이 선행 task.
+- guardrail G-003 / G-011은 도구 책임 종료. rayon 유지 여부는 마이그레이션 후 측정으로 결정.
+- 에러 매핑(`GitlessError::AuthFailed` 등)은 gh 종료 코드 + stderr 파싱으로 재정의. `spec-error-contracts.md` 갱신.
+
 ## Phase 2 — 편의 명령어
 - `gitless-sync init` — `gitless-sync.toml` 설정 파일 생성 도우미.
   - 입력: `--repo`, `--branch` 등 인자 또는 prompt
@@ -42,7 +52,7 @@
 - **우리 use case 분석**: 한 alias = `history(first: 1, path: ...)` = 1 node. 1000 path = 1000 node = 한도의 0.2%. 한 request에 다 박아도 node 한도 기준 OK.
 - **권장 batch 크기**: 보수적으로 100~200 alias/request. 1000 drift = 5~10 round-trip.
 - **GraphQL endpoint**: `https://api.github.com/graphql`. 인증은 동일 PAT.
-- **Caveat**: GitHub은 batching을 공식 권장하지 않음 ("polling 대신 webhook events"). 합법적 사용이지만 너무 큰 batch는 abuse detection 가능성 — 실제 운영 데이터로 측정 필요. 보수적 batch 크기로 시작.
+- **Caveat**: GitHub은 batching을 공식 권장하지 않음 ("polling 대신 webhook events"). 합법적 사용이지만 너무 큰 batch는 abuse detection 가능성 — 실제 운영 데이터로 측정 필요. 보수적 batch 크기(100~200 alias/request)로 시작 후 운영 데이터로 한도 확정 (ex-ADR 0001 Open Question #2).
 - **참조**: https://docs.github.com/en/graphql/overview/resource-limitations
 
 #### gh subprocess 방식 회고 (RESOLVED, ADR 0001)
@@ -65,6 +75,8 @@
 - 빈 파일 (`SHA-1("blob 0\0") = e69de29...`) 실파일 통합 검증 — v0.1에서 unit test로는 통과했으나 실파일 케이스 검증 필요.
 - 실행 권한 (Trees mode `100755` vs `100644`).
 - `.gitattributes` 파싱 → git 표준 blob SHA 정확 재현 (선택적, 큰 변경).
+
+> **우선순위 결정 미정** (ex-ADR 0001 Open Question #3). Phase 4 완료 후 운영 데이터(어떤 함정이 실제 사용 중 자주 발생하는지)와 사용자 요청 빈도로 순서 정함.
 
 ## v0.1 시점 미결 (Open Questions)
 

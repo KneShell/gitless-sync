@@ -3,7 +3,7 @@
 - **Status**: Accepted
 - **Date**: 2026-04-30
 - **Supersedes**: `docs/roadmap.md` § Phase 3 (이전 안), § Phase 4 § gh subprocess 회고 (미결 항목)
-- **Related**: `docs/ralph/implementation-plan.md` T13 (obsoleted)
+- **Related**: `docs/ralph/implementation-plan.md` T13 (obsoleted), `docs/adr/0002-migrate-v0.1-to-gh-subprocess.md` (resolves Open Question #1)
 
 ## Context
 
@@ -66,12 +66,6 @@ v0.1는 6인 페르소나 tribunal이 4기준(우아함 / 속도 / GitHub 친화
 ### 본질 재확인
 - 도구의 가치(walk + normalize + hash + classify + JSON)는 그대로. HTTP 레이어 교체는 본질 영향 0.
 - "wrapper화" 우려 해소: 도메인 로직은 그대로 우리 책임.
-
-## Follow-up Open Questions
-
-1. **v0.1 ureq 코드 마이그레이션 시점.** Claude Code 마찰을 즉시 제거하려면 v0.1 scan 명령도 gh subprocess로 전환해야 한다. 점진 전략(Phase 4 신규만 gh) vs 일괄 전환(v0.1 rest backend도 gh로) 선택 필요. 결정 시 별도 ADR.
-2. **GraphQL alias batching의 abuse detection 한도.** GitHub은 batching을 공식 권장하지 않으므로 보수적 batch 크기(100~200 alias/request)로 시작하고 운영 데이터로 측정. (`docs/roadmap.md` Phase 4 § GraphQL batching § Caveat)
-3. **Phase 5 도메인 함정(NFD/case/encoding/submodule/symlink)** 우선순위는 별도 결정.
 
 ## References
 
