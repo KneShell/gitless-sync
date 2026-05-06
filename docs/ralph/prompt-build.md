@@ -14,18 +14,19 @@ Read in this order, fully:
 - Mark the selected task `[~]` (in progress) before starting. Commit this status change.
 
 ## 2. Implementation
+- **Spec-only task** (Files가 `docs/specs/*.md` 또는 `docs/ralph/*.md`만): 본 § 2의 코드 작성 룰 적용 제외 — spec/문서 본문 갱신만 수행. Coverage 게이트는 G-012 spec-only 케이스 적용으로 baseline 유지로 자동 통과.
 - Code lives in `crates/gitless-sync/src/`. Do not create files outside this tree unless the task says so.
 - Follow the architecture in `CLAUDE.md`: vertical slice (`commands/<name>/`) vs `shared/`. Don't put command-specific logic in `shared/`.
 - Replace `todo!()` with real implementations. If a function signature needs to change, update the corresponding spec acceptance criterion in `implementation-plan.md` first.
 - Add unit tests in the same file (`#[cfg(test)] mod tests`). Coverage gate is 80% (`project-ops.md`).
-- For HTTP code, use `mockito` in tests (G-009). Never reach the real GitHub API in unit tests.
+- GitHub API mocking uses `GhClient` trait + `MockGhClient` inject (M0~M2). M2 완료 후 `mockito` import 추가 금지. M2 진행 중 룰은 `guardrails.md` G-009 참조.
 
 ## 3. Validation (Backpressure)
 Run in order. Do NOT proceed to step 4 until all pass.
 1. `cargo fmt --check` — if fails, run `cargo fmt` and re-check.
 2. `cargo clippy --all-targets -- -D warnings` — fix all warnings.
 3. `cargo test --workspace` — all tests must pass.
-4. `cargo tarpaulin --engine llvm --workspace --out Stdout` — coverage ≥ 80%.
+4. `cargo tarpaulin --engine llvm --workspace --out Stdout` — coverage ≥ 80%. (G-012 적용 — spec-only task / `todo!()` 잔존 task는 baseline 유지로 자동 통과.)
 
 If any step fails after a reasonable fix attempt:
 - Update `docs/ralph/guardrails.md` with a new `G-NNN` entry describing the failure pattern.

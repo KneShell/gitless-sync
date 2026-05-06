@@ -1,6 +1,6 @@
 # ADR 0001: gh CLI subprocess 채택 + `gitless-push` 폐지
 
-- **Status**: Accepted
+- **Status**: Accepted (partially superseded by ADR 0002, 2026-05-06)
 - **Date**: 2026-04-30
 - **Supersedes**: `docs/roadmap.md` § Phase 3 (이전 안), § Phase 4 § gh subprocess 회고 (미결 항목)
 - **Related**: `docs/ralph/implementation-plan.md` T13 (obsoleted), `docs/adr/0002-migrate-v0.1-to-gh-subprocess.md` (resolves Open Question #1)
@@ -49,7 +49,7 @@ v0.1는 6인 페르소나 tribunal이 4기준(우아함 / 속도 / GitHub 친화
 
 ### 코드 베이스
 - Phase 4 신규 코드는 ureq 의존 없이 작성. `std::process::Command`로 `gh` 호출.
-- v0.1 기존 ureq 코드는 그대로 둔다 (rest backend는 호환성 유지). 선택적 마이그레이션은 아래 Open Question 참조.
+- v0.1 기존 ureq 코드는 그대로 둔다 (rest backend는 호환성 유지). **(2026-05-06 ADR 0002로 superseded — v0.1 ureq 코드는 일괄 마이그레이션 대상.)**
 - `shared/error.rs`의 HTTP 관련 variant(`Http`, `RateLimitExceeded` 등)는 v0.1 rest backend에서는 계속 유효, GraphQL backend에서는 `gh` 종료 코드 + stderr 매핑으로 대체.
 - G-003 (Commits API 호출 비용), G-011 (rayon 8 concurrent abuse 회피) guardrail은 v0.1 rest backend 한정 유효. gh subprocess 경로에서는 무관.
 
