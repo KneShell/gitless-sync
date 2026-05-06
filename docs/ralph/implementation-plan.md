@@ -97,14 +97,14 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
 
 ### M2c. Cargo.toml ureq+mockito 삭제 + Cargo.lock 정리 + guardrails obsolete 처리 `[AUTO, 코드+guardrail]`
 - **Spec reference**: ADR 0002 § 마이그레이션 작업 범위
-- **Files**: `crates/gitless-sync/Cargo.toml`, `Cargo.lock`, `docs/ralph/guardrails.md` (G-009 통째 삭제, G-003 obsolete 마크)
+- **Files**: `crates/gitless-sync/Cargo.toml`, `Cargo.lock`, `crates/gitless-sync/tests/integration.rs` (mockito imports 정리 — M2b2 누락분 보정), `docs/ralph/guardrails.md` (G-009 통째 삭제, G-003 obsolete 마크)
 - **Depends on**: M2b2
 - **Acceptance criteria**:
   - `[AUTO]` `Cargo.toml`에서 `ureq`, `mockito` 의존성 삭제. `Cargo.lock` 갱신.
   - `[AUTO]` `cargo tree`로 `ureq`/`mockito`/관련 transitive 부재 확인.
   - `[AUTO]` `guardrails.md` G-009 통째 삭제. G-003에 "**2026-05-06 obsolete (gh가 rate limit 처리)**" 마크 추가. (G-011은 M5b가 처리.)
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`, `cargo deny check`, `cargo audit` 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### M3. CLI 인자 + config 토큰 경로 제거 `[AUTO, 코드]`
 - **Spec reference**: `docs/specs/spec-cli-interface.md`, `docs/specs/spec-config.md`
