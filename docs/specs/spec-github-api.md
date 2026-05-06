@@ -14,6 +14,17 @@ GitHub Trees / Blobs / Commits API를 blocking `ureq`로 호출 (v0.1). 인증·
 - `RemoteFile` 구조체는 정의 완료.
 - 의존성: `ureq` (json feature), `mockito` (dev) — Cargo.toml에 박힘.
 
+## GhClient trait 사전 결정 (2026-05-06)
+
+> ralph 자율 루프 진입 전 사람이 사전 박은 trait shape 결정. M0 task가 본 spec 통째 재작성 시 본 섹션의 결정 6개를 § 작업 범위로 옮기고 ureq/mockito 표현 제거. ADR 0002 마이그레이션 작업의 baseline.
+
+1. **`GhResponse` 필드**: `{ stdout: Vec<u8>, stderr: String, exit_code: i32 }`. headers/duration 등 추가 필드는 yagni.
+2. **`GhClient::api` 시그니처**: `fn api(&self, args: &[String]) -> Result<GhResponse, GitlessError>`. `&[&str]`은 lifetime juggling, `IntoIterator<Item=impl AsRef<str>>` generic은 trait object 깨짐. `&[String]`이 호출 측 `format!` 결과를 vec에 박기 가장 자연.
+3. **`RealGhClient::new`**: `pub fn new() -> Self` (인자 0개). PATH lookup으로 `gh` 찾음. `binary_path: Option<PathBuf>` inject(tribunal P3 D3 권고)는 옵션 2−에서 yagni 적용으로 빠짐.
+4. **main.rs entry pattern**: production에서 `RealGhClient::new()`를 1회 inject. 통합 테스트는 library entry `commands::scan::run_with_client(args: &ScanArgs, client: &impl GhClient)`를 직접 호출 + `MockGhClient` inject.
+5. **`fetch_*` 인터페이스**: v0.1 시그니처에서 `token` 인자 제거 + `client: &impl GhClient` 추가. `fetch_tree(client, repo, branch)` / `fetch_blob(client, repo, sha)` / `fetch_last_commit_at(client, repo, branch, path)`.
+6. **`api()` 에러 매핑 책임**: `api()`는 raw `GhResponse` 반환 (transparent). exit_code/stderr → `GitlessError` 매핑은 fetch_* 호출 측 책임. M1 spec(`spec-error-contracts.md`)에 매핑 표 한 곳에 박음.
+
 ## 작업 범위
 
 ### `fetch_tree`
