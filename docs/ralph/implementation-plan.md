@@ -108,16 +108,17 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
 
 ### M3. CLI 인자 + config 토큰 경로 제거 `[AUTO, 코드]`
 - **Spec reference**: `docs/specs/spec-cli-interface.md`, `docs/specs/spec-config.md`
-- **Files**: `crates/gitless-sync/src/main.rs`, `crates/gitless-sync/src/shared/config.rs`, `docs/specs/spec-cli-interface.md`, `docs/specs/spec-config.md`
+- **Files**: `crates/gitless-sync/src/main.rs`, `crates/gitless-sync/src/shared/config.rs`, `crates/gitless-sync/src/commands/scan/mod.rs`, `crates/gitless-sync/src/commands/diff/mod.rs`, `docs/specs/spec-cli-interface.md`, `docs/specs/spec-config.md`
 - **Depends on**: M2c
 - **Acceptance criteria**:
   - `[AUTO]` clap 정의에서 `--token` 인자 + `clap(env = "GITHUB_TOKEN")` 제거.
   - `[AUTO]` `shared/config.rs::resolve_token` 함수 + 관련 단위 테스트 삭제. `Config` 구조체에 token 필드 있으면 삭제.
+  - `[AUTO]` `ScanArgs.token` / `DiffArgs.token` 필드 + `build_report` / `compute_diff` 안의 token resolve 게이트 + 토큰 의존 단위 테스트 모두 삭제. (M2b2가 의도적으로 contract로 남긴 잔존분 — clap 인자 제거 cascade로 동반 정리. M2b2 `run_with_base→run_with_client` Files 확장 선례.)
   - ~~`[AUTO]` **`GITLESS_API_BASE` env 처리 잔존 코드 단순 삭제** (M2b1/M2b2에서 trait inject로 옮김).~~ **OBSOLETE** — M2b2가 `GITHUB_API_BASE` 상수와 함께 `resolve_api_base*` 통째 제거 완료.
   - `[AUTO]` `spec-cli-interface.md`: 글로벌 플래그 표에서 `--token` 행 삭제. § 인자 우선순위에서 토큰 라인 제거. Acceptance Criteria의 토큰 항목 삭제.
   - `[AUTO]` `spec-config.md`: § `--token` 형식 섹션 삭제. § 우선순위 표에서 토큰 라인 삭제. § 비밀 정보 정책은 그대로 유지. Acceptance Criteria의 토큰 관련 5개 항목 삭제.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings` 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### M4a. 통합 테스트 정상 경로 시나리오 `[AUTO, 코드]`
 - **Spec reference**: PRD 검증 시나리오 1~4 + 9
