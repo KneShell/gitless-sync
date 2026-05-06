@@ -1,7 +1,7 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-06T01:00:00Z (M1 완료 — spec-error-contracts 부분 갱신 + gh exit/stderr 매핑 표 + gh 2.40 floor)
+- Last updated: 2026-05-06T02:00:00Z (M2a BLOCKED — G-016 cargo 미설치, 사람 대기)
 - Total tasks: 14 (M0, M1, M2a, M2b1, M2b2, M2c, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
 - Completed: 2 / 14
 
@@ -64,7 +64,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` 단위 테스트로 trait 동작 검증.
   - `[AUTO]` 기존 ureq 함수는 잔존 (M2b1/M2b2에서 본체 재작성).
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
-- **Status**: `[~]`
+- **Status**: `[!]` BLOCKED — G-016 영구 사유. ralph 환경 cargo/rustup 미설치 확인 (`%USERPROFILE%\.cargo\bin` 부재, PATH에 cargo/rustup 부재, `cargo --version` 실패). M2a는 첫 코드 task로 validation pipeline(`cargo fmt/clippy/test`) 실행 불가. 사람이 https://rustup.rs/ 설치 → `rust-toolchain.toml` MSRV 1.95.0 자동 fetch 확인 → 본 task `[!]` → `[ ]` reset 후 재진입. G-015 transient retry 대상 아님 (영구 신호).
 
 ### M2b1. fetch_tree gh subprocess 재작성 + run_with_client entry point `[AUTO, 코드]`
 - **Spec reference**: `docs/specs/spec-github-api.md` (M0), `docs/specs/spec-error-contracts.md` (M1)
