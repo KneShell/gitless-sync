@@ -64,7 +64,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` 단위 테스트로 trait 동작 검증.
   - `[AUTO]` 기존 ureq 함수는 잔존 (M2b1/M2b2에서 본체 재작성).
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### M2b1. fetch_tree gh subprocess 재작성 + run_with_client entry point `[AUTO, 코드]`
 - **Spec reference**: `docs/specs/spec-github-api.md` (M0), `docs/specs/spec-error-contracts.md` (M1)
