@@ -64,6 +64,12 @@
   - 영구 signal (즉시 [!] + 별도 G-NNN 신규): gh stderr `HTTP 401`(인증 만료, 사람 회복 필요), `gh: command not found`/`Command::new` IO err(미설치), spec/code 정합 충돌, parse error 등.
 - **auto-recovery**: G-015로 [!] 박힌 task는 `prompt-build.md` § 1 [!] auto-recovery 룰에 따라 다음 iteration 자동 [!]→[ ] reset. 사람 개입 0. 영구 사유(G-016+)는 사람 대기.
 
+## G-016: ralph 환경 cargo/rustup 미설치 (코드 task만 BLOCKED 사유)
+- **문제**: 2026-05-06 M0 진행 중 발견. ralph 실행 환경에 `cargo`/`rustup` 미설치 (PATH·`%USERPROFILE%\.cargo\bin`·`C:\Program Files\Rust` 등 표준 위치 모두 부재). `cargo fmt`/`clippy`/`test`/`tarpaulin` 실행 불가 → 영구 신호 (G-015 transient retry 대상 아님).
+- **해결**: 사람이 ralph 환경에 rustup 설치 (https://rustup.rs/) 후 재진입. 설치 후 `MSRV 1.95.0` (`rust-toolchain.toml`) 자동 fetch. 설치 완료 시 본 G-016 obsolete 마크.
+- **spec-only task 면제**: M0/M1 같은 spec-only task(`docs/specs/*.md` / `docs/ralph/*.md` / `docs/adr/*.md`만 수정)는 코드 변경 0이므로 baseline 무영향. `prompt-build.md` § 3 step 1~3을 자연 면제로 처리하여 진행 가능. step 4(coverage)는 § 2 spec-only 룰(G-012)로 이미 면제. 본 면제는 spec-only task 한정.
+- **코드 task 도달 시**: 첫 코드 task(M2a 등)에서 `cargo --version` 실패 즉시 본 G-016 reference로 [!] BLOCKED. 사람이 rustup 설치 후 [!] → [ ] reset (G-015 auto-recovery 대상 아님 — 영구 신호).
+
 ## G-014: scan 모듈의 `_with_base` 패턴이 비-`_with_base` `pub fn`을 dead code로 만듦
 - **문제**: T09b에서 `GITLESS_API_BASE` env override를 위해 `run` / `fetch_tree` / `fetch_blob` / `fetch_last_commit_at` 각 함수에 `*_with_base(base, …)` 형제를 도입. main.rs는 base override capability 때문에 항상 `*_with_base`를 직접 호출하므로 비-`_with_base` 래퍼는 production·test 어디서도 호출되지 않음. binary crate에서 `pub` 가시성은 dead_code 분석을 막지 못하므로 T12 baseline cleanup(`#![allow(dead_code, clippy::needless_pass_by_value)]` 제거) 시 4개의 dead_code 에러로 surface. 추가로 `RemoteFile.mode` / `RemoteFile.size`는 `fetch_tree_with_base`가 채우지만 production read 경로 없음 (테스트에서만 read). 또한 `clippy::needless_pass_by_value`도 동시에 제거하면 `run_with_base(args: ScanArgs|DiffArgs)` 와 `walkdir_to_io(err: walkdir::Error)`가 함께 surface.
 - **해결**: 클린업 자체는 단순 (deletion or `#[allow]` per-item)이지만 T12의 plan rule이 "잔존 dead_code 발견 시 별도 fix task + `[!]` BLOCKED" 명시. 따라서 (a) `crates/gitless-sync/src/main.rs`의 `#![allow(dead_code, clippy::needless_pass_by_value)]` 복원, (b) 별도 T14 task로 분리, (c) T12를 `[!]` BLOCKED. T14 acceptance: dead `pub fn` 4개 + dead `RemoteFile.{mode,size}` 필드 삭제, needless_pass_by_value 3건은 `&` 참조로 변경, `cargo clippy --all-targets -- -D warnings` 통과. T14 완료 후 사람이 T12를 `[ ]`로 reset하여 coverage gate 진행.

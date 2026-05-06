@@ -1,57 +1,122 @@
 # Spec: GitHub API Integration
 
-> **2026-05-06 Note (ADR 0001 + ADR 0002)**: 본 spec은 v0.1 ureq baseline 정합 상태. ADR 0002로 gh subprocess 일괄 마이그레이션 결정 종료 → `docs/ralph/implementation-plan.md` M0에서 본 spec 통째 재작성 예정. 마이그레이션 완료 전까지 본 spec(ureq + mockito 표현)은 코드 baseline과 정합.
+> **2026-05-06 (M0)**: ADR 0001 + ADR 0002 정합 통째 재작성. v0.1 ureq baseline 표현(직접 HTTP 호출 / mockito / Agent thread-safety / HTTP 헤더 송신 검증) 제거. 모든 GitHub API 호출은 `gh api` subprocess 단일 통로.
 
 ## 목적
-GitHub Trees / Blobs / Commits API를 blocking `ureq`로 호출 (v0.1). 인증·rate limit·truncation을 구조화 에러로 매핑.
+
+GitHub Trees / Blobs / Commits API를 `gh api` subprocess로 호출 (ADR 0001 + ADR 0002). 인증·rate limit·truncation 등 운영 책임은 `gh`에 위임하고, 본 도구는 종료 코드 + stderr를 좁은 substring 매칭으로 `GitlessError`에 매핑하는 책임만 진다.
 
 ## 현재 상태
-- `crates/gitless-sync/src/commands/scan/github.rs`에 3개 함수 시그니처 박힘:
-  - `fetch_tree(repo, branch, token) -> Result<Vec<RemoteFile>, GitlessError>`
-  - `fetch_blob(repo, sha, token) -> Result<Vec<u8>, GitlessError>`
-  - `fetch_last_commit_at(repo, branch, path, token) -> Result<DateTime<Utc>, GitlessError>`
-- 모두 `todo!()`. 구현 필요.
-- `RemoteFile` 구조체는 정의 완료.
-- 의존성: `ureq` (json feature), `mockito` (dev) — Cargo.toml에 박힘.
 
-## GhClient trait 사전 결정 (2026-05-06)
-
-> ralph 자율 루프 진입 전 사람이 사전 박은 trait shape 결정. M0 task가 본 spec 통째 재작성 시 본 섹션의 결정 6개를 § 작업 범위로 옮기고 ureq/mockito 표현 제거. ADR 0002 마이그레이션 작업의 baseline.
-
-1. **`GhResponse` 필드**: `{ stdout: Vec<u8>, stderr: String, exit_code: i32 }`. headers/duration 등 추가 필드는 yagni.
-2. **`GhClient::api` 시그니처**: `fn api(&self, args: &[String]) -> Result<GhResponse, GitlessError>`. `&[&str]`은 lifetime juggling, `IntoIterator<Item=impl AsRef<str>>` generic은 trait object 깨짐. `&[String]`이 호출 측 `format!` 결과를 vec에 박기 가장 자연.
-3. **`RealGhClient::new`**: `pub fn new() -> Self` (인자 0개). PATH lookup으로 `gh` 찾음. `binary_path: Option<PathBuf>` inject(tribunal P3 D3 권고)는 옵션 2−에서 yagni 적용으로 빠짐.
-4. **main.rs entry pattern**: production에서 `RealGhClient::new()`를 1회 inject. 통합 테스트는 library entry `commands::scan::run_with_client(args: &ScanArgs, client: &impl GhClient)`를 직접 호출 + `MockGhClient` inject.
-5. **`fetch_*` 인터페이스**: v0.1 시그니처에서 `token` 인자 제거 + `client: &impl GhClient` 추가. `fetch_tree(client, repo, branch)` / `fetch_blob(client, repo, sha)` / `fetch_last_commit_at(client, repo, branch, path)`.
-6. **`api()` 에러 매핑 책임**: `api()`는 raw `GhResponse` 반환 (transparent). exit_code/stderr → `GitlessError` 매핑은 fetch_* 호출 측 책임. M1 spec(`spec-error-contracts.md`)에 매핑 표 한 곳에 박음.
+- **결정 박힘**:
+  - ADR 0001: `gh` subprocess 단일 통로 + read-only 영구.
+  - ADR 0002: v0.1 ureq baseline 일괄 마이그레이션. ureq + mockito 의존성 제거.
+- **코드 baseline**: ureq 함수 잔존 (마이그레이션 task M2b1/M2b2가 본체 재작성, M2c가 의존성 정리). 본 spec은 마이그레이션 후 단일 baseline.
+- **마이그레이션 task 매핑**: M2a (trait/Real/Mock 골격) → M2b1 (`fetch_tree` + `run_with_client` entry) → M2b2 (`fetch_blob` + `fetch_last_commit_at` + `run_with_base` 정리) → M2c (의존성 + guardrail 정리).
 
 ## 작업 범위
 
-### `fetch_tree`
-- 엔드포인트: `GET /repos/{owner}/{repo}/git/trees/{branch}?recursive=1`
-- 헤더: `Authorization: Bearer <token>`, `User-Agent: gitless-sync/0.1`, `Accept: application/vnd.github+json`.
-- 응답: `tree` 배열에서 `type == "blob"`만 추출. `type == "tree"`(디렉토리)는 무시. mode `100755` / `120000` / `160000` 등은 v0.1에서 skip + warning(stderr) (G-010).
-- `truncated == true` → `GitlessError::TreesTruncated`, exit 5 (G-002).
-- 401 → `AuthFailed`. 403 + rate limit 헤더 → `RateLimitExceeded`. 5xx → `Http`.
+### `GhClient` trait + `GhResponse`
 
-### `fetch_blob`
-- 엔드포인트: `GET /repos/{owner}/{repo}/git/blobs/{sha}`
-- 응답: JSON `{"content": "<base64>", "encoding": "base64", ...}`.
-- base64 디코딩 후 raw bytes 반환.
-- 위 인증 / rate limit 매핑 동일.
+```rust
+pub(crate) struct GhResponse {
+    pub stdout: Vec<u8>,
+    pub stderr: String,
+    pub exit_code: i32,
+}
 
-### `fetch_last_commit_at`
-- 엔드포인트: `GET /repos/{owner}/{repo}/commits?sha={branch}&path={path}&per_page=1`
-- 응답: 배열의 첫 번째 commit의 `commit.committer.date` (ISO-8601).
-- **주의**: 이 호출은 비싸므로 **차이가 있는 파일에 한해서만** 호출 (G-003). identical 파일에는 호출 금지. 호출 측(`scan::run`) 책임.
+pub(crate) trait GhClient {
+    fn api(&self, args: &[String]) -> Result<GhResponse, GitlessError>;
+}
+```
 
-### Rate Limit 감지
-응답 status 403 + `X-RateLimit-Remaining: 0` 헤더 → `RateLimitExceeded { reset_at: <X-RateLimit-Reset 헤더 ISO-8601 변환> }`.
+설계 근거:
 
-### Truncation 감지
-Trees API 응답 JSON에 `truncated: true` → 즉시 `TreesTruncated` 반환. 부분 결과 사용 금지.
+- `GhResponse`에 `headers` / `duration` 등 추가 필드는 yagni. v0.1 매핑은 `exit_code` + `stderr` substring + `stdout` JSON으로 충분.
+- `&[&str]`은 lifetime juggling, `IntoIterator<Item = impl AsRef<str>>` generic은 `dyn GhClient` trait object를 깬다. `&[String]`이 호출 측 `format!` 결과를 `vec![...]`에 박기 가장 자연.
+- `api()`는 raw `GhResponse`를 transparent 반환한다. `exit_code`/`stderr` → `GitlessError` 매핑은 호출 측(`fetch_*`) 책임. 매핑 표는 `spec-error-contracts.md` (M1) 한 곳에만 박는다.
+
+### `RealGhClient` (production)
+
+- `pub(crate) fn new() -> Self` — 인자 0개. PATH lookup으로 `gh` 찾는다.
+- `binary_path: Option<PathBuf>` 같은 inject 옵션은 yagni 적용으로 빠짐.
+- 내부 호출: `std::process::Command::new("gh").args(args).output()`.
+- `gh` 미존재 시 첫 호출에서 `GitlessError::Config("gh CLI not found in PATH; install from https://cli.github.com/")` 반환. (`Command::new` IO 에러를 본 variant로 매핑.)
+
+### `MockGhClient` (테스트)
+
+- 인자별 응답을 HashMap 또는 클로저로 stub.
+- 단위 테스트 + 통합 테스트 모두 `MockGhClient` inject. mockito 호출 0회. v0.1 ureq baseline 시기에 박혀 있던 mockito 시나리오는 모두 `MockGhClient` stub 응답으로 재작성.
+
+### `main.rs` entry pattern
+
+- production 분기에서 `RealGhClient::new()`를 1회 inject:
+  ```rust
+  let client = RealGhClient::new();
+  commands::scan::run_with_client(&args, &client)
+  ```
+- 통합 테스트는 library entry `commands::scan::run_with_client(args: &ScanArgs, client: &impl GhClient)`를 직접 호출 + `MockGhClient` inject. 테스트가 production CLI 진입(`main`)을 거치지 않는다.
+
+### `fetch_*` 인터페이스
+
+v0.1 ureq baseline 시그니처에서 `token` 인자 제거 + `client: &impl GhClient` 추가:
+
+- `fn fetch_tree(client: &impl GhClient, repo: &str, branch: &str) -> Result<Vec<RemoteFile>, GitlessError>`
+- `fn fetch_blob(client: &impl GhClient, repo: &str, sha: &str) -> Result<Vec<u8>, GitlessError>`
+- `fn fetch_last_commit_at(client: &impl GhClient, repo: &str, branch: &str, path: &str) -> Result<DateTime<Utc>, GitlessError>`
+
+### `gh api` 호출 인자 패턴
+
+**`--paginate` flag 사용 금지.** paging이 필요한 경우 `per_page`를 인자에 명시 (Commits API). `--paginate`는 다중 페이지 stdout concat 동작이 본 도구 단일 응답 파싱 가정과 충돌.
+
+#### `fetch_tree`
+
+- 호출: `gh api repos/{owner}/{repo}/git/trees/{branch}?recursive=1`
+- args 빌드 예: `vec!["api".to_string(), format!("repos/{owner}/{repo}/git/trees/{branch}?recursive=1")]`
+- 응답 처리 (stdout JSON):
+  - `tree` 배열에서 `type == "blob"`만 추출. `type == "tree"`(디렉토리)는 무시.
+  - mode `100755` / `120000` / `160000` 등 v0.1 비목표 entry는 skip + warning(stderr) (G-010).
+  - `truncated == true` → `GitlessError::TreesTruncated` 즉시 반환, exit 5 (G-002). 부분 결과 사용 금지.
+
+#### `fetch_blob`
+
+- 호출: `gh api repos/{owner}/{repo}/git/blobs/{sha}`
+- args 빌드 예: `vec!["api".to_string(), format!("repos/{owner}/{repo}/git/blobs/{sha}")]`
+- 응답 처리 (stdout JSON):
+  - `{"content": "<base64>", "encoding": "base64", ...}`.
+  - base64 디코딩 후 raw bytes 반환.
+
+#### `fetch_last_commit_at`
+
+- 호출: `gh api repos/{owner}/{repo}/commits -F sha={branch} -F path={path} -F per_page=1`
+- args 빌드 예:
+  ```rust
+  vec![
+      "api".to_string(),
+      format!("repos/{owner}/{repo}/commits"),
+      "-F".to_string(), format!("sha={branch}"),
+      "-F".to_string(), format!("path={path}"),
+      "-F".to_string(), "per_page=1".to_string(),
+  ]
+  ```
+- 응답 처리 (stdout JSON 배열의 첫 번째 commit):
+  - `commit.committer.date` (ISO-8601) → `DateTime<Utc>`.
+- **호출 측(`scan::run_with_client`) 책임**: 차이 있는 파일에 한해서만 호출 (G-003은 ADR 0002로 도구 책임 종료 표시 예정이지만 호출 빈도 자체는 그대로 절약).
+
+### 에러 매핑 (위임)
+
+매핑 표는 `spec-error-contracts.md` (M1)에 한 곳에만 박는다. 본 spec은 매핑 종류만 명시:
+
+- 인증 실패 → `GitlessError::AuthFailed` (exit 2)
+- Rate Limit → `GitlessError::RateLimitExceeded { reset_at }` (exit 3)
+- Trees truncated → `GitlessError::TreesTruncated` (exit 5)
+- 5xx / 기타 비정상 → `GitlessError::Http(String)` (exit 1)
+- gh 미설치 → `GitlessError::Config(String)` (exit 1)
+
+매칭 신호는 좁은 stderr substring + exit_code 조합. **정규식 사용 금지** (M1 룰).
 
 ### Backend 선택 (v0.1 stub + Phase 4 활성화)
+
 - v0.1는 **REST backend만 활성**. GraphQL backend는 인터페이스만 박고 본체는 stub.
 - `--backend rest` (기본): 본 spec § fetch_tree / fetch_blob / fetch_last_commit_at + § 병렬 호출 정책 그대로 동작.
 - `--backend graphql`: `GitlessError::Config("GraphQL backend not implemented in v0.1; use --backend rest. Phase 4 ETA.")` 즉시 반환, exit code 1. (orchestrator `scan::run` 진입부에서 분기.)
@@ -59,24 +124,31 @@ Trees API 응답 JSON에 `truncated: true` → 즉시 `TreesTruncated` 반환. �
 - Phase 4 활성화 시 본 섹션을 갱신: GraphQL endpoint (`/graphql`), alias batching 패턴, GraphQL 응답 → `Vec<RemoteFile>` / `DateTime<Utc>` 매핑.
 
 ### 병렬 호출 정책 (Latency)
-- `fetch_last_commit_at`은 차이 있는 파일 N개에 대해 직렬로 호출하면 N × 100~300ms latency 누적 → 1000 drift 파일이면 분 단위 대기. rate limit(5,000/h) 한참 전에 사용자 인내심 한계.
-- 해결: T09 (`scan::run` orchestrator)에서 **rayon으로 병렬 호출**, default **8 concurrent**.
-- 패턴: `paths.par_iter().map(|p| github::fetch_last_commit_at(repo, branch, p, token)).collect::<Result<Vec<_>, _>>()`.
-- ureq의 `Agent`는 thread-safe — caller가 한 번 생성하여 여러 thread에서 공유 가능 (또는 stateless 호출).
-- 동시 요청 수 상한 = 8 (G-011, GitHub abuse detection 회피). 변경 시 G-011 갱신.
-- burst 시 429 응답 가능성 → `GitlessError::Http(...)`로 매핑 후 즉시 종료. exponential backoff은 v0.1 비목표 (Phase 4).
-- `fetch_tree`와 `fetch_blob`은 호출 횟수 자체가 적으므로 (Trees는 1회, Blob은 diff 명령에서만) 병렬화 대상 아님.
+
+> **⚠️ M5b 결과 미정 박스**
+> ADR 0002 § Consequences에서 "병렬 subprocess spawn 비용 vs 순차 호출 시간 trade-off는 측정해 rayon 유지/제거 결정 — 별도 task"로 미정. M5a (측정) → M5b (ADR 0003 박제) 후 본 섹션은 결정에 따라 (a) 확정 박제 또는 (b) 통째 삭제.
+>
+> 본 박스가 박혀 있는 동안의 baseline 정책 (확정 아님):
+
+- `fetch_last_commit_at`은 차이 있는 파일 N개에 대해 직렬 호출 시 N × subprocess spawn + GitHub round-trip latency 누적 → 큰 vault에서 사용자 인내심 한계.
+- baseline 해결안: rayon으로 병렬 호출, default **8 concurrent**. (M5b 측정 결과 따라 obsolete 가능.)
+- 패턴(baseline): `paths.par_iter().map(|p| github::fetch_last_commit_at(client, repo, branch, p)).collect::<Result<Vec<_>, _>>()`.
+- 동시 요청 수 상한 = 8 (G-011, GitHub abuse detection 회피). 변경 시 G-011 갱신. (M5b 결과 따라 obsolete 가능.)
+- burst 시 gh stderr `429` 또는 abuse detection 신호 → `GitlessError::Http(...)`로 매핑 후 즉시 종료. exponential backoff은 v0.1 비목표 (Phase 4).
+- `fetch_tree`(scan에서 1회) / `fetch_blob`(diff 명령에서만) 병렬화 대상 아님.
 
 ## Acceptance Criteria
-- `[AUTO]` `fetch_tree`가 mockito 200 응답에서 `Vec<RemoteFile>` 반환 (blob entry만 필터). 단위 테스트.
-- `[AUTO]` `fetch_tree`가 mockito 응답 `truncated: true` → `GitlessError::TreesTruncated` (PRD 검증 시나리오 12).
-- `[AUTO]` `fetch_tree`가 mockito 401 응답 → `GitlessError::AuthFailed`.
-- `[AUTO]` `fetch_tree`가 mockito 403 + `X-RateLimit-Remaining: 0` → `GitlessError::RateLimitExceeded`, `reset_at` 헤더 값 보존 (PRD 검증 시나리오 11).
-- `[AUTO]` `fetch_tree`가 mockito 5xx → `GitlessError::Http(...)`.
-- `[AUTO]` `fetch_blob`가 mockito 200 base64 응답을 raw bytes로 디코딩.
+
+마이그레이션 task M2a~M2c가 본 spec을 충족한다. 단위 테스트는 모두 `MockGhClient` stub 기반.
+
+- `[AUTO]` `fetch_tree`가 MockGhClient stub 정상 응답에서 `Vec<RemoteFile>` 반환 (blob entry만 필터, `tree`/`160000`/`120000`/`100755` skip).
+- `[AUTO]` `fetch_tree`가 MockGhClient stub 응답 `truncated: true` → `GitlessError::TreesTruncated` (PRD 검증 시나리오 12).
+- `[AUTO]` `fetch_tree`가 MockGhClient stub 인증 실패 stderr 패턴 → `GitlessError::AuthFailed`.
+- `[AUTO]` `fetch_tree`가 MockGhClient stub rate limit stderr 패턴 → `GitlessError::RateLimitExceeded { reset_at }` (PRD 검증 시나리오 11).
+- `[AUTO]` `fetch_tree`가 MockGhClient stub 5xx stderr 패턴 → `GitlessError::Http(...)`.
+- `[AUTO]` `fetch_blob`가 MockGhClient stub 200 base64 응답을 raw bytes로 디코딩.
 - `[AUTO]` `fetch_blob`가 잘못된 base64 응답 → `GitlessError::Http(...)` 또는 적절한 매핑.
-- `[AUTO]` `fetch_last_commit_at`가 mockito 응답에서 첫 commit의 date를 `DateTime<Utc>`로 파싱.
+- `[AUTO]` `fetch_last_commit_at`가 MockGhClient stub 응답에서 첫 commit의 date를 `DateTime<Utc>`로 파싱.
 - `[AUTO]` `fetch_last_commit_at`가 빈 commits 배열 응답 → `GitlessError::Http(...)` (예상 외 케이스).
-- `[AUTO]` 모든 함수가 `User-Agent: gitless-sync/0.1` 헤더 송신 (mockito match로 검증).
-- `[AUTO]` `fetch_last_commit_at`은 `Send + Sync` 호출 가능 (caller가 rayon `par_iter`로 동시 호출해도 안전). 단위 테스트에서 동일 함수를 여러 thread에서 동시 호출 → 모두 정상 결과.
+- `[AUTO]` `RealGhClient::new()` 호출 후 `gh` 미존재 환경에서 첫 `api()` 호출이 `GitlessError::Config("gh CLI not found in PATH; install from https://cli.github.com/")` 반환.
 - ~~`[HUMAN]` 실제 GitHub repo + 실제 PAT(Fine-grained `Contents: Read`)로 `fetch_tree` 1회 통합 검증.~~ **OBSOLETE (ADR 0001).** vault 실전 검증 (2026-04-29, OAuth via `gh auth token`, 356 파일)으로 입증. PAT 권한 가이드는 gh subprocess 채택으로 도구 책임 밖.
