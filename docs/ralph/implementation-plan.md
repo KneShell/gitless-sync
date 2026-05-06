@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-06T10:00:00Z (M2b2 완료 — fetch_blob/fetch_last_commit_at gh subprocess 재작성 + run_with_base 통째 제거 + diff client inject + main.rs RealGhClient 단일화 + integration tests `#[ignore]`. 150 unit tests pass, 8 integration ignored.)
+- Last updated: 2026-05-06T11:00:00Z (M2c 완료 — Cargo.toml에서 ureq+mockito 제거 + Cargo.lock 갱신 + integration.rs stub화(M4a/M4b 재작성 대기) + guardrails G-009 삭제 / G-003 obsolete. cargo tree에 ureq/mockito transitive 0. 150 unit tests pass, 0 integration. tarpaulin 87.26%.)
 - Total tasks: 14 (M0, M1, M2a, M2b1, M2b2, M2c, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
-- Completed: 5 / 14
+- Completed: 6 / 14
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -104,7 +104,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` `cargo tree`로 `ureq`/`mockito`/관련 transitive 부재 확인.
   - `[AUTO]` `guardrails.md` G-009 통째 삭제. G-003에 "**2026-05-06 obsolete (gh가 rate limit 처리)**" 마크 추가. (G-011은 M5b가 처리.)
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`, `cargo deny check`, `cargo audit` 통과.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### M3. CLI 인자 + config 토큰 경로 제거 `[AUTO, 코드]`
 - **Spec reference**: `docs/specs/spec-cli-interface.md`, `docs/specs/spec-config.md`

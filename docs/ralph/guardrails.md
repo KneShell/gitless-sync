@@ -10,9 +10,10 @@
 - **문제**: 응답 7MB 또는 약 10만 entry 중 먼저 도달 시 `truncated: true`로 잘림. v0.1은 이 케이스 미지원.
 - **해결**: `truncated == true` 시 `GitlessError::TreesTruncated` 즉시 반환, exit code 5. sub-tree 재귀 다운로드는 Phase 4/5에서 검토. v0.1에서 우회 시도 금지.
 
-## G-003: GitHub API rate limit
+## G-003: GitHub API rate limit (2026-05-06 obsolete — gh가 rate limit 처리)
 - **문제**: 인증 토큰 시간당 5,000 req. Commits API를 모든 파일에 호출하면 큰 vault에서 한도 초과.
 - **해결**: Commits API(`fetch_last_commit_at`)는 **차이가 있는 파일에만** 호출. identical 파일에는 호출 금지. Rate limit 응답(403 + `X-RateLimit-Remaining: 0`) 감지 시 `GitlessError::RateLimitExceeded { reset_at }` 반환, exit code 3, 부분 결과 출력 금지.
+- **2026-05-06 obsolete**: ADR 0002 마이그레이션으로 GitHub API 호출 통로가 `gh api` subprocess로 단일화. rate limit 자체 처리(retry/backoff) 책임이 도구 외부(`gh`)로 이동. `gh` CLI는 자체 rate limit 감지·재시도·메시지 출력을 한다. 본 도구는 `gh` exit≠0 + stderr 패턴(`API rate limit exceeded` 등) 매핑만 유지하며 (M1 spec § 에러 매핑 표), "Commits API는 차이 있는 파일에만 호출" 룰은 호출 비용 최적화 차원에서 그대로 유효. ADR 0002 § guardrail 처분 정렬.
 
 ## G-004: Windows 경로 vs forward slash
 - **문제**: Windows는 백슬래시, GitHub은 forward slash. `path` 필드가 OS에 따라 달라지면 비교 키가 깨진다.
@@ -33,11 +34,6 @@
 ## G-008: stdout / stderr 분리
 - **문제**: 진행 로그·경고를 stdout에 섞으면 결과 JSON이 오염되어 AI 호출자가 파싱 실패.
 - **해결**: stdout은 결과 JSON 한 덩어리만. 모든 진행 로그·경고·에러는 stderr. stderr 에러는 구조화 JSON 한 줄 (`error_code` + `message` + `context`). `println!` / `eprintln!`을 의식적으로 구분.
-
-## G-009: GitHub API 모킹 — `MockGhClient` trait inject (M2 이후)
-- **문제**: ADR 0002 마이그레이션 후 GitHub API 호출 통로가 `gh` subprocess로 단일화. mockito는 HTTP 레이어 mock인데 우리 코드는 더 이상 직접 HTTP 호출 안 함. ureq + mockito 의존성 제거 대상.
-- **해결**: `pub(crate) trait GhClient` + production `RealGhClient` (`std::process::Command::new("gh")`) + 테스트 `MockGhClient` 패턴. 단위 테스트는 모두 `MockGhClient`로. M2 진행 중 task가 mockito import 추가 금지. **M2 완료 시 본 G 통째 삭제.**
-- **2026-05-06 동시 obsolete 예정**: G-003(Commits API rate limit 자체 처리)과 G-011(rayon 8 concurrent abuse 회피)도 gh subprocess 채택으로 도구 책임 외부화. M2 완료 시점 G-003 obsolete 마크, G-011은 M5b 결과 따라 갱신/obsolete.
 
 ## G-010: 빈 파일 / 특수 mode entry
 - **문제**: 빈 파일의 SHA-1 (`e69de29bb2d1d6434b8b29ae775ad8c2e48c5391`), Trees mode `160000` (submodule), `120000` (symlink), `100755` (executable) 등 v0.1에서 검증되지 않은 케이스.
