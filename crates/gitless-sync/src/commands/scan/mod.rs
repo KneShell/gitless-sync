@@ -39,7 +39,6 @@ pub struct ScanArgs {
     pub branch: String,
     pub local: String,
     pub ignore: Vec<String>,
-    pub token: Option<String>,
     pub keep_bom: bool,
     pub pretty: bool,
     pub summary_only: bool,
@@ -103,12 +102,6 @@ fn build_report<C: GhClient + Sync>(
 
     let mut ignore_patterns = cfg.ignore.clone();
     ignore_patterns.extend(args.ignore.iter().cloned());
-
-    // M2b2: --token plumbing is preserved as an AuthFailed gate so existing
-    // contract holds. M3 removes both the CLI flag and `resolve_token`; gh
-    // owns auth from then on.
-    let token_spec = args.token.as_deref().ok_or(GitlessError::AuthFailed)?;
-    let _token = config::resolve_token(token_spec)?;
 
     let matcher = IgnoreMatcher::new(local_root, &ignore_patterns)?;
 
@@ -429,13 +422,12 @@ mod tests {
         "url": "u"
     }]"#;
 
-    fn args_for(dir: &Path, repo: Option<&str>, token: Option<&str>) -> ScanArgs {
+    fn args_for(dir: &Path, repo: Option<&str>) -> ScanArgs {
         ScanArgs {
             repo: repo.map(String::from),
             branch: "main".to_string(),
             local: dir.to_str().unwrap().to_string(),
             ignore: vec![],
-            token: token.map(String::from),
             keep_bom: false,
             pretty: false,
             summary_only: false,
@@ -537,20 +529,10 @@ mod tests {
     fn build_report_returns_config_error_when_repo_missing() {
         let dir = TempDir::new().unwrap();
         let mock = MockGhClient::new();
-        let args = args_for(dir.path(), None, Some("literal:t"));
+        let args = args_for(dir.path(), None);
         let err = build_report(&args, &mock).unwrap_err();
         assert!(matches!(err, GitlessError::Config(_)));
         assert_eq!(err.exit_code(), 1);
-    }
-
-    #[test]
-    fn build_report_returns_auth_failed_when_token_missing() {
-        let dir = TempDir::new().unwrap();
-        let mock = MockGhClient::new();
-        let args = args_for(dir.path(), Some("o/r"), None);
-        let err = build_report(&args, &mock).unwrap_err();
-        assert!(matches!(err, GitlessError::AuthFailed));
-        assert_eq!(err.exit_code(), 2);
     }
 
     #[test]
@@ -570,7 +552,7 @@ mod tests {
             r#"{"sha":"x","tree":[],"truncated":false}"#,
         );
 
-        let args = args_for(dir.path(), None, Some("literal:tok"));
+        let args = args_for(dir.path(), None);
         let (report, failed) = build_report(&args, &mock).unwrap();
         assert_eq!(failed, 0);
         assert_eq!(report.repo, "toml-owner/toml-repo");
@@ -593,7 +575,7 @@ mod tests {
             r#"{"sha":"x","tree":[],"truncated":false}"#,
         );
 
-        let args = args_for(dir.path(), Some("cli-owner/cli-repo"), Some("literal:tok"));
+        let args = args_for(dir.path(), Some("cli-owner/cli-repo"));
         let (report, _) = build_report(&args, &mock).unwrap();
         assert_eq!(report.repo, "cli-owner/cli-repo");
     }
@@ -613,7 +595,7 @@ mod tests {
         // API on an identical entry, MockGhClient falls back to Http err which
         // surfaces as a propagated error here.
 
-        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let args = args_for(dir.path(), Some("o/r"));
         let (report, failed) = build_report(&args, &mock).unwrap();
 
         assert_eq!(failed, 0);
@@ -640,7 +622,7 @@ mod tests {
             r#"{"sha":"x","tree":[],"truncated":false}"#,
         );
 
-        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let args = args_for(dir.path(), Some("o/r"));
         let (report, _) = build_report(&args, &mock).unwrap();
         assert_eq!(report.summary.local_only_changed, 1);
         let entries = report.files.unwrap();
@@ -657,7 +639,7 @@ mod tests {
         let trees_body = r#"{"sha":"x","tree":[{"path":"only_remote.md","mode":"100644","type":"blob","sha":"r1","size":1}],"truncated":false}"#;
         stub_tree(&mut mock, "o/r", "main", trees_body);
 
-        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let args = args_for(dir.path(), Some("o/r"));
         let (report, _) = build_report(&args, &mock).unwrap();
         assert_eq!(report.summary.remote_only_changed, 1);
         let entries = report.files.unwrap();
@@ -676,7 +658,7 @@ mod tests {
         stub_tree(&mut mock, "o/r", "main", trees_body);
         stub_commits(&mut mock, "o/r", "main", "d.md", COMMITS_BODY);
 
-        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let args = args_for(dir.path(), Some("o/r"));
         let (report, _) = build_report(&args, &mock).unwrap();
         let entries = report.files.unwrap();
         assert_eq!(entries.len(), 1);
@@ -696,7 +678,7 @@ mod tests {
             err_resp("gh: Bad credentials (HTTP 401)"),
         );
 
-        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let args = args_for(dir.path(), Some("o/r"));
         let err = build_report(&args, &mock).unwrap_err();
         assert!(matches!(err, GitlessError::AuthFailed));
     }
@@ -712,24 +694,9 @@ mod tests {
             r#"{"sha":"x","tree":[],"truncated":true}"#,
         );
 
-        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let args = args_for(dir.path(), Some("o/r"));
         let err = build_report(&args, &mock).unwrap_err();
         assert!(matches!(err, GitlessError::TreesTruncated));
-    }
-
-    #[test]
-    fn build_report_resolves_literal_token_prefix() {
-        let dir = TempDir::new().unwrap();
-        let mut mock = MockGhClient::new();
-        stub_tree(
-            &mut mock,
-            "o/r",
-            "main",
-            r#"{"sha":"x","tree":[],"truncated":false}"#,
-        );
-
-        let args = args_for(dir.path(), Some("o/r"), Some("literal:ghp_literal"));
-        build_report(&args, &mock).expect("literal token should resolve");
     }
 
     // --- assemble_entries --------------------------------------------------
@@ -800,7 +767,7 @@ mod tests {
     #[test]
     fn run_with_client_returns_config_error_for_graphql_backend() {
         let dir = TempDir::new().unwrap();
-        let mut args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let mut args = args_for(dir.path(), Some("o/r"));
         args.backend = Backend::Graphql;
         let mock = MockGhClient::new();
         let err = run_with_client(&args, &mock).unwrap_err();
@@ -818,7 +785,7 @@ mod tests {
             "main",
             r#"{"sha":"x","tree":[],"truncated":false}"#,
         );
-        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let args = args_for(dir.path(), Some("o/r"));
         run_with_client(&args, &mock).unwrap();
     }
 
@@ -832,7 +799,7 @@ mod tests {
             "main",
             r#"{"sha":"x","tree":[],"truncated":true}"#,
         );
-        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let args = args_for(dir.path(), Some("o/r"));
         let err = run_with_client(&args, &mock).unwrap_err();
         assert!(matches!(err, GitlessError::TreesTruncated));
         assert_eq!(err.exit_code(), 5);
@@ -852,7 +819,7 @@ mod tests {
         );
         stub_tree(&mut mock, "o/r", "main", &trees_body);
 
-        let mut args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let mut args = args_for(dir.path(), Some("o/r"));
         args.summary_only = true;
         let (report, _) = build_report(&args, &mock).unwrap();
         assert!(report.files.is_none());
@@ -874,7 +841,7 @@ mod tests {
         );
         stub_tree(&mut mock, "o/r", "main", &trees_body);
 
-        let mut args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let mut args = args_for(dir.path(), Some("o/r"));
         args.status = Some("local_only_changed".to_string());
         let (report, _) = build_report(&args, &mock).unwrap();
 
@@ -900,7 +867,7 @@ mod tests {
         );
         stub_tree(&mut mock, "o/r", "main", &trees_body);
 
-        let mut args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let mut args = args_for(dir.path(), Some("o/r"));
         args.status = Some("local_only_changed,remote_only_changed".to_string());
         let (report, _) = build_report(&args, &mock).unwrap();
 
@@ -926,7 +893,7 @@ mod tests {
         );
         stub_tree(&mut mock, "o/r", "main", &trees_body);
 
-        let mut args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let mut args = args_for(dir.path(), Some("o/r"));
         args.summary_only = true;
         args.status = Some("drift".to_string());
         let (report, _) = build_report(&args, &mock).unwrap();
@@ -946,7 +913,7 @@ mod tests {
             r#"{"sha":"x","tree":[],"truncated":false}"#,
         );
 
-        let mut args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let mut args = args_for(dir.path(), Some("o/r"));
         args.status = Some("nonsense".to_string());
         let err = build_report(&args, &mock).unwrap_err();
         assert!(matches!(err, GitlessError::Config(_)));
@@ -966,7 +933,7 @@ mod tests {
             );
             stub_tree(&mut mock, "o/r", "main", &trees_body);
 
-            let mut args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+            let mut args = args_for(dir.path(), Some("o/r"));
             args.verbose = level;
             let (report, _) = build_report(&args, &mock).unwrap();
             assert_eq!(report.summary.identical, 1);
@@ -992,7 +959,7 @@ mod tests {
         stub_commits(&mut mock, "o/r", "main", "b.md", COMMITS_BODY);
         stub_commits(&mut mock, "o/r", "main", "c.md", COMMITS_BODY);
 
-        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let args = args_for(dir.path(), Some("o/r"));
         let (report, failed) = build_report(&args, &mock).unwrap();
         assert_eq!(failed, 0);
 
@@ -1029,7 +996,7 @@ mod tests {
             r#"{"sha":"x","tree":[],"truncated":false}"#,
         );
 
-        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let args = args_for(dir.path(), Some("o/r"));
         let (report, _) = build_report(&args, &mock).unwrap();
         assert_eq!(report.schema_version, SCHEMA_VERSION);
         assert_eq!(report.repo, "o/r");

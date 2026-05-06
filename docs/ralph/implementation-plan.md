@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-06T11:00:00Z (M2c 완료 — Cargo.toml에서 ureq+mockito 제거 + Cargo.lock 갱신 + integration.rs stub화(M4a/M4b 재작성 대기) + guardrails G-009 삭제 / G-003 obsolete. cargo tree에 ureq/mockito transitive 0. 150 unit tests pass, 0 integration. tarpaulin 87.26%.)
+- Last updated: 2026-05-06T18:30:00Z (M3 완료 — `--token` clap 인자 + `clap(env = "GITHUB_TOKEN")` 삭제, `ScanArgs.token` / `DiffArgs.token` 필드 + `build_report` / `compute_diff` 안 token resolve 게이트 + 토큰 의존 단위 테스트 9개 cascade 정리, `shared/config.rs::resolve_token` + `resolve_token_with` + 6개 단위 테스트 삭제. spec-cli-interface.md / spec-config.md 토큰 섹션 정리. 141 unit tests pass, 0 integration. tarpaulin 87.31% (+0.05%).)
 - Total tasks: 14 (M0, M1, M2a, M2b1, M2b2, M2c, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
-- Completed: 6 / 14
+- Completed: 7 / 14
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -118,7 +118,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` `spec-cli-interface.md`: 글로벌 플래그 표에서 `--token` 행 삭제. § 인자 우선순위에서 토큰 라인 제거. Acceptance Criteria의 토큰 항목 삭제.
   - `[AUTO]` `spec-config.md`: § `--token` 형식 섹션 삭제. § 우선순위 표에서 토큰 라인 삭제. § 비밀 정보 정책은 그대로 유지. Acceptance Criteria의 토큰 관련 5개 항목 삭제.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings` 통과.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### M4a. 통합 테스트 정상 경로 시나리오 `[AUTO, 코드]`
 - **Spec reference**: PRD 검증 시나리오 1~4 + 9
