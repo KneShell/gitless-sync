@@ -5,8 +5,9 @@
 
 ## 현재 상태
 - `crates/gitless-sync/src/main.rs`에 clap derive로 `Cli`, `Commands` 정의 완료. `scan` / `diff` 디스패치 + exit code 매핑까지 박힘.
-- 글로벌 플래그 (`--repo`, `--branch`, `--local`, `--ignore`, `--token`, `--keep-bom`, `--pretty`)와 `scan` 전용 플래그 (`--summary-only`, `--status`)가 시그니처에 있음.
+- 글로벌 플래그 (`--repo`, `--branch`, `--local`, `--ignore`, `--keep-bom`, `--pretty`)와 `scan` 전용 플래그 (`--summary-only`, `--status`)가 시그니처에 있음.
 - `verbose` 플래그 (`-v`, `-vv`)는 미반영. 추가 필요.
+- 인증 토큰 입력은 본 도구에서 받지 않는다 (ADR 0002). `gh auth login` 으로 사전 처리.
 
 ## 작업 범위
 
@@ -21,7 +22,6 @@
 | `--branch <name>` | branch | `main` |
 | `--local <path>` | 로컬 디렉토리 | `.` (cwd) |
 | `--ignore <pattern>` | ignore 패턴 (반복 가능, gitignore 문법) | (없음) |
-| `--token <env\|literal>` | GitHub 토큰. 형식: `env:<name>` 또는 `literal:<value>` | `$GITHUB_TOKEN` |
 | `--keep-bom` | UTF-8 BOM 보존 모드 | false |
 | `--json` / `--pretty` | 출력 포맷 | `--json` (compact) |
 | `-v` / `-vv` | stderr 로그 레벨 (info / debug) | warning만 |
@@ -48,6 +48,5 @@ CLI > env > `gitless-sync.toml` > 도구 내장 기본값. 자세한 건 `spec-c
 - `[AUTO]` `cargo run -- scan --help`가 `--summary-only`, `--status`를 추가로 보여준다.
 - `[AUTO]` `cargo run -- diff --help`가 `<path>` positional 인자를 보여준다.
 - `[AUTO]` `--ignore` 플래그를 두 번 이상 지정하면 `Vec<String>`에 누적된다 (clap 기본 동작).
-- `[AUTO]` `--token env:GITHUB_TOKEN`과 `--token literal:ghp_...` 두 형식이 모두 파싱된다 (구현은 `spec-config.md`).
 - `[AUTO]` `--status drift,local_only_changed` 같은 콤마 구분 입력이 `Vec<Status>`로 파싱된다.
 - `[AUTO]` clap이 알 수 없는 플래그를 받으면 비-zero 종료 + stderr에 사용법 출력 (clap 기본).

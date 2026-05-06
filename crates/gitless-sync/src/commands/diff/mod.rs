@@ -15,7 +15,6 @@ pub struct DiffArgs {
     pub repo: Option<String>,
     pub branch: String,
     pub local: String,
-    pub token: Option<String>,
     pub keep_bom: bool,
     pub path: String,
 }
@@ -55,8 +54,8 @@ pub(crate) struct DiffOutcome {
 /// # Errors
 /// - [`GitlessError::Config`] when `--repo` resolves to nothing or the path
 ///   does not exist on either side.
-/// - [`GitlessError::AuthFailed`] when no token is provided.
-/// - GitHub API errors propagated from `fetch_tree` / `fetch_blob`.
+/// - GitHub API errors propagated from `fetch_tree` / `fetch_blob` (auth /
+///   rate limit / transport failures owned by `gh`).
 /// - [`GitlessError::Io`] for unexpected local IO failures (other than the
 ///   "file does not exist locally" case, which is treated as one-sided).
 pub(crate) fn compute_diff<C: GhClient>(
@@ -74,11 +73,6 @@ pub(crate) fn compute_diff<C: GhClient>(
         .ok_or_else(|| GitlessError::Config("repo not specified".to_string()))?
         .to_string();
     let branch = &args.branch;
-
-    // M2b2: --token still gates AuthFailed for the existing contract. M3
-    // removes the CLI flag and `resolve_token`.
-    let token_spec = args.token.as_deref().ok_or(GitlessError::AuthFailed)?;
-    let _token = config::resolve_token(token_spec)?;
 
     let key = args.path.replace('\\', "/");
 
@@ -163,7 +157,6 @@ mod tests {
             repo: Some("o/r".to_string()),
             branch: "main".to_string(),
             local: dir.to_str().unwrap().to_string(),
-            token: Some("literal:tok".to_string()),
             keep_bom: false,
             path: path.to_string(),
         }
@@ -227,17 +220,6 @@ mod tests {
         let err = compute_diff(&args, &mock).unwrap_err();
         assert!(matches!(err, GitlessError::Config(_)));
         assert_eq!(err.exit_code(), 1);
-    }
-
-    #[test]
-    fn compute_diff_returns_auth_failed_when_token_missing() {
-        let dir = TempDir::new().unwrap();
-        let mock = MockGhClient::new();
-        let mut args = args_for(dir.path(), "x.md");
-        args.token = None;
-        let err = compute_diff(&args, &mock).unwrap_err();
-        assert!(matches!(err, GitlessError::AuthFailed));
-        assert_eq!(err.exit_code(), 2);
     }
 
     #[test]

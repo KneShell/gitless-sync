@@ -30,9 +30,6 @@ struct Cli {
     #[arg(long, global = true)]
     ignore: Vec<String>,
 
-    #[arg(long, global = true, env = "GITHUB_TOKEN")]
-    token: Option<String>,
-
     #[arg(long, global = true)]
     keep_bom: bool,
 
@@ -74,7 +71,6 @@ fn main() -> ExitCode {
                 branch: cli.branch,
                 local: cli.local,
                 ignore: cli.ignore,
-                token: cli.token,
                 keep_bom: cli.keep_bom,
                 pretty: cli.pretty,
                 summary_only,
@@ -89,7 +85,6 @@ fn main() -> ExitCode {
                 repo: cli.repo,
                 branch: cli.branch,
                 local: cli.local,
-                token: cli.token,
                 keep_bom: cli.keep_bom,
                 path,
             },
