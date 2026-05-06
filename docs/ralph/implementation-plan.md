@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-06T19:30:00Z (M4a 완료 — 통합 테스트 정상 경로 시나리오 1~4 + 9 재작성. `crates/gitless-sync/src/lib.rs` 신규로 lib target 도입, `main.rs`는 `gitless_sync::*` 임포트로 정렬. `GhClient` / `GhResponse` / `RealGhClient` / `commands::scan::run_with_client` / `build_report` / `commands::diff::run_with_client` 가시성을 `pub`로 승격. 가시성 승격 cascade로 surface된 pedantic clippy 12건(`must_use`/`# Errors`/`# Panics` 누락) 동반 정리 — `compare.rs` `classify`, `output.rs` `serialize`, `error.rs` 3 메서드, `gh.rs` `GhClient::api`/`RealGhClient::new`, `hash.rs` `blob_hash`, `normalize.rs` 3 함수. `tests/integration.rs`는 `TestGhClient` (argv→canned response stub) + 5 개 통합 테스트(scenario_1~4, scenario_9) 박제. 141 unit + 5 integration tests pass. tarpaulin 87.53% (+0.22%).)
+- Last updated: 2026-05-06T20:00:00Z (M4b 완료 — 통합 테스트 에러 + partial failure 시나리오 10~15 박제. `tests/integration.rs`에 `err_resp` 헬퍼 + scenario_10 (AuthFailed/exit 2/AUTH_FAILED), scenario_11 primary + secondary (RateLimitExceeded/exit 3/RATE_LIMIT_EXCEEDED), scenario_12 (TreesTruncated/exit 5/TREES_TRUNCATED), scenario_13 (--summary-only `files` 필드 omit), scenario_14 (--status filter 한정), scenario_15 (`#[cfg(windows)]` `OpenOptionsExt::share_mode(0)`로 try_hash_local 실패 → PartialFailure/exit 4/`status: failed`) 추가. 141 unit + 12 integration tests pass. tarpaulin 90.42% (+2.90% — error.rs to_stderr_payload/error_code 통합 호출 cover로 +48%).)
 - Total tasks: 14 (M0, M1, M2a, M2b1, M2b2, M2c, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
-- Completed: 8 / 14
+- Completed: 9 / 14
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -140,7 +140,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` 시나리오 12 (truncated): `MockGhClient` stdout JSON에 `truncated: true` → exit 5.
   - `[AUTO]` 시나리오 13 (`--summary-only`), 14 (`--status`), 15 (partial failure) 재현.
   - `[AUTO]` `cargo test --test integration` 전체 통과.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### M5a. rayon 측정 (자율) `[AUTO]`
 - **Spec reference**: `docs/ralph/guardrails.md` § G-011, `docs/specs/spec-github-api.md` § 병렬 호출 정책
