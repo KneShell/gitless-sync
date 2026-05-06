@@ -177,7 +177,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` README.md에 "Prerequisites" 섹션: `gh` CLI(M1에 박힌 floor 버전 이상) 설치 안내 + `gh auth login` 한 줄 인증. Windows/macOS/Linux 설치 명령 박제.
   - `[AUTO]` 사용 예시 섹션의 `--token env:GITHUB_TOKEN` 등 토큰 인자 표현 모두 제거.
   - `[AUTO]` gh 미설치 시 에러 메시지 동작 검증 결과 박제.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### M7. 빌드 게이트 통과 검증 `[AUTO]`
 - **Spec reference**: `docs/ralph/project-ops.md` § Coverage, `CLAUDE.md` § Test coverage, G-007
