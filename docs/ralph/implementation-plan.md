@@ -1,7 +1,7 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-06T08:50:00Z (M2b1 완료 — fetch_tree gh subprocess + run_with_client + main.rs dual-mode, 173 tests pass, workspace tarpaulin 94.05%)
+- Last updated: 2026-05-06T09:30:00Z (M2b2 [~] in progress — Files 확장: diff/main/integration 동반 변경 명시. Acceptance에 ureq import 0 범위 명확화 + integration tests `#[ignore]` 룰 박제.)
 - Total tasks: 14 (M0, M1, M2a, M2b1, M2b2, M2c, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
 - Completed: 4 / 14
 
@@ -81,16 +81,19 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
 
 ### M2b2. fetch_blob + fetch_last_commit_at + run_with_base 정리 `[AUTO, 코드]`
 - **Spec reference**: `docs/specs/spec-github-api.md` (M0), `docs/specs/spec-error-contracts.md` (M1)
-- **Files**: `crates/gitless-sync/src/commands/scan/github.rs`, `crates/gitless-sync/src/commands/scan/mod.rs`
+- **Files**: `crates/gitless-sync/src/commands/scan/github.rs`, `crates/gitless-sync/src/commands/scan/mod.rs`, `crates/gitless-sync/src/commands/diff/mod.rs`, `crates/gitless-sync/src/main.rs`, `crates/gitless-sync/tests/integration.rs`
 - **Depends on**: M2b1
 - **Acceptance criteria**:
   - `[AUTO]` `fetch_blob(client: &impl GhClient, repo, sha) -> Result<Vec<u8>, GitlessError>` 재작성. base64 디코딩.
   - `[AUTO]` `fetch_last_commit_at(client: &impl GhClient, repo, branch, path) -> Result<DateTime<Utc>, GitlessError>` 재작성.
-  - `[AUTO]` 기존 `run_with_base` 함수 + 관련 ureq fetch_* 잔존 코드 모두 삭제. 새 `run_with_client` 단일화.
-  - `[AUTO]` 단위 테스트는 모두 `MockGhClient`. mockito 호출 0회.
-  - `[AUTO]` **이 시점에 ureq import 0, mockito import 0** (Cargo.toml 의존성은 미변경 — M2c).
-  - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings` 통과.
-- **Status**: `[ ]`
+  - `[AUTO]` 기존 `run_with_base` 함수 + 관련 ureq `fetch_*_with_base` 잔존 코드 모두 삭제. scan은 `run_with_client` 단일화.
+  - `[AUTO]` `commands::diff::run_with_base` / `compute_diff` → `run_with_client` / `compute_diff_with_client` 시그니처로 이행 (`client: &impl GhClient` 인자 추가). diff 단위 테스트도 `MockGhClient` 기반으로 재작성. (`fetch_*_with_base` 호출 모두 제거를 위한 동반 변경 — Files 확장 근거.)
+  - `[AUTO]` `main.rs`의 `GITLESS_API_BASE` dual-mode 분기 제거. scan/diff 양쪽 모두 `RealGhClient::new()` 1회 inject + `run_with_client`로 단일화. (`resolve_api_base*` 함수 + 단위 테스트는 잔존 — M3가 이를 통째 삭제하면서 토큰 인자 정리와 함께 처리.)
+  - `[AUTO]` 단위 테스트는 모두 `MockGhClient`. mockito 호출 0회 (production + unit tests 기준).
+  - `[AUTO]` **이 시점에 production + unit tests의 ureq import 0, mockito import 0** (Cargo.toml 의존성은 미변경 — M2c).
+  - `[AUTO]` `tests/integration.rs`는 mockito + `GITLESS_API_BASE` 의존이라 본 시점에 동작 불가 — ADR 0002 § 마이그레이션 작업 범위 명시(`testability는 GhClient trait + MockGhClient inject 패턴으로 해결한다 (M2a~M2c)`). 본 task에서는 모든 통합 테스트에 `#[ignore]` + 본 task reference comment 박제. M4a/M4b가 `MockGhClient` + library-entry 호출 방식으로 통째 재작성하며 이 ignore를 해제한다.
+  - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과 (ignored 테스트는 무시 — `cargo test`가 ignored 테스트를 실패로 보지 않음).
+- **Status**: `[~]`
 
 ### M2c. Cargo.toml ureq+mockito 삭제 + Cargo.lock 정리 + guardrails obsolete 처리 `[AUTO, 코드+guardrail]`
 - **Spec reference**: ADR 0002 § 마이그레이션 작업 범위
