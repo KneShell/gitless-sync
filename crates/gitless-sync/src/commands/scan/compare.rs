@@ -26,6 +26,12 @@ pub struct FileEntry {
     pub is_binary: bool,
 }
 
+/// Classify a single path into one of the 4-state categories.
+///
+/// # Panics
+/// Panics when both `local_sha` and `remote_sha` are `None` — the caller
+/// guarantees at least one side is present (`spec-classification.md`).
+#[must_use]
 pub fn classify(
     local_sha: Option<&str>,
     remote_sha: Option<&str>,

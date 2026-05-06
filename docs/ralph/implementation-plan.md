@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-06T19:00:00Z (M4a [~] 시작 — 통합 테스트 정상 경로 시나리오 1~4 + 9 재작성. lib target 도입 + 가시성 cascade.)
+- Last updated: 2026-05-06T19:30:00Z (M4a 완료 — 통합 테스트 정상 경로 시나리오 1~4 + 9 재작성. `crates/gitless-sync/src/lib.rs` 신규로 lib target 도입, `main.rs`는 `gitless_sync::*` 임포트로 정렬. `GhClient` / `GhResponse` / `RealGhClient` / `commands::scan::run_with_client` / `build_report` / `commands::diff::run_with_client` 가시성을 `pub`로 승격. 가시성 승격 cascade로 surface된 pedantic clippy 12건(`must_use`/`# Errors`/`# Panics` 누락) 동반 정리 — `compare.rs` `classify`, `output.rs` `serialize`, `error.rs` 3 메서드, `gh.rs` `GhClient::api`/`RealGhClient::new`, `hash.rs` `blob_hash`, `normalize.rs` 3 함수. `tests/integration.rs`는 `TestGhClient` (argv→canned response stub) + 5 개 통합 테스트(scenario_1~4, scenario_9) 박제. 141 unit + 5 integration tests pass. tarpaulin 87.53% (+0.22%).)
 - Total tasks: 14 (M0, M1, M2a, M2b1, M2b2, M2c, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
-- Completed: 7 / 14
+- Completed: 8 / 14
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -122,13 +122,13 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
 
 ### M4a. 통합 테스트 정상 경로 시나리오 `[AUTO, 코드]`
 - **Spec reference**: PRD 검증 시나리오 1~4 + 9
-- **Files**: `crates/gitless-sync/tests/integration.rs` (정상 경로 부분 재작성), `crates/gitless-sync/src/lib.rs` (신규 — 통합 테스트가 라이브러리 진입점을 호출하기 위한 lib target), `crates/gitless-sync/src/main.rs` (lib import 정렬), `crates/gitless-sync/src/shared/gh.rs` (`GhClient` / `GhResponse` / `RealGhClient` 가시성 `pub`), `crates/gitless-sync/src/commands/scan/mod.rs` (`run_with_client` / `build_report` `pub`), `crates/gitless-sync/src/commands/diff/mod.rs` (`run_with_client` `pub`)
+- **Files**: `crates/gitless-sync/tests/integration.rs` (정상 경로 부분 재작성), `crates/gitless-sync/src/lib.rs` (신규 — 통합 테스트가 라이브러리 진입점을 호출하기 위한 lib target), `crates/gitless-sync/src/main.rs` (lib import 정렬), `crates/gitless-sync/src/shared/gh.rs` (`GhClient` / `GhResponse` / `RealGhClient` 가시성 `pub`), `crates/gitless-sync/src/commands/scan/mod.rs` (`run_with_client` / `build_report` `pub`), `crates/gitless-sync/src/commands/diff/mod.rs` (`run_with_client` `pub`), `crates/gitless-sync/src/commands/scan/compare.rs` + `commands/scan/output.rs` + `shared/error.rs` + `shared/hash.rs` + `shared/normalize.rs` (가시성 cascade로 surface된 pedantic clippy `must_use` / `# Errors` / `# Panics` 누락 동반 정리 — Files 확장 근거: M2b2 `run_with_base→run_with_client` 선례)
 - **Depends on**: M3
 - **Acceptance criteria**:
   - `[AUTO]` PRD 시나리오 1~4 (4상태 분류) end-to-end: tempfile + `MockGhClient` stub → `run_with_client(args, &MockGhClient)` 호출 → stdout JSON 파싱 → 4상태 카운트 검증.
   - `[AUTO]` PRD 시나리오 9 (.gitignore + --ignore 합집합) end-to-end.
   - `[AUTO]` `cargo test --test integration` 정상 경로 부분 통과.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### M4b. 통합 테스트 에러 + partial failure 시나리오 `[AUTO, 코드]`
 - **Spec reference**: PRD 검증 시나리오 10~15

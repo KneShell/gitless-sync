@@ -28,10 +28,7 @@ pub struct DiffArgs {
 /// Returns any [`GitlessError`] raised by config loading, GitHub API calls,
 /// or local IO. Returns [`GitlessError::Config`] when the requested path
 /// exists on neither side.
-pub(crate) fn run_with_client<C: GhClient>(
-    args: &DiffArgs,
-    client: &C,
-) -> Result<(), GitlessError> {
+pub fn run_with_client<C: GhClient>(args: &DiffArgs, client: &C) -> Result<(), GitlessError> {
     let outcome = compute_diff(args, client)?;
     if !outcome.stderr_message.is_empty() {
         eprintln!("{}", outcome.stderr_message);

@@ -2,11 +2,9 @@ use std::process::ExitCode;
 
 use clap::{ArgAction, Parser, Subcommand};
 
-mod commands;
-mod shared;
-
-use commands::scan::Backend;
-use shared::gh::RealGhClient;
+use gitless_sync::commands;
+use gitless_sync::commands::scan::Backend;
+use gitless_sync::shared::gh::RealGhClient;
 
 #[derive(Parser, Debug)]
 #[command(

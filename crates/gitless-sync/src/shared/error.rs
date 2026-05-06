@@ -34,6 +34,7 @@ pub struct StderrPayload<'a> {
 }
 
 impl GitlessError {
+    #[must_use]
     pub fn exit_code(&self) -> u8 {
         match self {
             Self::Config(_) | Self::Io(_) => 1,
@@ -44,6 +45,7 @@ impl GitlessError {
         }
     }
 
+    #[must_use]
     pub fn error_code(&self) -> &'static str {
         match self {
             Self::Config(_) => "CONFIG_ERROR",
@@ -56,6 +58,7 @@ impl GitlessError {
         }
     }
 
+    #[must_use]
     pub fn to_stderr_payload(&self) -> StderrPayload<'_> {
         let context = match self {
             Self::RateLimitExceeded { reset_at } => {

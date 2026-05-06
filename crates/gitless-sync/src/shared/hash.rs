@@ -1,5 +1,6 @@
 use sha1::{Digest, Sha1};
 
+#[must_use]
 pub fn blob_hash(content: &[u8]) -> String {
     let mut hasher = Sha1::new();
     hasher.update(format!("blob {}\0", content.len()).as_bytes());

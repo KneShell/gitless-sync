@@ -57,7 +57,11 @@ pub struct ScanArgs {
 /// Returns any [`GitlessError`] raised by config loading, GitHub API calls,
 /// or local IO. Returns [`GitlessError::PartialFailure`] when one or more
 /// files could not be hashed.
-pub(crate) fn run_with_client<C: GhClient + Sync>(
+///
+/// # Panics
+/// Panics if `output::serialize` fails — the report is composed of
+/// `Serialize` types with no fallible impls, so this is treated as total.
+pub fn run_with_client<C: GhClient + Sync>(
     args: &ScanArgs,
     client: &C,
 ) -> Result<(), GitlessError> {
@@ -81,10 +85,14 @@ pub(crate) fn run_with_client<C: GhClient + Sync>(
 /// to hash so the caller can decide whether to map to
 /// [`GitlessError::PartialFailure`].
 ///
+/// Exposed publicly so integration tests can inspect the structured report
+/// directly (the JSON shape is whatever `output::serialize(&report, ..)`
+/// emits in production).
+///
 /// # Errors
 /// Propagates config / IO / GitHub API errors. Hash failures on individual
 /// files do **not** error here — they show up in the returned `failed_count`.
-fn build_report<C: GhClient + Sync>(
+pub fn build_report<C: GhClient + Sync>(
     args: &ScanArgs,
     client: &C,
 ) -> Result<(ScanReport, usize), GitlessError> {
