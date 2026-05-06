@@ -11,20 +11,14 @@ use std::process::Command;
 
 use crate::shared::error::GitlessError;
 
-// M2a scaffold: items below are exercised by unit tests but no production
-// caller is wired in yet. M2b1 (`run_with_client` entry + `fetch_tree`) and
-// M2b2 (`fetch_blob` + `fetch_last_commit_at`) will replace the existing ureq
-// `*_with_base` functions and remove these `#[allow(dead_code)]` marks.
-#[allow(dead_code)]
 const GH_NOT_FOUND_MESSAGE: &str = "gh CLI not found in PATH; install from https://cli.github.com/";
 
 /// Result of a single `gh` subprocess invocation.
 ///
 /// Returned transparently: callers classify based on `exit_code` + `stderr`
 /// substrings per `spec-error-contracts.md`. No interpretation happens here.
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub(crate) struct GhResponse {
+pub struct GhResponse {
     pub stdout: Vec<u8>,
     pub stderr: String,
     pub exit_code: i32,
@@ -33,19 +27,28 @@ pub(crate) struct GhResponse {
 /// Single-method trait shared by production [`RealGhClient`] and test
 /// [`MockGhClient`]. `args` is forwarded verbatim to `gh` (e.g.
 /// `["api", "repos/o/r/git/trees/main?recursive=1"]`).
-#[allow(dead_code)]
-pub(crate) trait GhClient {
+///
+/// Integration tests under `tests/` define their own stub implementations
+/// of this trait; the in-crate `MockGhClient` is `#[cfg(test)]`-gated for
+/// unit tests only.
+pub trait GhClient {
+    /// Invoke `gh` with the given argv and return the captured response.
+    ///
+    /// # Errors
+    /// Implementations return [`GitlessError::Config`] when the `gh` binary
+    /// cannot be found in `PATH`. They never interpret the response — exit
+    /// codes and stderr substrings are mapped by the caller per
+    /// `spec-error-contracts.md`.
     fn api(&self, args: &[String]) -> Result<GhResponse, GitlessError>;
 }
 
 /// Production wrapper around `std::process::Command::new("gh")`.
-#[allow(dead_code)]
 #[derive(Debug, Default)]
-pub(crate) struct RealGhClient;
+pub struct RealGhClient;
 
 impl RealGhClient {
-    #[allow(dead_code)]
-    pub(crate) fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self
     }
 }

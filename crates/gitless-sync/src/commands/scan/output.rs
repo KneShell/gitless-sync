@@ -26,6 +26,12 @@ pub struct ScanReport {
     pub files: Option<Vec<FileEntry>>,
 }
 
+/// Serialize a [`ScanReport`] into the stdout JSON shape (`spec-output-schema.md`).
+///
+/// # Errors
+/// Returns the underlying [`serde_json::Error`] if serialization fails.
+/// In practice the report is composed of `serde::Serialize` types with no
+/// fallible implementations, so callers may treat this as effectively total.
 pub fn serialize(report: &ScanReport, pretty: bool) -> Result<String, serde_json::Error> {
     if pretty {
         serde_json::to_string_pretty(report)
