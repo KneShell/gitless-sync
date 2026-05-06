@@ -28,7 +28,7 @@ ADR 0001은 Phase 4 GraphQL batching부터 `gh api graphql` subprocess 채택을
 - `commands/scan/github.rs::fetch_tree` / `fetch_blob` / `fetch_last_commit_at` 및 `_with_base` 변형을 `gh api` subprocess 호출로 재구현. JSON 응답은 stdout에서 파싱.
 - `--token` CLI 인자 + `shared/config.rs::resolve_token` 토큰 해석 경로 제거. 인증은 `gh auth login` 한 줄로 단일화.
 - `ureq`, `mockito` 의존성 제거.
-- 통합 테스트(`tests/integration.rs`)는 mockito 기반이 깨짐. gh를 stub하는 전략(가짜 `gh` 바이너리 PATH 주입 등) 결정 필요 — 별도 task.
+- 통합 테스트(`tests/integration.rs`)는 mockito 기반이 깨짐. testability는 `GhClient` trait + `MockGhClient` inject 패턴으로 해결한다 (M2a~M2c). 가짜 `gh` 바이너리 PATH 주입 같은 외부 stub 전략은 채택하지 않는다.
 - 통합 테스트용 `GITLESS_API_BASE` env 오버라이드(mockito URL 주입)도 의미 상실. 함께 제거 또는 testability 재설계.
 
 ### 호출자(Claude Code) 인터페이스

@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-06T00:00:00Z (tribunal 4인 검증 반영 — task 분할 + acceptance 정밀화)
+- Last updated: 2026-05-06T00:00:00Z (M0 완료 — spec-github-api 통째 재작성 + ADR 0002 L31 정렬 + G-016 박제)
 - Total tasks: 14 (M0, M1, M2a, M2b1, M2b2, M2c, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
-- Completed: 0 / 14
+- Completed: 1 / 14
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -37,7 +37,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` § 병렬 호출 정책은 M5b 결과 미정 박스 유지.
   - `[AUTO]` § Backend 선택 그대로 유지.
   - `[AUTO]` `docs/adr/0002-migrate-v0.1-to-gh-subprocess.md` § 마이그레이션 작업 범위 L31 ("가짜 `gh` 바이너리 PATH 주입 등") 표현을 trait inject 채택으로 정렬 갱신.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### M1. 에러 매핑 표 박제 (gh 종료 코드 + stderr → GitlessError) `[AUTO, spec-only]`
 - **Spec reference**: `docs/specs/spec-error-contracts.md` (부분 갱신), `docs/adr/0002-migrate-v0.1-to-gh-subprocess.md` § 에러 매핑
