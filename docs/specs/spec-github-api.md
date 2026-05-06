@@ -1,6 +1,6 @@
 # Spec: GitHub API Integration
 
-> **2026-04-30 Note (ADR 0001)**: 본 spec은 v0.1 REST backend (`ureq` 기반) 기준으로 박힌 계약이다. Phase 4 GraphQL backend부터는 `gh` CLI subprocess로 구현하며 본 spec은 부분적으로 historical reference가 된다 (인증·rate limit·retry는 gh가 위임 처리). v0.1 ureq 코드 자체의 마이그레이션 시점은 ADR 0001 follow-up open question #1로 별도 결정.
+> **2026-05-06 Note (ADR 0001 + ADR 0002)**: 본 spec은 v0.1 ureq baseline 정합 상태. ADR 0002로 gh subprocess 일괄 마이그레이션 결정 종료 → `docs/ralph/implementation-plan.md` M0에서 본 spec 통째 재작성 예정. 마이그레이션 완료 전까지 본 spec(ureq + mockito 표현)은 코드 baseline과 정합.
 
 ## 목적
 GitHub Trees / Blobs / Commits API를 blocking `ureq`로 호출 (v0.1). 인증·rate limit·truncation을 구조화 에러로 매핑.
