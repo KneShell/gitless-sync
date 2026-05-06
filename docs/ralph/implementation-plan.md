@@ -1,7 +1,7 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-06T18:30:00Z (M3 완료 — `--token` clap 인자 + `clap(env = "GITHUB_TOKEN")` 삭제, `ScanArgs.token` / `DiffArgs.token` 필드 + `build_report` / `compute_diff` 안 token resolve 게이트 + 토큰 의존 단위 테스트 9개 cascade 정리, `shared/config.rs::resolve_token` + `resolve_token_with` + 6개 단위 테스트 삭제. spec-cli-interface.md / spec-config.md 토큰 섹션 정리. 141 unit tests pass, 0 integration. tarpaulin 87.31% (+0.05%).)
+- Last updated: 2026-05-06T19:00:00Z (M4a [~] 시작 — 통합 테스트 정상 경로 시나리오 1~4 + 9 재작성. lib target 도입 + 가시성 cascade.)
 - Total tasks: 14 (M0, M1, M2a, M2b1, M2b2, M2c, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
 - Completed: 7 / 14
 
@@ -122,13 +122,13 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
 
 ### M4a. 통합 테스트 정상 경로 시나리오 `[AUTO, 코드]`
 - **Spec reference**: PRD 검증 시나리오 1~4 + 9
-- **Files**: `crates/gitless-sync/tests/integration.rs` (정상 경로 부분 재작성)
+- **Files**: `crates/gitless-sync/tests/integration.rs` (정상 경로 부분 재작성), `crates/gitless-sync/src/lib.rs` (신규 — 통합 테스트가 라이브러리 진입점을 호출하기 위한 lib target), `crates/gitless-sync/src/main.rs` (lib import 정렬), `crates/gitless-sync/src/shared/gh.rs` (`GhClient` / `GhResponse` / `RealGhClient` 가시성 `pub`), `crates/gitless-sync/src/commands/scan/mod.rs` (`run_with_client` / `build_report` `pub`), `crates/gitless-sync/src/commands/diff/mod.rs` (`run_with_client` `pub`)
 - **Depends on**: M3
 - **Acceptance criteria**:
   - `[AUTO]` PRD 시나리오 1~4 (4상태 분류) end-to-end: tempfile + `MockGhClient` stub → `run_with_client(args, &MockGhClient)` 호출 → stdout JSON 파싱 → 4상태 카운트 검증.
   - `[AUTO]` PRD 시나리오 9 (.gitignore + --ignore 합집합) end-to-end.
   - `[AUTO]` `cargo test --test integration` 정상 경로 부분 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### M4b. 통합 테스트 에러 + partial failure 시나리오 `[AUTO, 코드]`
 - **Spec reference**: PRD 검증 시나리오 10~15
