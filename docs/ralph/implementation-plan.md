@@ -77,7 +77,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` `fetch_tree` 단위 테스트는 `MockGhClient` 사용. mockito 호출 0회. 인증/rate/truncated/5xx/parse 케이스 모두 cover.
   - `[AUTO]` 에러 매핑은 M1 spec 따라.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings` 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### M2b2. fetch_blob + fetch_last_commit_at + run_with_base 정리 `[AUTO, 코드]`
 - **Spec reference**: `docs/specs/spec-github-api.md` (M0), `docs/specs/spec-error-contracts.md` (M1)
