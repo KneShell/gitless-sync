@@ -50,61 +50,44 @@ pub struct ScanArgs {
 
 /// Run the `scan` command and write the resulting JSON report to stdout.
 ///
-/// `base` is injectable so integration tests can point the binary at a mockito
-/// server via `GITLESS_API_BASE`. Production callers pass
-/// [`github::GITHUB_API_BASE`] (resolved in `main.rs`).
+/// Production callers inject `RealGhClient`; tests inject `MockGhClient`.
+/// `gh api` handles authentication / rate limit / transport errors, so this
+/// function only owns local IO + classification + JSON serialization.
 ///
 /// # Errors
 /// Returns any [`GitlessError`] raised by config loading, GitHub API calls,
 /// or local IO. Returns [`GitlessError::PartialFailure`] when one or more
 /// files could not be hashed.
-pub(crate) fn run_with_base(args: &ScanArgs, base: &str) -> Result<(), GitlessError> {
-    if args.backend == Backend::Graphql {
-        return Err(GitlessError::Config(
-            "GraphQL backend not implemented in v0.1; use --backend rest. Phase 4 ETA.".to_string(),
-        ));
-    }
-    let (report, failed_count) = build_report(args, base)?;
-    let json = output::serialize(&report, args.pretty).expect("ScanReport serialization is total");
-    println!("{json}");
-    if failed_count > 0 {
-        return Err(GitlessError::PartialFailure { failed_count });
-    }
-    Ok(())
-}
-
-/// Run `scan` with a [`GhClient`] injected for the Trees call (M2b1).
-///
-/// Production main.rs picks this entry when `GITLESS_API_BASE` is unset,
-/// passing [`shared::gh::RealGhClient`]. Unit tests pass `MockGhClient`.
-/// `fetch_blob` and `fetch_last_commit_at` still go through the legacy
-/// `*_with_base` ureq path until M2b2 migrates them to `GhClient` too;
-/// during this transient state Commits-API calls hit `GITHUB_API_BASE`
-/// directly (no env override here — the legacy ureq path in
-/// [`run_with_base`] still serves the integration tests).
-pub(crate) fn run_with_client(args: &ScanArgs, client: &impl GhClient) -> Result<(), GitlessError> {
-    if args.backend == Backend::Graphql {
-        return Err(GitlessError::Config(
-            "GraphQL backend not implemented in v0.1; use --backend rest. Phase 4 ETA.".to_string(),
-        ));
-    }
-    let (report, failed_count) = build_report_with_client(args, client, github::GITHUB_API_BASE)?;
-    let json = output::serialize(&report, args.pretty).expect("ScanReport serialization is total");
-    println!("{json}");
-    if failed_count > 0 {
-        return Err(GitlessError::PartialFailure { failed_count });
-    }
-    Ok(())
-}
-
-/// Sibling of [`build_report`] that uses [`github::fetch_tree`] (gh subprocess)
-/// instead of [`github::fetch_tree_with_base`] (ureq). Folded back into a single
-/// function in M2b2 once `fetch_blob` and `fetch_last_commit_at` are also
-/// migrated to `GhClient`.
-fn build_report_with_client(
+pub(crate) fn run_with_client<C: GhClient + Sync>(
     args: &ScanArgs,
-    client: &impl GhClient,
-    base: &str,
+    client: &C,
+) -> Result<(), GitlessError> {
+    if args.backend == Backend::Graphql {
+        return Err(GitlessError::Config(
+            "GraphQL backend not implemented in v0.1; use --backend rest. Phase 4 ETA.".to_string(),
+        ));
+    }
+    let (report, failed_count) = build_report(args, client)?;
+    let json = output::serialize(&report, args.pretty).expect("ScanReport serialization is total");
+    println!("{json}");
+    if failed_count > 0 {
+        return Err(GitlessError::PartialFailure { failed_count });
+    }
+    Ok(())
+}
+
+/// Run the full pipeline up to (but not including) stdout serialization.
+///
+/// Returns the assembled [`ScanReport`] and the count of files that failed
+/// to hash so the caller can decide whether to map to
+/// [`GitlessError::PartialFailure`].
+///
+/// # Errors
+/// Propagates config / IO / GitHub API errors. Hash failures on individual
+/// files do **not** error here — they show up in the returned `failed_count`.
+fn build_report<C: GhClient + Sync>(
+    args: &ScanArgs,
+    client: &C,
 ) -> Result<(ScanReport, usize), GitlessError> {
     let local_root = Path::new(&args.local);
     let toml_path = local_root.join("gitless-sync.toml");
@@ -121,8 +104,11 @@ fn build_report_with_client(
     let mut ignore_patterns = cfg.ignore.clone();
     ignore_patterns.extend(args.ignore.iter().cloned());
 
+    // M2b2: --token plumbing is preserved as an AuthFailed gate so existing
+    // contract holds. M3 removes both the CLI flag and `resolve_token`; gh
+    // owns auth from then on.
     let token_spec = args.token.as_deref().ok_or(GitlessError::AuthFailed)?;
-    let token = config::resolve_token(token_spec)?;
+    let _token = config::resolve_token(token_spec)?;
 
     let matcher = IgnoreMatcher::new(local_root, &ignore_patterns)?;
 
@@ -149,93 +135,9 @@ fn build_report_with_client(
     let (mut entries, summary, failed_count) = assemble_entries(
         &local_files,
         &remote_files,
-        base,
+        client,
         &repo,
         &branch,
-        &token,
-        args.keep_bom,
-    )?;
-
-    if let Some(filter) = parse_status_filter(args.status.as_deref())? {
-        entries.retain(|e| filter.contains(&e.status));
-    }
-
-    let files = if args.summary_only {
-        None
-    } else {
-        Some(entries)
-    };
-
-    let report = ScanReport {
-        schema_version: SCHEMA_VERSION.to_string(),
-        scanned_at: Utc::now(),
-        repo,
-        branch,
-        local_root: args.local.clone(),
-        summary,
-        files,
-    };
-
-    Ok((report, failed_count))
-}
-
-/// Run the full pipeline up to (but not including) stdout serialization.
-///
-/// Returns the assembled [`ScanReport`] and the count of files that failed
-/// to hash so the caller can decide whether to map to
-/// [`GitlessError::PartialFailure`].
-///
-/// # Errors
-/// Propagates config / IO / GitHub API errors. Hash failures on individual
-/// files do **not** error here — they show up in the returned `failed_count`.
-fn build_report(args: &ScanArgs, base: &str) -> Result<(ScanReport, usize), GitlessError> {
-    let local_root = Path::new(&args.local);
-    let toml_path = local_root.join("gitless-sync.toml");
-    let cfg = config::load(Some(&toml_path))?;
-
-    let repo = args
-        .repo
-        .as_deref()
-        .or(cfg.repo.as_deref())
-        .ok_or_else(|| GitlessError::Config("repo not specified".to_string()))?
-        .to_string();
-    let branch = args.branch.clone();
-
-    let mut ignore_patterns = cfg.ignore.clone();
-    ignore_patterns.extend(args.ignore.iter().cloned());
-
-    let token_spec = args.token.as_deref().ok_or(GitlessError::AuthFailed)?;
-    let token = config::resolve_token(token_spec)?;
-
-    let matcher = IgnoreMatcher::new(local_root, &ignore_patterns)?;
-
-    if args.verbose >= 1 {
-        eprintln!("info: scanning {} against {repo}@{branch}", args.local);
-    }
-
-    let remote_files = github::fetch_tree_with_base(base, &repo, &branch, &token)?;
-    let local_files = walker::walk(local_root, &matcher)?;
-
-    if args.verbose >= 1 {
-        eprintln!(
-            "info: found {} local files, {} remote files",
-            local_files.len(),
-            remote_files.len()
-        );
-    }
-    if args.verbose >= 2 {
-        for lf in &local_files {
-            eprintln!("debug: local entry {}", lf.relative_path);
-        }
-    }
-
-    let (mut entries, summary, failed_count) = assemble_entries(
-        &local_files,
-        &remote_files,
-        base,
-        &repo,
-        &branch,
-        &token,
         args.keep_bom,
     )?;
 
@@ -263,10 +165,6 @@ fn build_report(args: &ScanArgs, base: &str) -> Result<(ScanReport, usize), Gitl
 }
 
 /// Parse the comma-separated `--status` filter into a list of [`Status`].
-///
-/// Returns `Ok(None)` when no filter is set, `Ok(Some(vec))` when one or more
-/// valid status names are provided, and [`GitlessError::Config`] for any
-/// unrecognized token.
 fn parse_status_filter(raw: Option<&str>) -> Result<Option<Vec<Status>>, GitlessError> {
     let Some(s) = raw else {
         return Ok(None);
@@ -298,25 +196,18 @@ fn parse_status_token(s: &str) -> Result<Status, GitlessError> {
     }
 }
 
-/// Compare matched local/remote files and produce the per-entry report rows.
+/// Compare matched local/remote files and produce per-entry report rows.
 ///
-/// Calls `fetch_last_commit_at_with_base` only for paths whose SHA differs on
-/// both sides — identical files and one-sided files don't trigger a Commits
-/// API call (G-003). Commits API calls are issued in parallel with up to
-/// [`MAX_COMMITS_CONCURRENCY`] threads (G-011). Hash failures on a local file
-/// don't abort: the file is recorded as [`Status::Failed`] and `failed_count`
-/// increments.
-///
-/// # Errors
-/// Propagates GitHub API errors from the Commits call. Local hash failures do
-/// not produce an error — they accumulate in `failed_count`.
-fn assemble_entries(
+/// Calls `fetch_last_commit_at` only for paths whose SHA differs on both sides.
+/// Commits API calls go through the rayon pool with up to
+/// [`MAX_COMMITS_CONCURRENCY`] threads. Hash failures are recorded as
+/// [`Status::Failed`] without aborting.
+fn assemble_entries<C: GhClient + Sync>(
     local_files: &[LocalFile],
     remote_files: &[RemoteFile],
-    base: &str,
+    client: &C,
     repo: &str,
     branch: &str,
-    token: &str,
     keep_bom: bool,
 ) -> Result<(Vec<FileEntry>, Summary, usize), GitlessError> {
     let local_map: HashMap<&str, &LocalFile> = local_files
@@ -331,13 +222,12 @@ fn assemble_entries(
     all_paths.extend(remote_map.keys().copied());
 
     let pending = build_pre_entries(&all_paths, &local_map, &remote_map, keep_bom);
-    let commit_map = fetch_commit_map(&pending, base, repo, branch, token)?;
+    let commit_map = fetch_commit_map(&pending, client, repo, branch)?;
     Ok(finalize_entries(pending, &commit_map))
 }
 
 /// Pass 1: hash local files and capture per-path state without calling the
-/// Commits API. Hash failures are recorded as [`PreState::Failed`] so the
-/// subsequent passes can fold them into the summary.
+/// Commits API. Hash failures are recorded as [`PreState::Failed`].
 fn build_pre_entries(
     all_paths: &BTreeSet<&str>,
     local_map: &HashMap<&str, &LocalFile>,
@@ -383,18 +273,12 @@ fn build_pre_entries(
 }
 
 /// Pass 2: collect paths that need a Commits API lookup and fetch their dates
-/// in parallel (G-003 + G-011). The returned map is keyed by path so pass 3
-/// can stitch the dates back in.
-///
-/// # Errors
-/// Propagates the first error from any concurrent
-/// [`github::fetch_last_commit_at_with_base`] call.
-fn fetch_commit_map(
+/// in parallel. Map keyed by path so pass 3 can stitch the dates back in.
+fn fetch_commit_map<C: GhClient + Sync>(
     pending: &[PreEntry],
-    base: &str,
+    client: &C,
     repo: &str,
     branch: &str,
-    token: &str,
 ) -> Result<HashMap<String, DateTime<Utc>>, GitlessError> {
     let commit_paths: Vec<String> = pending
         .iter()
@@ -408,13 +292,12 @@ fn fetch_commit_map(
         })
         .collect();
     let commit_path_refs: Vec<&str> = commit_paths.iter().map(String::as_str).collect();
-    let commit_dates = fetch_commit_dates_parallel(base, repo, branch, token, &commit_path_refs)?;
+    let commit_dates = fetch_commit_dates_parallel(client, repo, branch, &commit_path_refs)?;
     Ok(commit_paths.into_iter().zip(commit_dates).collect())
 }
 
 /// Pass 3: classify each pending entry and emit `FileEntry` rows in input
-/// (`BTreeSet`) order. Returns the entries, summary counters, and the count of
-/// hash failures so the caller can map to [`GitlessError::PartialFailure`].
+/// (`BTreeSet`) order.
 fn finalize_entries(
     pending: Vec<PreEntry>,
     commit_map: &HashMap<String, DateTime<Utc>>,
@@ -499,18 +382,10 @@ struct PreEntry {
 }
 
 /// Fetch `commit.committer.date` for each path in parallel (G-011: max 8 threads).
-///
-/// Empty input short-circuits to `Ok(vec![])` without spawning a thread pool.
-/// Result order matches input order.
-///
-/// # Errors
-/// Propagates the first error from any concurrent
-/// [`github::fetch_last_commit_at_with_base`] call.
-fn fetch_commit_dates_parallel(
-    base: &str,
+fn fetch_commit_dates_parallel<C: GhClient + Sync>(
+    client: &C,
     repo: &str,
     branch: &str,
-    token: &str,
     paths: &[&str],
 ) -> Result<Vec<DateTime<Utc>>, GitlessError> {
     if paths.is_empty() {
@@ -523,7 +398,7 @@ fn fetch_commit_dates_parallel(
     pool.install(|| {
         paths
             .par_iter()
-            .map(|p| github::fetch_last_commit_at_with_base(base, repo, branch, p, token))
+            .map(|p| github::fetch_last_commit_at(client, repo, branch, p))
             .collect::<Result<Vec<_>, _>>()
     })
 }
@@ -539,10 +414,10 @@ mod tests {
     use std::fs;
 
     use chrono::TimeZone;
-    use mockito::{Matcher, Server};
     use tempfile::TempDir;
 
     use super::*;
+    use crate::shared::gh::{GhResponse, MockGhClient};
 
     const COMMITS_BODY: &str = r#"[{
         "sha": "c1",
@@ -573,6 +448,52 @@ mod tests {
     fn mtime(secs: i64) -> chrono::DateTime<Utc> {
         Utc.timestamp_opt(secs, 0).unwrap()
     }
+
+    fn ok_resp(body: &[u8]) -> GhResponse {
+        GhResponse {
+            stdout: body.to_vec(),
+            stderr: String::new(),
+            exit_code: 0,
+        }
+    }
+
+    fn err_resp(stderr: &str) -> GhResponse {
+        GhResponse {
+            stdout: Vec::new(),
+            stderr: stderr.to_string(),
+            exit_code: 1,
+        }
+    }
+
+    fn tree_args(repo: &str, branch: &str) -> Vec<String> {
+        vec![
+            "api".to_string(),
+            format!("repos/{repo}/git/trees/{branch}?recursive=1"),
+        ]
+    }
+
+    fn commits_args(repo: &str, branch: &str, path: &str) -> Vec<String> {
+        vec![
+            "api".to_string(),
+            format!("repos/{repo}/commits"),
+            "-F".to_string(),
+            format!("sha={branch}"),
+            "-F".to_string(),
+            format!("path={path}"),
+            "-F".to_string(),
+            "per_page=1".to_string(),
+        ]
+    }
+
+    fn stub_tree(mock: &mut MockGhClient, repo: &str, branch: &str, body: &str) {
+        mock.stub(tree_args(repo, branch), ok_resp(body.as_bytes()));
+    }
+
+    fn stub_commits(mock: &mut MockGhClient, repo: &str, branch: &str, path: &str, body: &str) {
+        mock.stub(commits_args(repo, branch, path), ok_resp(body.as_bytes()));
+    }
+
+    // --- try_hash_local ----------------------------------------------------
 
     #[test]
     fn try_hash_local_returns_io_error_when_file_missing() {
@@ -610,11 +531,14 @@ mod tests {
         assert!(is_bin);
     }
 
+    // --- build_report ------------------------------------------------------
+
     #[test]
     fn build_report_returns_config_error_when_repo_missing() {
         let dir = TempDir::new().unwrap();
-        let args = args_for(dir.path(), None, Some("t"));
-        let err = build_report(&args, "http://localhost:0").unwrap_err();
+        let mock = MockGhClient::new();
+        let args = args_for(dir.path(), None, Some("literal:t"));
+        let err = build_report(&args, &mock).unwrap_err();
         assert!(matches!(err, GitlessError::Config(_)));
         assert_eq!(err.exit_code(), 1);
     }
@@ -622,8 +546,9 @@ mod tests {
     #[test]
     fn build_report_returns_auth_failed_when_token_missing() {
         let dir = TempDir::new().unwrap();
+        let mock = MockGhClient::new();
         let args = args_for(dir.path(), Some("o/r"), None);
-        let err = build_report(&args, "http://localhost:0").unwrap_err();
+        let err = build_report(&args, &mock).unwrap_err();
         assert!(matches!(err, GitlessError::AuthFailed));
         assert_eq!(err.exit_code(), 2);
     }
@@ -637,16 +562,16 @@ mod tests {
         )
         .unwrap();
 
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/toml-owner/toml-repo/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(r#"{"sha":"x","tree":[],"truncated":false}"#)
-            .create();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "toml-owner/toml-repo",
+            "main",
+            r#"{"sha":"x","tree":[],"truncated":false}"#,
+        );
 
-        let args = args_for(dir.path(), None, Some("tok"));
-        let (report, failed) = build_report(&args, &server.url()).unwrap();
+        let args = args_for(dir.path(), None, Some("literal:tok"));
+        let (report, failed) = build_report(&args, &mock).unwrap();
         assert_eq!(failed, 0);
         assert_eq!(report.repo, "toml-owner/toml-repo");
     }
@@ -660,16 +585,16 @@ mod tests {
         )
         .unwrap();
 
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/cli-owner/cli-repo/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(r#"{"sha":"x","tree":[],"truncated":false}"#)
-            .create();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "cli-owner/cli-repo",
+            "main",
+            r#"{"sha":"x","tree":[],"truncated":false}"#,
+        );
 
-        let args = args_for(dir.path(), Some("cli-owner/cli-repo"), Some("tok"));
-        let (report, _) = build_report(&args, &server.url()).unwrap();
+        let args = args_for(dir.path(), Some("cli-owner/cli-repo"), Some("literal:tok"));
+        let (report, _) = build_report(&args, &mock).unwrap();
         assert_eq!(report.repo, "cli-owner/cli-repo");
     }
 
@@ -679,22 +604,17 @@ mod tests {
         fs::write(dir.path().join("a.md"), "alpha\n").unwrap();
         let local_sha = blob_hash(b"alpha\n");
 
-        let mut server = Server::new();
+        let mut mock = MockGhClient::new();
         let trees_body = format!(
             r#"{{"sha":"x","tree":[{{"path":"a.md","mode":"100644","type":"blob","sha":"{local_sha}","size":6}}],"truncated":false}}"#
         );
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(&trees_body)
-            .create();
-        // Mark commits as never expected: if the code calls it, mockito would
-        // 501 since no matching mock exists, and `fetch_last_commit_at_with_base`
-        // would surface that as a GitlessError::Http.
+        stub_tree(&mut mock, "o/r", "main", &trees_body);
+        // Intentionally no commits stub: if `build_report` calls the Commits
+        // API on an identical entry, MockGhClient falls back to Http err which
+        // surfaces as a propagated error here.
 
-        let args = args_for(dir.path(), Some("o/r"), Some("tok"));
-        let (report, failed) = build_report(&args, &server.url()).unwrap();
+        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let (report, failed) = build_report(&args, &mock).unwrap();
 
         assert_eq!(failed, 0);
         assert_eq!(report.summary.identical, 1);
@@ -712,16 +632,16 @@ mod tests {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join("only_here.md"), "x\n").unwrap();
 
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(r#"{"sha":"x","tree":[],"truncated":false}"#)
-            .create();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            r#"{"sha":"x","tree":[],"truncated":false}"#,
+        );
 
-        let args = args_for(dir.path(), Some("o/r"), Some("tok"));
-        let (report, _) = build_report(&args, &server.url()).unwrap();
+        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let (report, _) = build_report(&args, &mock).unwrap();
         assert_eq!(report.summary.local_only_changed, 1);
         let entries = report.files.unwrap();
         assert_eq!(entries.len(), 1);
@@ -733,18 +653,12 @@ mod tests {
     #[test]
     fn build_report_remote_only_does_not_call_commits() {
         let dir = TempDir::new().unwrap();
-
-        let mut server = Server::new();
+        let mut mock = MockGhClient::new();
         let trees_body = r#"{"sha":"x","tree":[{"path":"only_remote.md","mode":"100644","type":"blob","sha":"r1","size":1}],"truncated":false}"#;
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(trees_body)
-            .create();
+        stub_tree(&mut mock, "o/r", "main", trees_body);
 
-        let args = args_for(dir.path(), Some("o/r"), Some("tok"));
-        let (report, _) = build_report(&args, &server.url()).unwrap();
+        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let (report, _) = build_report(&args, &mock).unwrap();
         assert_eq!(report.summary.remote_only_changed, 1);
         let entries = report.files.unwrap();
         assert_eq!(entries[0].status, Status::RemoteOnlyChanged);
@@ -757,28 +671,13 @@ mod tests {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join("d.md"), "local\n").unwrap();
 
-        let mut server = Server::new();
+        let mut mock = MockGhClient::new();
         let trees_body = r#"{"sha":"x","tree":[{"path":"d.md","mode":"100644","type":"blob","sha":"sha-remote","size":6}],"truncated":false}"#;
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(trees_body)
-            .create();
-        let commits_mock = server
-            .mock("GET", "/repos/o/r/commits")
-            .match_query(Matcher::AllOf(vec![
-                Matcher::UrlEncoded("sha".into(), "main".into()),
-                Matcher::UrlEncoded("path".into(), "d.md".into()),
-                Matcher::UrlEncoded("per_page".into(), "1".into()),
-            ]))
-            .with_status(200)
-            .with_body(COMMITS_BODY)
-            .expect(1)
-            .create();
+        stub_tree(&mut mock, "o/r", "main", trees_body);
+        stub_commits(&mut mock, "o/r", "main", "d.md", COMMITS_BODY);
 
-        let args = args_for(dir.path(), Some("o/r"), Some("tok"));
-        let (report, _) = build_report(&args, &server.url()).unwrap();
+        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let (report, _) = build_report(&args, &mock).unwrap();
         let entries = report.files.unwrap();
         assert_eq!(entries.len(), 1);
         assert!(matches!(
@@ -786,59 +685,54 @@ mod tests {
             Status::Drift | Status::LocalOnlyChanged | Status::RemoteOnlyChanged
         ));
         assert!(entries[0].remote_last_commit_at.is_some());
-        commits_mock.assert();
     }
 
     #[test]
     fn build_report_propagates_auth_error_from_trees() {
         let dir = TempDir::new().unwrap();
+        let mut mock = MockGhClient::new();
+        mock.stub(
+            tree_args("o/r", "main"),
+            err_resp("gh: Bad credentials (HTTP 401)"),
+        );
 
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(401)
-            .with_body(r#"{"message":"Bad credentials"}"#)
-            .create();
-
-        let args = args_for(dir.path(), Some("o/r"), Some("tok"));
-        let err = build_report(&args, &server.url()).unwrap_err();
+        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let err = build_report(&args, &mock).unwrap_err();
         assert!(matches!(err, GitlessError::AuthFailed));
     }
 
     #[test]
     fn build_report_propagates_truncated_error() {
         let dir = TempDir::new().unwrap();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            r#"{"sha":"x","tree":[],"truncated":true}"#,
+        );
 
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(r#"{"sha":"x","tree":[],"truncated":true}"#)
-            .create();
-
-        let args = args_for(dir.path(), Some("o/r"), Some("tok"));
-        let err = build_report(&args, &server.url()).unwrap_err();
+        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let err = build_report(&args, &mock).unwrap_err();
         assert!(matches!(err, GitlessError::TreesTruncated));
     }
 
     #[test]
     fn build_report_resolves_literal_token_prefix() {
         let dir = TempDir::new().unwrap();
-        let mut server = Server::new();
-        let mock = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .match_header("authorization", "Bearer ghp_literal")
-            .with_status(200)
-            .with_body(r#"{"sha":"x","tree":[],"truncated":false}"#)
-            .create();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            r#"{"sha":"x","tree":[],"truncated":false}"#,
+        );
 
         let args = args_for(dir.path(), Some("o/r"), Some("literal:ghp_literal"));
-        build_report(&args, &server.url()).expect("literal token should resolve");
-        mock.assert();
+        build_report(&args, &mock).expect("literal token should resolve");
     }
+
+    // --- assemble_entries --------------------------------------------------
 
     #[test]
     fn assemble_entries_marks_unreadable_local_as_failed() {
@@ -853,16 +747,11 @@ mod tests {
             sha: "remote-sha".to_string(),
         };
 
-        let (entries, summary, failed) = assemble_entries(
-            &[bogus],
-            &[remote],
-            "http://127.0.0.1:0",
-            "o/r",
-            "main",
-            "tok",
-            false,
-        )
-        .unwrap();
+        let mut mock = MockGhClient::new();
+        stub_commits(&mut mock, "o/r", "main", "ghost.md", COMMITS_BODY);
+
+        let (entries, summary, failed) =
+            assemble_entries(&[bogus], &[remote], &mock, "o/r", "main", false).unwrap();
 
         assert_eq!(failed, 1);
         assert_eq!(summary.failed, 1);
@@ -888,70 +777,267 @@ mod tests {
             sha: sha.clone(),
         };
 
-        // base is intentionally unreachable — the test fails if the code
-        // tries to call commits API on an identical entry.
-        let (entries, summary, failed) = assemble_entries(
-            &[local],
-            &[remote],
-            "http://127.0.0.1:0",
-            "o/r",
-            "main",
-            "t",
-            false,
-        )
-        .unwrap();
+        // No commits stub; if assemble_entries hits the Commits API anyway, it
+        // would surface as an Http error (MockGhClient default).
+        let mock = MockGhClient::new();
+        let (entries, summary, failed) =
+            assemble_entries(&[local], &[remote], &mock, "o/r", "main", false).unwrap();
 
         assert_eq!(failed, 0);
         assert_eq!(summary.identical, 1);
         assert_eq!(entries[0].status, Status::Identical);
     }
 
-    #[test]
-    fn run_with_base_returns_partial_failure_when_a_local_file_unreadable() {
-        // Construct a setup where the trees response references a file that
-        // exists in walker results but the file is then removed before run
-        // reads it. We simulate this by making the local path a directory
-        // with a name matching the remote — fs::read on a directory fails
-        // on every platform, simulating a generic IO error path.
-        let dir = TempDir::new().unwrap();
-        // Create a *directory* named "trap.md" so fs::read fails.
-        fs::create_dir(dir.path().join("trap.md")).unwrap();
-        // walker::walk skips directories, so we won't pick it up. Instead,
-        // assemble_entries needs a LocalFile with a path that resolves to a
-        // directory — but build_report goes through walker which filters those
-        // out. So this scenario is exercised only through assemble_entries
-        // directly (already covered above by `assemble_entries_marks_unreadable_local_as_failed`).
-        //
-        // Verify run_with_base maps PartialFailure to its exit code via the
-        // assemble_entries path through a synthetic scenario: the file *does*
-        // exist locally, but by writing a 0-byte file then locking it, we'd
-        // need OS-specific tricks. Instead, construct the scenario that
-        // exercises the run_with_base -> PartialFailure mapping by validating
-        // exit_code behavior end-to-end with build_report alone.
+    // --- run_with_client ---------------------------------------------------
 
-        // Concrete check: exit code mapping for the variant produced by run_with_base.
+    #[test]
+    fn run_with_client_returns_partial_failure_exit_code_for_partial_failure_variant() {
+        // Concrete check: exit code mapping for the variant produced by run_with_client.
         let err = GitlessError::PartialFailure { failed_count: 2 };
         assert_eq!(err.exit_code(), 4);
     }
 
     #[test]
+    fn run_with_client_returns_config_error_for_graphql_backend() {
+        let dir = TempDir::new().unwrap();
+        let mut args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        args.backend = Backend::Graphql;
+        let mock = MockGhClient::new();
+        let err = run_with_client(&args, &mock).unwrap_err();
+        assert!(matches!(err, GitlessError::Config(ref msg) if msg.contains("GraphQL")));
+        assert_eq!(err.exit_code(), 1);
+    }
+
+    #[test]
+    fn run_with_client_uses_rest_backend_by_default() {
+        let dir = TempDir::new().unwrap();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            r#"{"sha":"x","tree":[],"truncated":false}"#,
+        );
+        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        run_with_client(&args, &mock).unwrap();
+    }
+
+    #[test]
+    fn run_with_client_propagates_truncated_from_mock() {
+        let dir = TempDir::new().unwrap();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            r#"{"sha":"x","tree":[],"truncated":true}"#,
+        );
+        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let err = run_with_client(&args, &mock).unwrap_err();
+        assert!(matches!(err, GitlessError::TreesTruncated));
+        assert_eq!(err.exit_code(), 5);
+    }
+
+    // --- summary-only / status filter / verbose ----------------------------
+
+    #[test]
+    fn build_report_summary_only_drops_files_field() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("a.md"), "alpha\n").unwrap();
+        let local_a = blob_hash(b"alpha\n");
+
+        let mut mock = MockGhClient::new();
+        let trees_body = format!(
+            r#"{{"sha":"x","tree":[{{"path":"a.md","mode":"100644","type":"blob","sha":"{local_a}","size":6}}],"truncated":false}}"#
+        );
+        stub_tree(&mut mock, "o/r", "main", &trees_body);
+
+        let mut args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        args.summary_only = true;
+        let (report, _) = build_report(&args, &mock).unwrap();
+        assert!(report.files.is_none());
+        assert_eq!(report.summary.identical, 1);
+        let json = output::serialize(&report, false).unwrap();
+        assert!(!json.contains("\"files\""));
+    }
+
+    #[test]
+    fn build_report_status_filter_keeps_only_matching_entries() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("identical.md"), "alpha\n").unwrap();
+        fs::write(dir.path().join("local_only.md"), "beta\n").unwrap();
+        let local_a = blob_hash(b"alpha\n");
+
+        let mut mock = MockGhClient::new();
+        let trees_body = format!(
+            r#"{{"sha":"x","tree":[{{"path":"identical.md","mode":"100644","type":"blob","sha":"{local_a}","size":6}}],"truncated":false}}"#
+        );
+        stub_tree(&mut mock, "o/r", "main", &trees_body);
+
+        let mut args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        args.status = Some("local_only_changed".to_string());
+        let (report, _) = build_report(&args, &mock).unwrap();
+
+        assert_eq!(report.summary.identical, 1);
+        assert_eq!(report.summary.local_only_changed, 1);
+
+        let entries = report.files.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].status, Status::LocalOnlyChanged);
+        assert_eq!(entries[0].path, "local_only.md");
+    }
+
+    #[test]
+    fn build_report_status_filter_supports_multiple_values() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("identical.md"), "alpha\n").unwrap();
+        fs::write(dir.path().join("local_only.md"), "beta\n").unwrap();
+        let local_a = blob_hash(b"alpha\n");
+
+        let mut mock = MockGhClient::new();
+        let trees_body = format!(
+            r#"{{"sha":"x","tree":[{{"path":"identical.md","mode":"100644","type":"blob","sha":"{local_a}","size":6}},{{"path":"remote_only.md","mode":"100644","type":"blob","sha":"deadbeef","size":3}}],"truncated":false}}"#
+        );
+        stub_tree(&mut mock, "o/r", "main", &trees_body);
+
+        let mut args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        args.status = Some("local_only_changed,remote_only_changed".to_string());
+        let (report, _) = build_report(&args, &mock).unwrap();
+
+        let entries = report.files.unwrap();
+        assert_eq!(entries.len(), 2);
+        for e in &entries {
+            assert!(matches!(
+                e.status,
+                Status::LocalOnlyChanged | Status::RemoteOnlyChanged
+            ));
+        }
+    }
+
+    #[test]
+    fn build_report_summary_only_overrides_status_filter() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("a.md"), "alpha\n").unwrap();
+        let local_a = blob_hash(b"alpha\n");
+
+        let mut mock = MockGhClient::new();
+        let trees_body = format!(
+            r#"{{"sha":"x","tree":[{{"path":"a.md","mode":"100644","type":"blob","sha":"{local_a}","size":6}}],"truncated":false}}"#
+        );
+        stub_tree(&mut mock, "o/r", "main", &trees_body);
+
+        let mut args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        args.summary_only = true;
+        args.status = Some("drift".to_string());
+        let (report, _) = build_report(&args, &mock).unwrap();
+
+        assert!(report.files.is_none());
+        assert_eq!(report.summary.identical, 1);
+    }
+
+    #[test]
+    fn build_report_invalid_status_filter_yields_config_error() {
+        let dir = TempDir::new().unwrap();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            r#"{"sha":"x","tree":[],"truncated":false}"#,
+        );
+
+        let mut args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        args.status = Some("nonsense".to_string());
+        let err = build_report(&args, &mock).unwrap_err();
+        assert!(matches!(err, GitlessError::Config(_)));
+        assert_eq!(err.exit_code(), 1);
+    }
+
+    #[test]
+    fn build_report_verbose_levels_do_not_change_report() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("a.md"), "alpha\n").unwrap();
+        let local_a = blob_hash(b"alpha\n");
+
+        for level in [0u8, 1, 2] {
+            let mut mock = MockGhClient::new();
+            let trees_body = format!(
+                r#"{{"sha":"x","tree":[{{"path":"a.md","mode":"100644","type":"blob","sha":"{local_a}","size":6}}],"truncated":false}}"#
+            );
+            stub_tree(&mut mock, "o/r", "main", &trees_body);
+
+            let mut args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+            args.verbose = level;
+            let (report, _) = build_report(&args, &mock).unwrap();
+            assert_eq!(report.summary.identical, 1);
+            assert!(report.files.is_some());
+        }
+    }
+
+    #[test]
+    fn build_report_drift_multiple_paths_invokes_commits_api_per_path() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("a.md"), "alpha\n").unwrap();
+        fs::write(dir.path().join("b.md"), "beta\n").unwrap();
+        fs::write(dir.path().join("c.md"), "gamma\n").unwrap();
+
+        let mut mock = MockGhClient::new();
+        let trees_body = r#"{"sha":"x","tree":[
+            {"path":"a.md","mode":"100644","type":"blob","sha":"remote-a","size":6},
+            {"path":"b.md","mode":"100644","type":"blob","sha":"remote-b","size":5},
+            {"path":"c.md","mode":"100644","type":"blob","sha":"remote-c","size":6}
+        ],"truncated":false}"#;
+        stub_tree(&mut mock, "o/r", "main", trees_body);
+        stub_commits(&mut mock, "o/r", "main", "a.md", COMMITS_BODY);
+        stub_commits(&mut mock, "o/r", "main", "b.md", COMMITS_BODY);
+        stub_commits(&mut mock, "o/r", "main", "c.md", COMMITS_BODY);
+
+        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let (report, failed) = build_report(&args, &mock).unwrap();
+        assert_eq!(failed, 0);
+
+        let entries = report.files.unwrap();
+        assert_eq!(entries.len(), 3);
+        let paths: Vec<&str> = entries.iter().map(|e| e.path.as_str()).collect();
+        assert_eq!(paths, vec!["a.md", "b.md", "c.md"]);
+        for e in &entries {
+            assert!(
+                e.remote_last_commit_at.is_some(),
+                "drift entry {} should have commit timestamp",
+                e.path
+            );
+        }
+    }
+
+    #[test]
+    fn fetch_commit_dates_parallel_short_circuits_on_empty_input() {
+        // No stubs registered; if the function issued any call, MockGhClient
+        // would error. Empty input must short-circuit before that happens.
+        let mock = MockGhClient::new();
+        let result = fetch_commit_dates_parallel(&mock, "o/r", "main", &[]).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
     fn build_report_includes_schema_version_and_timestamp() {
         let dir = TempDir::new().unwrap();
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(r#"{"sha":"x","tree":[],"truncated":false}"#)
-            .create();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            r#"{"sha":"x","tree":[],"truncated":false}"#,
+        );
 
-        let args = args_for(dir.path(), Some("o/r"), Some("tok"));
-        let (report, _) = build_report(&args, &server.url()).unwrap();
+        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let (report, _) = build_report(&args, &mock).unwrap();
         assert_eq!(report.schema_version, SCHEMA_VERSION);
         assert_eq!(report.repo, "o/r");
         assert_eq!(report.branch, "main");
         assert!(report.files.is_some());
     }
+
+    // --- parse_status_filter ----------------------------------------------
 
     #[test]
     fn parse_status_filter_returns_none_when_arg_absent() {
@@ -1005,323 +1091,5 @@ mod tests {
         let err = parse_status_filter(Some("nonsense")).unwrap_err();
         assert!(matches!(&err, GitlessError::Config(msg) if msg.contains("nonsense")));
         assert_eq!(err.exit_code(), 1);
-    }
-
-    #[test]
-    fn run_with_base_returns_config_error_for_graphql_backend() {
-        let dir = TempDir::new().unwrap();
-        let mut args = args_for(dir.path(), Some("o/r"), Some("tok"));
-        args.backend = Backend::Graphql;
-        let err = run_with_base(&args, "http://127.0.0.1:0").unwrap_err();
-        assert!(matches!(err, GitlessError::Config(ref msg) if msg.contains("GraphQL")));
-        assert_eq!(err.exit_code(), 1);
-    }
-
-    #[test]
-    fn run_with_base_uses_rest_backend_by_default() {
-        let dir = TempDir::new().unwrap();
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(r#"{"sha":"x","tree":[],"truncated":false}"#)
-            .create();
-
-        let args = args_for(dir.path(), Some("o/r"), Some("tok"));
-        // Backend defaults to Rest via args_for. Should succeed.
-        run_with_base(&args, &server.url()).unwrap();
-    }
-
-    #[test]
-    fn build_report_summary_only_drops_files_field() {
-        let dir = TempDir::new().unwrap();
-        fs::write(dir.path().join("a.md"), "alpha\n").unwrap();
-        let local_a = blob_hash(b"alpha\n");
-
-        let mut server = Server::new();
-        let trees_body = format!(
-            r#"{{"sha":"x","tree":[{{"path":"a.md","mode":"100644","type":"blob","sha":"{local_a}","size":6}}],"truncated":false}}"#
-        );
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(&trees_body)
-            .create();
-
-        let mut args = args_for(dir.path(), Some("o/r"), Some("tok"));
-        args.summary_only = true;
-        let (report, _) = build_report(&args, &server.url()).unwrap();
-        assert!(report.files.is_none());
-        assert_eq!(report.summary.identical, 1);
-        let json = output::serialize(&report, false).unwrap();
-        assert!(!json.contains("\"files\""));
-    }
-
-    #[test]
-    fn build_report_status_filter_keeps_only_matching_entries() {
-        let dir = TempDir::new().unwrap();
-        fs::write(dir.path().join("identical.md"), "alpha\n").unwrap();
-        fs::write(dir.path().join("local_only.md"), "beta\n").unwrap();
-        let local_a = blob_hash(b"alpha\n");
-
-        let mut server = Server::new();
-        let trees_body = format!(
-            r#"{{"sha":"x","tree":[{{"path":"identical.md","mode":"100644","type":"blob","sha":"{local_a}","size":6}}],"truncated":false}}"#
-        );
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(&trees_body)
-            .create();
-
-        let mut args = args_for(dir.path(), Some("o/r"), Some("tok"));
-        args.status = Some("local_only_changed".to_string());
-        let (report, _) = build_report(&args, &server.url()).unwrap();
-
-        // Summary still reflects total counts, not the filter
-        assert_eq!(report.summary.identical, 1);
-        assert_eq!(report.summary.local_only_changed, 1);
-
-        let entries = report.files.unwrap();
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].status, Status::LocalOnlyChanged);
-        assert_eq!(entries[0].path, "local_only.md");
-    }
-
-    #[test]
-    fn build_report_status_filter_supports_multiple_values() {
-        let dir = TempDir::new().unwrap();
-        fs::write(dir.path().join("identical.md"), "alpha\n").unwrap();
-        fs::write(dir.path().join("local_only.md"), "beta\n").unwrap();
-        let local_a = blob_hash(b"alpha\n");
-
-        let mut server = Server::new();
-        let trees_body = format!(
-            r#"{{"sha":"x","tree":[{{"path":"identical.md","mode":"100644","type":"blob","sha":"{local_a}","size":6}},{{"path":"remote_only.md","mode":"100644","type":"blob","sha":"deadbeef","size":3}}],"truncated":false}}"#
-        );
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(&trees_body)
-            .create();
-
-        let mut args = args_for(dir.path(), Some("o/r"), Some("tok"));
-        args.status = Some("local_only_changed,remote_only_changed".to_string());
-        let (report, _) = build_report(&args, &server.url()).unwrap();
-
-        let entries = report.files.unwrap();
-        assert_eq!(entries.len(), 2);
-        for e in &entries {
-            assert!(matches!(
-                e.status,
-                Status::LocalOnlyChanged | Status::RemoteOnlyChanged
-            ));
-        }
-    }
-
-    #[test]
-    fn build_report_summary_only_overrides_status_filter() {
-        let dir = TempDir::new().unwrap();
-        fs::write(dir.path().join("a.md"), "alpha\n").unwrap();
-        let local_a = blob_hash(b"alpha\n");
-
-        let mut server = Server::new();
-        let trees_body = format!(
-            r#"{{"sha":"x","tree":[{{"path":"a.md","mode":"100644","type":"blob","sha":"{local_a}","size":6}}],"truncated":false}}"#
-        );
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(&trees_body)
-            .create();
-
-        let mut args = args_for(dir.path(), Some("o/r"), Some("tok"));
-        args.summary_only = true;
-        args.status = Some("drift".to_string());
-        let (report, _) = build_report(&args, &server.url()).unwrap();
-
-        // summary_only wins regardless of status filter
-        assert!(report.files.is_none());
-        assert_eq!(report.summary.identical, 1);
-    }
-
-    #[test]
-    fn build_report_invalid_status_filter_yields_config_error() {
-        let dir = TempDir::new().unwrap();
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(r#"{"sha":"x","tree":[],"truncated":false}"#)
-            .create();
-
-        let mut args = args_for(dir.path(), Some("o/r"), Some("tok"));
-        args.status = Some("nonsense".to_string());
-        let err = build_report(&args, &server.url()).unwrap_err();
-        assert!(matches!(err, GitlessError::Config(_)));
-        assert_eq!(err.exit_code(), 1);
-    }
-
-    #[test]
-    fn build_report_verbose_levels_do_not_change_report() {
-        let dir = TempDir::new().unwrap();
-        fs::write(dir.path().join("a.md"), "alpha\n").unwrap();
-        let local_a = blob_hash(b"alpha\n");
-
-        let mut server = Server::new();
-        let trees_body = format!(
-            r#"{{"sha":"x","tree":[{{"path":"a.md","mode":"100644","type":"blob","sha":"{local_a}","size":6}}],"truncated":false}}"#
-        );
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(&trees_body)
-            .expect_at_least(1)
-            .create();
-
-        for level in [0u8, 1, 2] {
-            let mut args = args_for(dir.path(), Some("o/r"), Some("tok"));
-            args.verbose = level;
-            let (report, _) = build_report(&args, &server.url()).unwrap();
-            assert_eq!(report.summary.identical, 1);
-            assert!(report.files.is_some());
-        }
-    }
-
-    #[test]
-    fn build_report_drift_multiple_paths_invokes_commits_api_per_path() {
-        let dir = TempDir::new().unwrap();
-        fs::write(dir.path().join("a.md"), "alpha\n").unwrap();
-        fs::write(dir.path().join("b.md"), "beta\n").unwrap();
-        fs::write(dir.path().join("c.md"), "gamma\n").unwrap();
-
-        let mut server = Server::new();
-        let trees_body = r#"{"sha":"x","tree":[
-            {"path":"a.md","mode":"100644","type":"blob","sha":"remote-a","size":6},
-            {"path":"b.md","mode":"100644","type":"blob","sha":"remote-b","size":5},
-            {"path":"c.md","mode":"100644","type":"blob","sha":"remote-c","size":6}
-        ],"truncated":false}"#;
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(trees_body)
-            .create();
-        // One shared mock for all three concurrent commits calls. expect(3)
-        // makes the test fail if any path's request is dropped or duplicated.
-        let commits_mock = server
-            .mock("GET", "/repos/o/r/commits")
-            .match_query(Matcher::AllOf(vec![
-                Matcher::UrlEncoded("sha".into(), "main".into()),
-                Matcher::UrlEncoded("per_page".into(), "1".into()),
-            ]))
-            .with_status(200)
-            .with_body(COMMITS_BODY)
-            .expect(3)
-            .create();
-
-        let args = args_for(dir.path(), Some("o/r"), Some("tok"));
-        let (report, failed) = build_report(&args, &server.url()).unwrap();
-        assert_eq!(failed, 0);
-
-        let entries = report.files.unwrap();
-        assert_eq!(entries.len(), 3);
-        let paths: Vec<&str> = entries.iter().map(|e| e.path.as_str()).collect();
-        assert_eq!(paths, vec!["a.md", "b.md", "c.md"]);
-        for e in &entries {
-            assert!(
-                e.remote_last_commit_at.is_some(),
-                "drift entry {} should have commit timestamp",
-                e.path
-            );
-        }
-        commits_mock.assert();
-    }
-
-    #[test]
-    fn fetch_commit_dates_parallel_short_circuits_on_empty_input() {
-        // Unreachable URL — proves no HTTP call is issued when there are no
-        // paths needing the Commits API.
-        let result =
-            fetch_commit_dates_parallel("http://127.0.0.1:0", "o/r", "main", "tok", &[]).unwrap();
-        assert!(result.is_empty());
-    }
-
-    // --- run_with_client / build_report_with_client (M2b1) -------------------
-
-    fn tree_args(repo: &str, branch: &str) -> Vec<String> {
-        vec![
-            "api".to_string(),
-            format!("repos/{repo}/git/trees/{branch}?recursive=1"),
-        ]
-    }
-
-    fn ok_resp(stdout: &[u8]) -> crate::shared::gh::GhResponse {
-        crate::shared::gh::GhResponse {
-            stdout: stdout.to_vec(),
-            stderr: String::new(),
-            exit_code: 0,
-        }
-    }
-
-    #[test]
-    fn run_with_client_returns_config_error_for_graphql_backend() {
-        let dir = TempDir::new().unwrap();
-        let mut args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
-        args.backend = Backend::Graphql;
-        let mock = crate::shared::gh::MockGhClient::new();
-        let err = run_with_client(&args, &mock).unwrap_err();
-        assert!(matches!(err, GitlessError::Config(ref msg) if msg.contains("GraphQL")));
-        assert_eq!(err.exit_code(), 1);
-    }
-
-    #[test]
-    fn run_with_client_propagates_truncated_from_mock() {
-        let dir = TempDir::new().unwrap();
-        let mut mock = crate::shared::gh::MockGhClient::new();
-        mock.stub(
-            tree_args("o/r", "main"),
-            ok_resp(br#"{"sha":"x","tree":[],"truncated":true}"#),
-        );
-        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
-        let err = run_with_client(&args, &mock).unwrap_err();
-        assert!(matches!(err, GitlessError::TreesTruncated));
-        assert_eq!(err.exit_code(), 5);
-    }
-
-    #[test]
-    fn build_report_with_client_returns_summary_for_empty_tree() {
-        let dir = TempDir::new().unwrap();
-        let mut mock = crate::shared::gh::MockGhClient::new();
-        mock.stub(
-            tree_args("o/r", "main"),
-            ok_resp(br#"{"sha":"x","tree":[],"truncated":false}"#),
-        );
-        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
-        let (report, failed) =
-            build_report_with_client(&args, &mock, "http://127.0.0.1:0").unwrap();
-        assert_eq!(failed, 0);
-        assert_eq!(report.repo, "o/r");
-        assert_eq!(report.summary.identical, 0);
-        assert_eq!(report.summary.local_only_changed, 0);
-        assert_eq!(report.summary.remote_only_changed, 0);
-    }
-
-    #[test]
-    fn build_report_with_client_returns_auth_failed_when_token_missing() {
-        let dir = TempDir::new().unwrap();
-        let mock = crate::shared::gh::MockGhClient::new();
-        let args = args_for(dir.path(), Some("o/r"), None);
-        let err = build_report_with_client(&args, &mock, "http://127.0.0.1:0").unwrap_err();
-        assert!(matches!(err, GitlessError::AuthFailed));
-        assert_eq!(err.exit_code(), 2);
     }
 }

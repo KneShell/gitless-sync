@@ -5,23 +5,8 @@ use clap::{ArgAction, Parser, Subcommand};
 mod commands;
 mod shared;
 
-use commands::scan::{Backend, github::GITHUB_API_BASE};
-
-/// Resolve the GitHub API base URL.
-///
-/// Honors `GITLESS_API_BASE` so integration tests can point the binary at a
-/// mockito server. Production usage leaves the variable unset, falling back to
-/// [`GITHUB_API_BASE`].
-fn resolve_api_base() -> String {
-    resolve_api_base_with(|name| std::env::var(name).ok())
-}
-
-fn resolve_api_base_with<F>(env_lookup: F) -> String
-where
-    F: Fn(&str) -> Option<String>,
-{
-    env_lookup("GITLESS_API_BASE").unwrap_or_else(|| GITHUB_API_BASE.to_string())
-}
+use commands::scan::Backend;
+use shared::gh::RealGhClient;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -77,7 +62,7 @@ enum Commands {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
-    let api_base = resolve_api_base();
+    let client = RealGhClient::new();
 
     let result = match cli.command {
         Commands::Scan {
@@ -97,20 +82,9 @@ fn main() -> ExitCode {
                 backend: cli.backend,
                 verbose: cli.verbose,
             };
-            // Transient dual-mode (M2b1): keep the legacy ureq path alive while
-            // `GITLESS_API_BASE` is set so the existing mockito-based
-            // integration tests stay green. Production unsets the variable and
-            // routes through `RealGhClient` + `gh api` subprocess. M2b2/M2c
-            // collapse this into the gh-subprocess path and M4a/M4b rewrite the
-            // integration tests to use `MockGhClient`.
-            if std::env::var("GITLESS_API_BASE").is_ok() {
-                commands::scan::run_with_base(&scan_args, &api_base)
-            } else {
-                let client = shared::gh::RealGhClient::new();
-                commands::scan::run_with_client(&scan_args, &client)
-            }
+            commands::scan::run_with_client(&scan_args, &client)
         }
-        Commands::Diff { path } => commands::diff::run_with_base(
+        Commands::Diff { path } => commands::diff::run_with_client(
             &commands::diff::DiffArgs {
                 repo: cli.repo,
                 branch: cli.branch,
@@ -119,7 +93,7 @@ fn main() -> ExitCode {
                 keep_bom: cli.keep_bom,
                 path,
             },
-            &api_base,
+            &client,
         ),
     };
 
@@ -132,25 +106,5 @@ fn main() -> ExitCode {
             );
             ExitCode::from(err.exit_code())
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn resolve_api_base_with_returns_env_value_when_set() {
-        let got = resolve_api_base_with(|name| {
-            assert_eq!(name, "GITLESS_API_BASE");
-            Some("http://mock.example".to_string())
-        });
-        assert_eq!(got, "http://mock.example");
-    }
-
-    #[test]
-    fn resolve_api_base_with_falls_back_to_github_default_when_absent() {
-        let got = resolve_api_base_with(|_| None);
-        assert_eq!(got, GITHUB_API_BASE);
     }
 }

@@ -1,9 +1,12 @@
 //! End-to-end integration tests for `gitless-sync` (T11 / PRD scenarios 1-4, 9-15).
 //!
-//! Each test launches the real `gitless-sync` binary via `assert_cmd`, points it
-//! at a `mockito` HTTP server through the `GITLESS_API_BASE` environment
-//! variable (testability scaffolding wired in `main.rs`), and asserts on
-//! stdout / stderr / exit code.
+//! **2026-05-06 (M2b2)**: All tests below are `#[ignore]`d. They were built on
+//! the v0.1 ureq + mockito + `GITLESS_API_BASE` scaffolding which ADR 0002
+//! retired. M4a/M4b rewrite this file using the library entry
+//! `commands::scan::run_with_client(args, &MockGhClient)` and remove the
+//! `#[ignore]`s. mockito + `assert_cmd` imports are kept here so this file still
+//! compiles between M2b2 and M4a/M4b — M2c does **not** drop the dev-deps for
+//! this reason.
 
 use std::fs::{self, File, FileTimes};
 use std::path::Path;
@@ -72,6 +75,7 @@ fn parse_json(stdout: &[u8]) -> Value {
 }
 
 #[test]
+#[ignore = "M2b2: mockito + GITLESS_API_BASE; M4a rewrites via MockGhClient"]
 fn scenario_1_to_4_classifies_all_four_statuses() {
     let dir = TempDir::new().unwrap();
 
@@ -140,6 +144,7 @@ fn scenario_1_to_4_classifies_all_four_statuses() {
 }
 
 #[test]
+#[ignore = "M2b2: mockito + GITLESS_API_BASE; M4a rewrites via MockGhClient"]
 fn scenario_9_gitignore_and_ignore_arg_form_union() {
     let dir = TempDir::new().unwrap();
     fs::write(dir.path().join(".gitignore"), "*.bak\n").unwrap();
@@ -186,6 +191,7 @@ fn scenario_9_gitignore_and_ignore_arg_form_union() {
 }
 
 #[test]
+#[ignore = "M2b2: mockito + GITLESS_API_BASE; M4b rewrites via MockGhClient"]
 fn scenario_10_token_missing_yields_auth_failed() {
     let dir = TempDir::new().unwrap();
 
@@ -206,6 +212,7 @@ fn scenario_10_token_missing_yields_auth_failed() {
 }
 
 #[test]
+#[ignore = "M2b2: mockito + GITLESS_API_BASE; M4b rewrites via MockGhClient"]
 fn scenario_11_rate_limit_yields_exit_3() {
     let dir = TempDir::new().unwrap();
     let mut server = Server::new();
@@ -227,6 +234,7 @@ fn scenario_11_rate_limit_yields_exit_3() {
 }
 
 #[test]
+#[ignore = "M2b2: mockito + GITLESS_API_BASE; M4b rewrites via MockGhClient"]
 fn scenario_12_truncated_yields_exit_5() {
     let dir = TempDir::new().unwrap();
     let mut server = Server::new();
@@ -246,6 +254,7 @@ fn scenario_12_truncated_yields_exit_5() {
 }
 
 #[test]
+#[ignore = "M2b2: mockito + GITLESS_API_BASE; M4b rewrites via MockGhClient"]
 fn scenario_13_summary_only_omits_files_field() {
     let dir = TempDir::new().unwrap();
     fs::write(dir.path().join("a.md"), "alpha\n").unwrap();
@@ -271,6 +280,7 @@ fn scenario_13_summary_only_omits_files_field() {
 }
 
 #[test]
+#[ignore = "M2b2: mockito + GITLESS_API_BASE; M4b rewrites via MockGhClient"]
 fn scenario_14_status_drift_filters_files_but_keeps_summary() {
     let dir = TempDir::new().unwrap();
     fs::write(dir.path().join("identical.md"), "alpha\n").unwrap();
@@ -329,6 +339,7 @@ fn scenario_14_status_drift_filters_files_but_keeps_summary() {
 }
 
 #[test]
+#[ignore = "M2b2: mockito + GITLESS_API_BASE; M4b rewrites via MockGhClient"]
 fn scenario_15_partial_failure_yields_exit_4() {
     let dir = TempDir::new().unwrap();
     let target = dir.path().join("locked.md");
