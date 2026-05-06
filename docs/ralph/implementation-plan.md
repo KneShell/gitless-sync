@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-06T08:40:00Z (M2a 완료 — GhClient trait + Real/Mock 골격 + 9 unit tests, gh.rs 10/10 line cov, workspace 95.96%)
+- Last updated: 2026-05-06T08:50:00Z (M2b1 완료 — fetch_tree gh subprocess + run_with_client + main.rs dual-mode, 173 tests pass, workspace tarpaulin 94.05%)
 - Total tasks: 14 (M0, M1, M2a, M2b1, M2b2, M2c, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
-- Completed: 3 / 14
+- Completed: 4 / 14
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -77,7 +77,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` `fetch_tree` 단위 테스트는 `MockGhClient` 사용. mockito 호출 0회. 인증/rate/truncated/5xx/parse 케이스 모두 cover.
   - `[AUTO]` 에러 매핑은 M1 spec 따라.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings` 통과.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### M2b2. fetch_blob + fetch_last_commit_at + run_with_base 정리 `[AUTO, 코드]`
 - **Spec reference**: `docs/specs/spec-github-api.md` (M0), `docs/specs/spec-error-contracts.md` (M1)
