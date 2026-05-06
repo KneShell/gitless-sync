@@ -7,6 +7,7 @@ use similar::TextDiff;
 use crate::commands::scan::github;
 use crate::shared::config;
 use crate::shared::error::GitlessError;
+use crate::shared::gh::GhClient;
 use crate::shared::normalize::{is_binary, normalize_text};
 
 #[derive(Debug)]
@@ -22,12 +23,17 @@ pub struct DiffArgs {
 /// Run the `diff` command and write the unified diff (or a one-sided message)
 /// to stdout, with status messages on stderr.
 ///
+/// Production callers inject `RealGhClient`; tests inject `MockGhClient`.
+///
 /// # Errors
 /// Returns any [`GitlessError`] raised by config loading, GitHub API calls,
 /// or local IO. Returns [`GitlessError::Config`] when the requested path
 /// exists on neither side.
-pub(crate) fn run_with_base(args: &DiffArgs, base: &str) -> Result<(), GitlessError> {
-    let outcome = compute_diff(args, base)?;
+pub(crate) fn run_with_client<C: GhClient>(
+    args: &DiffArgs,
+    client: &C,
+) -> Result<(), GitlessError> {
+    let outcome = compute_diff(args, client)?;
     if !outcome.stderr_message.is_empty() {
         eprintln!("{}", outcome.stderr_message);
     }
@@ -44,18 +50,19 @@ pub(crate) struct DiffOutcome {
 }
 
 /// Compute the diff between the local file and the remote blob for `args.path`
-/// without writing to stdout/stderr. Used directly by [`run_with_base`] and by
-/// tests.
+/// without writing to stdout/stderr.
 ///
 /// # Errors
 /// - [`GitlessError::Config`] when `--repo` resolves to nothing or the path
 ///   does not exist on either side.
 /// - [`GitlessError::AuthFailed`] when no token is provided.
-/// - GitHub API errors propagated from `fetch_tree_with_base` /
-///   `fetch_blob_with_base`.
+/// - GitHub API errors propagated from `fetch_tree` / `fetch_blob`.
 /// - [`GitlessError::Io`] for unexpected local IO failures (other than the
 ///   "file does not exist locally" case, which is treated as one-sided).
-pub(crate) fn compute_diff(args: &DiffArgs, base: &str) -> Result<DiffOutcome, GitlessError> {
+pub(crate) fn compute_diff<C: GhClient>(
+    args: &DiffArgs,
+    client: &C,
+) -> Result<DiffOutcome, GitlessError> {
     let local_root = Path::new(&args.local);
     let toml_path = local_root.join("gitless-sync.toml");
     let cfg = config::load(Some(&toml_path))?;
@@ -68,21 +75,21 @@ pub(crate) fn compute_diff(args: &DiffArgs, base: &str) -> Result<DiffOutcome, G
         .to_string();
     let branch = &args.branch;
 
+    // M2b2: --token still gates AuthFailed for the existing contract. M3
+    // removes the CLI flag and `resolve_token`.
     let token_spec = args.token.as_deref().ok_or(GitlessError::AuthFailed)?;
-    let token = config::resolve_token(token_spec)?;
+    let _token = config::resolve_token(token_spec)?;
 
     let key = args.path.replace('\\', "/");
 
-    let tree = github::fetch_tree_with_base(base, &repo, branch, &token)?;
+    let tree = github::fetch_tree(client, &repo, branch)?;
     let remote_entry = tree.iter().find(|e| e.path == key);
 
     let local_abs = local_root.join(&args.path);
     let local_raw = read_local_optional(&local_abs)?;
 
     let remote_raw = match remote_entry {
-        Some(entry) => Some(github::fetch_blob_with_base(
-            base, &repo, &entry.sha, &token,
-        )?),
+        Some(entry) => Some(github::fetch_blob(client, &repo, &entry.sha)?),
         None => None,
     };
 
@@ -144,20 +151,49 @@ fn read_local_optional(path: &Path) -> Result<Option<Vec<u8>>, GitlessError> {
 mod tests {
     use std::fs;
 
-    use mockito::{Matcher, Server};
+    use base64::Engine;
+    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     use tempfile::TempDir;
 
     use super::*;
+    use crate::shared::gh::{GhResponse, MockGhClient};
 
     fn args_for(dir: &Path, path: &str) -> DiffArgs {
         DiffArgs {
             repo: Some("o/r".to_string()),
             branch: "main".to_string(),
             local: dir.to_str().unwrap().to_string(),
-            token: Some("tok".to_string()),
+            token: Some("literal:tok".to_string()),
             keep_bom: false,
             path: path.to_string(),
         }
+    }
+
+    fn ok_resp(body: &[u8]) -> GhResponse {
+        GhResponse {
+            stdout: body.to_vec(),
+            stderr: String::new(),
+            exit_code: 0,
+        }
+    }
+
+    fn err_resp(stderr: &str) -> GhResponse {
+        GhResponse {
+            stdout: Vec::new(),
+            stderr: stderr.to_string(),
+            exit_code: 1,
+        }
+    }
+
+    fn tree_args(repo: &str, branch: &str) -> Vec<String> {
+        vec![
+            "api".to_string(),
+            format!("repos/{repo}/git/trees/{branch}?recursive=1"),
+        ]
+    }
+
+    fn blob_args(repo: &str, sha: &str) -> Vec<String> {
+        vec!["api".to_string(), format!("repos/{repo}/git/blobs/{sha}")]
     }
 
     fn tree_body_with_blob(path: &str, sha: &str) -> String {
@@ -166,16 +202,29 @@ mod tests {
         )
     }
 
-    fn blob_body_base64(b64: &str) -> String {
+    fn blob_body_for(content: &[u8]) -> String {
+        let b64 = BASE64_STANDARD.encode(content);
         format!(r#"{{"sha":"abc","content":"{b64}","encoding":"base64","size":1,"url":"u"}}"#)
+    }
+
+    fn stub_tree(mock: &mut MockGhClient, repo: &str, branch: &str, body: &str) {
+        mock.stub(tree_args(repo, branch), ok_resp(body.as_bytes()));
+    }
+
+    fn stub_blob(mock: &mut MockGhClient, repo: &str, sha: &str, content: &[u8]) {
+        mock.stub(
+            blob_args(repo, sha),
+            ok_resp(blob_body_for(content).as_bytes()),
+        );
     }
 
     #[test]
     fn compute_diff_returns_error_when_repo_missing() {
         let dir = TempDir::new().unwrap();
+        let mock = MockGhClient::new();
         let mut args = args_for(dir.path(), "x.md");
         args.repo = None;
-        let err = compute_diff(&args, "http://127.0.0.1:0").unwrap_err();
+        let err = compute_diff(&args, &mock).unwrap_err();
         assert!(matches!(err, GitlessError::Config(_)));
         assert_eq!(err.exit_code(), 1);
     }
@@ -183,9 +232,10 @@ mod tests {
     #[test]
     fn compute_diff_returns_auth_failed_when_token_missing() {
         let dir = TempDir::new().unwrap();
+        let mock = MockGhClient::new();
         let mut args = args_for(dir.path(), "x.md");
         args.token = None;
-        let err = compute_diff(&args, "http://127.0.0.1:0").unwrap_err();
+        let err = compute_diff(&args, &mock).unwrap_err();
         assert!(matches!(err, GitlessError::AuthFailed));
         assert_eq!(err.exit_code(), 2);
     }
@@ -193,16 +243,16 @@ mod tests {
     #[test]
     fn compute_diff_neither_side_yields_config_error() {
         let dir = TempDir::new().unwrap();
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(r#"{"sha":"x","tree":[],"truncated":false}"#)
-            .create();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            r#"{"sha":"x","tree":[],"truncated":false}"#,
+        );
 
         let args = args_for(dir.path(), "ghost.md");
-        let err = compute_diff(&args, &server.url()).unwrap_err();
+        let err = compute_diff(&args, &mock).unwrap_err();
         assert!(matches!(err, GitlessError::Config(_)));
         assert_eq!(err.exit_code(), 1);
     }
@@ -211,16 +261,16 @@ mod tests {
     fn compute_diff_local_only_returns_local_content_and_label() {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join("only_local.md"), "hello\n").unwrap();
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(r#"{"sha":"x","tree":[],"truncated":false}"#)
-            .create();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            r#"{"sha":"x","tree":[],"truncated":false}"#,
+        );
 
         let args = args_for(dir.path(), "only_local.md");
-        let outcome = compute_diff(&args, &server.url()).unwrap();
+        let outcome = compute_diff(&args, &mock).unwrap();
         assert_eq!(outcome.stderr_message, "(local only)");
         assert_eq!(outcome.stdout, b"hello\n");
     }
@@ -228,22 +278,17 @@ mod tests {
     #[test]
     fn compute_diff_remote_only_returns_remote_content_and_label() {
         let dir = TempDir::new().unwrap();
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(tree_body_with_blob("only_remote.md", "remoteSha"))
-            .create();
-        // base64("remote-content\n") = "cmVtb3RlLWNvbnRlbnQK"
-        let _b = server
-            .mock("GET", "/repos/o/r/git/blobs/remoteSha")
-            .with_status(200)
-            .with_body(blob_body_base64("cmVtb3RlLWNvbnRlbnQK"))
-            .create();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            &tree_body_with_blob("only_remote.md", "remoteSha"),
+        );
+        stub_blob(&mut mock, "o/r", "remoteSha", b"remote-content\n");
 
         let args = args_for(dir.path(), "only_remote.md");
-        let outcome = compute_diff(&args, &server.url()).unwrap();
+        let outcome = compute_diff(&args, &mock).unwrap();
         assert_eq!(outcome.stderr_message, "(remote only)");
         assert_eq!(outcome.stdout, b"remote-content\n");
     }
@@ -252,16 +297,16 @@ mod tests {
     fn compute_diff_one_sided_binary_emits_message_only() {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join("img.png"), [0u8, 1, 2, 3, 0, 5]).unwrap();
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(r#"{"sha":"x","tree":[],"truncated":false}"#)
-            .create();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            r#"{"sha":"x","tree":[],"truncated":false}"#,
+        );
 
         let args = args_for(dir.path(), "img.png");
-        let outcome = compute_diff(&args, &server.url()).unwrap();
+        let outcome = compute_diff(&args, &mock).unwrap();
         assert!(
             outcome
                 .stderr_message
@@ -276,25 +321,19 @@ mod tests {
     fn compute_diff_both_sides_identical_yields_empty_diff() {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join("a.md"), "hello\n").unwrap();
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(tree_body_with_blob("a.md", "shaIdentical"))
-            .create();
-        // base64("hello\n") = "aGVsbG8K"
-        let _b = server
-            .mock("GET", "/repos/o/r/git/blobs/shaIdentical")
-            .with_status(200)
-            .with_body(blob_body_base64("aGVsbG8K"))
-            .create();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            &tree_body_with_blob("a.md", "shaIdentical"),
+        );
+        stub_blob(&mut mock, "o/r", "shaIdentical", b"hello\n");
 
         let args = args_for(dir.path(), "a.md");
-        let outcome = compute_diff(&args, &server.url()).unwrap();
+        let outcome = compute_diff(&args, &mock).unwrap();
         assert!(outcome.stderr_message.is_empty());
         let s = String::from_utf8(outcome.stdout).unwrap();
-        // Identical inputs produce no hunks. Headers are only emitted with hunks.
         assert!(
             !s.contains("@@"),
             "expected no diff hunk for identical inputs, got: {s}"
@@ -305,22 +344,17 @@ mod tests {
     fn compute_diff_both_sides_different_emits_unified_diff() {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join("a.md"), "alpha\nbeta\n").unwrap();
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(tree_body_with_blob("a.md", "shaRemote"))
-            .create();
-        // base64("alpha\ngamma\n") = "YWxwaGEKZ2FtbWEK"
-        let _b = server
-            .mock("GET", "/repos/o/r/git/blobs/shaRemote")
-            .with_status(200)
-            .with_body(blob_body_base64("YWxwaGEKZ2FtbWEK"))
-            .create();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            &tree_body_with_blob("a.md", "shaRemote"),
+        );
+        stub_blob(&mut mock, "o/r", "shaRemote", b"alpha\ngamma\n");
 
         let args = args_for(dir.path(), "a.md");
-        let outcome = compute_diff(&args, &server.url()).unwrap();
+        let outcome = compute_diff(&args, &mock).unwrap();
         let s = String::from_utf8(outcome.stdout).unwrap();
         assert!(s.contains("--- a/a.md"), "missing a header: {s}");
         assert!(s.contains("+++ b/a.md"), "missing b header: {s}");
@@ -332,23 +366,17 @@ mod tests {
     fn compute_diff_normalizes_crlf_before_comparing() {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join("a.md"), b"hello\r\n").unwrap();
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(tree_body_with_blob("a.md", "shaLF"))
-            .create();
-        // base64("hello\n") = "aGVsbG8K" — pure LF on remote.
-        let _b = server
-            .mock("GET", "/repos/o/r/git/blobs/shaLF")
-            .with_status(200)
-            .with_body(blob_body_base64("aGVsbG8K"))
-            .create();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            &tree_body_with_blob("a.md", "shaLF"),
+        );
+        stub_blob(&mut mock, "o/r", "shaLF", b"hello\n");
 
         let args = args_for(dir.path(), "a.md");
-        let outcome = compute_diff(&args, &server.url()).unwrap();
-        // After normalization both sides are "hello\n" — no hunks.
+        let outcome = compute_diff(&args, &mock).unwrap();
         let s = String::from_utf8(outcome.stdout).unwrap();
         assert!(
             !s.contains("@@"),
@@ -360,22 +388,17 @@ mod tests {
     fn compute_diff_binary_local_skips_diff() {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join("blob.bin"), [0u8, 1, 2, 3]).unwrap();
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(tree_body_with_blob("blob.bin", "shaBin"))
-            .create();
-        let _b = server
-            .mock("GET", "/repos/o/r/git/blobs/shaBin")
-            .with_status(200)
-            // base64("hello\n") = "aGVsbG8K" — text remote, but local is binary.
-            .with_body(blob_body_base64("aGVsbG8K"))
-            .create();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            &tree_body_with_blob("blob.bin", "shaBin"),
+        );
+        stub_blob(&mut mock, "o/r", "shaBin", b"hello\n");
 
         let args = args_for(dir.path(), "blob.bin");
-        let outcome = compute_diff(&args, &server.url()).unwrap();
+        let outcome = compute_diff(&args, &mock).unwrap();
         assert_eq!(outcome.stderr_message, "binary file, diff skipped");
         assert!(outcome.stdout.is_empty());
     }
@@ -384,22 +407,17 @@ mod tests {
     fn compute_diff_binary_remote_skips_diff() {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join("a.md"), "hello\n").unwrap();
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(tree_body_with_blob("a.md", "shaBinRemote"))
-            .create();
-        // base64([0,1,2,3,0,5]) = "AAECAwAF"
-        let _b = server
-            .mock("GET", "/repos/o/r/git/blobs/shaBinRemote")
-            .with_status(200)
-            .with_body(blob_body_base64("AAECAwAF"))
-            .create();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            &tree_body_with_blob("a.md", "shaBinRemote"),
+        );
+        stub_blob(&mut mock, "o/r", "shaBinRemote", &[0u8, 1, 2, 3, 0, 5]);
 
         let args = args_for(dir.path(), "a.md");
-        let outcome = compute_diff(&args, &server.url()).unwrap();
+        let outcome = compute_diff(&args, &mock).unwrap();
         assert_eq!(outcome.stderr_message, "binary file, diff skipped");
         assert!(outcome.stdout.is_empty());
     }
@@ -407,16 +425,14 @@ mod tests {
     #[test]
     fn compute_diff_propagates_auth_error_from_trees() {
         let dir = TempDir::new().unwrap();
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(401)
-            .with_body(r#"{"message":"Bad credentials"}"#)
-            .create();
+        let mut mock = MockGhClient::new();
+        mock.stub(
+            tree_args("o/r", "main"),
+            err_resp("gh: Bad credentials (HTTP 401)"),
+        );
 
         let args = args_for(dir.path(), "a.md");
-        let err = compute_diff(&args, &server.url()).unwrap_err();
+        let err = compute_diff(&args, &mock).unwrap_err();
         assert!(matches!(err, GitlessError::AuthFailed));
     }
 
@@ -426,45 +442,36 @@ mod tests {
         let nested = dir.path().join("sub");
         fs::create_dir(&nested).unwrap();
         fs::write(nested.join("a.md"), "hello\n").unwrap();
-        let mut server = Server::new();
-        // The matcher in fetch_tree expects `path` in tree to use forward slash;
-        // we send a backslash path arg and expect compute_diff to find the entry.
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(tree_body_with_blob("sub/a.md", "shaSub"))
-            .create();
-        let _b = server
-            .mock("GET", "/repos/o/r/git/blobs/shaSub")
-            .with_status(200)
-            .with_body(blob_body_base64("aGVsbG8K"))
-            .create();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            &tree_body_with_blob("sub/a.md", "shaSub"),
+        );
+        stub_blob(&mut mock, "o/r", "shaSub", b"hello\n");
 
         let args = args_for(dir.path(), r"sub\a.md");
-        let outcome = compute_diff(&args, &server.url()).unwrap();
-        // Identical content — no hunks expected.
+        let outcome = compute_diff(&args, &mock).unwrap();
         let s = String::from_utf8(outcome.stdout).unwrap();
         assert!(!s.contains("@@"), "expected identical content, got: {s}");
         assert!(outcome.stderr_message.is_empty());
     }
 
     #[test]
-    fn run_with_base_returns_ok_for_local_only_path() {
+    fn run_with_client_returns_ok_for_local_only_path() {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join("only.md"), "hi\n").unwrap();
-        let mut server = Server::new();
-        let _t = server
-            .mock("GET", "/repos/o/r/git/trees/main")
-            .match_query(Matcher::UrlEncoded("recursive".into(), "1".into()))
-            .with_status(200)
-            .with_body(r#"{"sha":"x","tree":[],"truncated":false}"#)
-            .create();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            r#"{"sha":"x","tree":[],"truncated":false}"#,
+        );
 
         let args = args_for(dir.path(), "only.md");
-        // Smoke test: just verify run_with_base doesn't error in the
-        // common one-sided case.
-        run_with_base(&args, &server.url()).unwrap();
+        run_with_client(&args, &mock).unwrap();
     }
 
     #[test]

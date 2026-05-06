@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-06T09:30:00Z (M2b2 [~] in progress — Files 확장: diff/main/integration 동반 변경 명시. Acceptance에 ureq import 0 범위 명확화 + integration tests `#[ignore]` 룰 박제.)
+- Last updated: 2026-05-06T10:00:00Z (M2b2 완료 — fetch_blob/fetch_last_commit_at gh subprocess 재작성 + run_with_base 통째 제거 + diff client inject + main.rs RealGhClient 단일화 + integration tests `#[ignore]`. 150 unit tests pass, 8 integration ignored.)
 - Total tasks: 14 (M0, M1, M2a, M2b1, M2b2, M2c, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
-- Completed: 4 / 14
+- Completed: 5 / 14
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -88,12 +88,12 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` `fetch_last_commit_at(client: &impl GhClient, repo, branch, path) -> Result<DateTime<Utc>, GitlessError>` 재작성.
   - `[AUTO]` 기존 `run_with_base` 함수 + 관련 ureq `fetch_*_with_base` 잔존 코드 모두 삭제. scan은 `run_with_client` 단일화.
   - `[AUTO]` `commands::diff::run_with_base` / `compute_diff` → `run_with_client` / `compute_diff_with_client` 시그니처로 이행 (`client: &impl GhClient` 인자 추가). diff 단위 테스트도 `MockGhClient` 기반으로 재작성. (`fetch_*_with_base` 호출 모두 제거를 위한 동반 변경 — Files 확장 근거.)
-  - `[AUTO]` `main.rs`의 `GITLESS_API_BASE` dual-mode 분기 제거. scan/diff 양쪽 모두 `RealGhClient::new()` 1회 inject + `run_with_client`로 단일화. (`resolve_api_base*` 함수 + 단위 테스트는 잔존 — M3가 이를 통째 삭제하면서 토큰 인자 정리와 함께 처리.)
+  - `[AUTO]` `main.rs`의 `GITLESS_API_BASE` dual-mode 분기 + `resolve_api_base*` 함수 + 단위 테스트 + `GITHUB_API_BASE` 상수 모두 제거 (scan/github.rs에서 `GITHUB_API_BASE`가 사라지므로 main.rs의 import도 동반 정리 — 잔존 시 컴파일 fail). scan/diff 양쪽 모두 `RealGhClient::new()` 1회 inject + `run_with_client`로 단일화. (M3는 `--token` clap 인자 + `shared/config.rs::resolve_token` 정리만 남음.)
   - `[AUTO]` 단위 테스트는 모두 `MockGhClient`. mockito 호출 0회 (production + unit tests 기준).
   - `[AUTO]` **이 시점에 production + unit tests의 ureq import 0, mockito import 0** (Cargo.toml 의존성은 미변경 — M2c).
   - `[AUTO]` `tests/integration.rs`는 mockito + `GITLESS_API_BASE` 의존이라 본 시점에 동작 불가 — ADR 0002 § 마이그레이션 작업 범위 명시(`testability는 GhClient trait + MockGhClient inject 패턴으로 해결한다 (M2a~M2c)`). 본 task에서는 모든 통합 테스트에 `#[ignore]` + 본 task reference comment 박제. M4a/M4b가 `MockGhClient` + library-entry 호출 방식으로 통째 재작성하며 이 ignore를 해제한다.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과 (ignored 테스트는 무시 — `cargo test`가 ignored 테스트를 실패로 보지 않음).
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### M2c. Cargo.toml ureq+mockito 삭제 + Cargo.lock 정리 + guardrails obsolete 처리 `[AUTO, 코드+guardrail]`
 - **Spec reference**: ADR 0002 § 마이그레이션 작업 범위
@@ -113,7 +113,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
 - **Acceptance criteria**:
   - `[AUTO]` clap 정의에서 `--token` 인자 + `clap(env = "GITHUB_TOKEN")` 제거.
   - `[AUTO]` `shared/config.rs::resolve_token` 함수 + 관련 단위 테스트 삭제. `Config` 구조체에 token 필드 있으면 삭제.
-  - `[AUTO]` **`GITLESS_API_BASE` env 처리 잔존 코드 단순 삭제** (M2b1/M2b2에서 trait inject로 옮김).
+  - ~~`[AUTO]` **`GITLESS_API_BASE` env 처리 잔존 코드 단순 삭제** (M2b1/M2b2에서 trait inject로 옮김).~~ **OBSOLETE** — M2b2가 `GITHUB_API_BASE` 상수와 함께 `resolve_api_base*` 통째 제거 완료.
   - `[AUTO]` `spec-cli-interface.md`: 글로벌 플래그 표에서 `--token` 행 삭제. § 인자 우선순위에서 토큰 라인 제거. Acceptance Criteria의 토큰 항목 삭제.
   - `[AUTO]` `spec-config.md`: § `--token` 형식 섹션 삭제. § 우선순위 표에서 토큰 라인 삭제. § 비밀 정보 정책은 그대로 유지. Acceptance Criteria의 토큰 관련 5개 항목 삭제.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings` 통과.
