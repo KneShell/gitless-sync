@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-06T21:00:00Z (M5a [!] BLOCKED — G-017: `gh -F`가 commits API GET 요청을 POST로 자동 전환 → 404. spec/code 양쪽 박힌 인자 패턴(`fetch_last_commit_at`)에 `-X GET` 누락. unit test가 MockGhClient 기반이라 method 검증 부재로 surface 안 됨. 직접 검증: `gh api repos/KneShell/gitless-sync/commits -F sha=main -F path=CLAUDE.md -F per_page=1` → 404, 동일 인자에 `-X GET` 추가 시 정상. 영구 신호 — fix task 분해 필요. G-015 auto-recovery 대상 아님.)
+- Last updated: 2026-05-06T22:00:00Z (M6 [x] — README + gh CLI prerequisites. M5a still [!] BLOCKED: G-017 (`gh -F`가 commits API GET → POST 자동 전환으로 404). spec/code 양쪽 박힌 인자 패턴(`fetch_last_commit_at`)에 `-X GET` 누락. unit test가 MockGhClient 기반이라 method 검증 부재로 surface 안 됨. 직접 검증: `gh api repos/KneShell/gitless-sync/commits -F sha=main -F path=CLAUDE.md -F per_page=1` → 404, 동일 인자에 `-X GET` 추가 시 정상. 영구 신호 — fix task 분해 필요. G-015 auto-recovery 대상 아님.)
 - Total tasks: 14 (M0, M1, M2a, M2b1, M2b2, M2c, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
-- Completed: 9 / 14
+- Completed: 10 / 14
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -177,7 +177,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` README.md에 "Prerequisites" 섹션: `gh` CLI(M1에 박힌 floor 버전 이상) 설치 안내 + `gh auth login` 한 줄 인증. Windows/macOS/Linux 설치 명령 박제.
   - `[AUTO]` 사용 예시 섹션의 `--token env:GITHUB_TOKEN` 등 토큰 인자 표현 모두 제거.
   - `[AUTO]` gh 미설치 시 에러 메시지 동작 검증 결과 박제.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### M7. 빌드 게이트 통과 검증 `[AUTO]`
 - **Spec reference**: `docs/ralph/project-ops.md` § Coverage, `CLAUDE.md` § Test coverage, G-007
