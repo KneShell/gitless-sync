@@ -37,7 +37,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` § 병렬 호출 정책은 M5b 결과 미정 박스 유지.
   - `[AUTO]` § Backend 선택 그대로 유지.
   - `[AUTO]` `docs/adr/0002-migrate-v0.1-to-gh-subprocess.md` § 마이그레이션 작업 범위 L31 ("가짜 `gh` 바이너리 PATH 주입 등") 표현을 trait inject 채택으로 정렬 갱신.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### M1. 에러 매핑 표 박제 (gh 종료 코드 + stderr → GitlessError) `[AUTO, spec-only]`
 - **Spec reference**: `docs/specs/spec-error-contracts.md` (부분 갱신), `docs/adr/0002-migrate-v0.1-to-gh-subprocess.md` § 에러 매핑
