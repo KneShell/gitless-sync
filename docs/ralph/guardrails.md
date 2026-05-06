@@ -34,9 +34,10 @@
 - **문제**: 진행 로그·경고를 stdout에 섞으면 결과 JSON이 오염되어 AI 호출자가 파싱 실패.
 - **해결**: stdout은 결과 JSON 한 덩어리만. 모든 진행 로그·경고·에러는 stderr. stderr 에러는 구조화 JSON 한 줄 (`error_code` + `message` + `context`). `println!` / `eprintln!`을 의식적으로 구분.
 
-## G-009: mockito vs wiremock
-- **문제**: HTTP mock 라이브러리 선택. `wiremock`은 async 전제이므로 ureq (blocking)와 부정합.
-- **해결**: `mockito`(이미 `dev-dependencies`에 박힘) 사용. async crate 도입 시도 금지.
+## G-009: GitHub API 모킹 — `MockGhClient` trait inject (M2 이후)
+- **문제**: ADR 0002 마이그레이션 후 GitHub API 호출 통로가 `gh` subprocess로 단일화. mockito는 HTTP 레이어 mock인데 우리 코드는 더 이상 직접 HTTP 호출 안 함. ureq + mockito 의존성 제거 대상.
+- **해결**: `pub(crate) trait GhClient` + production `RealGhClient` (`std::process::Command::new("gh")`) + 테스트 `MockGhClient` 패턴. 단위 테스트는 모두 `MockGhClient`로. M2 진행 중 task가 mockito import 추가 금지. **M2 완료 시 본 G 통째 삭제.**
+- **2026-05-06 동시 obsolete 예정**: G-003(Commits API rate limit 자체 처리)과 G-011(rayon 8 concurrent abuse 회피)도 gh subprocess 채택으로 도구 책임 외부화. M2 완료 시점 G-003 obsolete 마크, G-011은 M5b 결과 따라 갱신/obsolete.
 
 ## G-010: 빈 파일 / 특수 mode entry
 - **문제**: 빈 파일의 SHA-1 (`e69de29bb2d1d6434b8b29ae775ad8c2e48c5391`), Trees mode `160000` (submodule), `120000` (symlink), `100755` (executable) 등 v0.1에서 검증되지 않은 케이스.
@@ -49,6 +50,7 @@
 ## G-012: 전체 80% 커버리지 게이트는 T12에서 통과
 - **문제**: ralph build iteration의 step 4 (`cargo tarpaulin --engine llvm --workspace --out Stdout` ≥ 80%)는 T01~T11 진행 중에는 자연스럽게 미달. 다수 모듈이 `todo!()` 스텁 상태이므로 자기 task 내에서 80%를 끌어올릴 수단이 없다 (다른 task 파일을 건드리면 "Do NOT modify other tasks' files" 위배). T01~T03 모두 동일 조건에서 `[x]`로 완료된 선례가 있다.
 - **해결**: 개별 task는 (a) 해당 task 파일의 라인 커버리지가 합리적 (≥80% 또는 100%), (b) `cargo fmt`/`clippy`/`cargo test` 통과를 충족하면 BLOCKED 처리하지 않고 진행. 전체 워크스페이스 80% 게이트는 T12의 명시적 책임이며, T12가 부족 모듈 식별 + 추가 테스트로 끌어올린다. 본 G의 예외는 T12에서 마지막으로 검증하므로 누적 위험 없음.
+- **2026-05-06 추가 — spec-only task 케이스**: ADR 0002 마이그레이션의 M0/M1처럼 코드 변경 0인 spec-only task는 (a)/(b) 모두 trivially 통과 (코드 0이라 fmt/clippy/test 자동 pass + 라인 커버리지 변동 0, baseline 95.87% 그대로 유지). 본 G의 면제 룰을 일반화 적용. 명시적 추가 룰 불필요. M7이 ADR 0002 마이그레이션 최종 80% 게이트 책임 (T12 역할).
 
 ## G-013: cargo deny는 deny.toml 부재 시 모든 라이선스 reject
 - **문제**: `cargo deny check`를 config 없이 실행하면 default 정책이 모든 라이선스를 reject (adler2 `0BSD OR MIT OR Apache-2.0`, aho-corasick `Unlicense OR MIT` 등). T07에서 base64 = "0.22"를 직접 의존으로 추가했을 때 첫 발현. 단 base64는 이미 Cargo.lock에 transitive로 박혀 있던 동일 버전이라 dep tree 자체는 무변화 (`Cargo.lock` diff 1 line, `+ "base64"` 한 줄만 추가).
