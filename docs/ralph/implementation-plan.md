@@ -39,7 +39,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` `docs/adr/0002-migrate-v0.1-to-gh-subprocess.md` § 마이그레이션 작업 범위 L31 ("가짜 `gh` 바이너리 PATH 주입 등") 표현을 trait inject 채택으로 정렬 갱신.
 - **Status**: `[x]`
 
-### M1. 에러 매핑 표 박제 (gh 종료 코드 + stderr → GitlessError) `[AUTO, spec-only]`
+### M1. 에러 매핑 표 박제 (gh 종료 코드 + stderr → GitlessError) `[AUTO, spec-only]` `[~]`
 - **Spec reference**: `docs/specs/spec-error-contracts.md` (부분 갱신), `docs/adr/0002-migrate-v0.1-to-gh-subprocess.md` § 에러 매핑
 - **Files**: `docs/specs/spec-error-contracts.md`
 - **Depends on**: M0
@@ -50,7 +50,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` § 인증 실패 / Rate Limit / Trees Truncated 동작 섹션의 매핑 source 갱신. exit code 매핑 표(0~5) 그대로 유지.
   - `[AUTO]` Acceptance Criteria 섹션의 mockito 시나리오를 "MockGhClient stub 응답" 표현으로 재작성.
   - `[AUTO]` § Custom Error Types에 `Http(String)` variant의 의미를 "gh subprocess 비정상 종료(인증/rate/truncated 외)"로 보강.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### M2a. GhClient trait + RealGhClient + MockGhClient 골격 `[AUTO, 코드]`
 - **Spec reference**: `docs/specs/spec-github-api.md` (M0 갱신본)
