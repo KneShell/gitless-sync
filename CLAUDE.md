@@ -1,6 +1,6 @@
 # gitless-sync
 
-## Current State (2026-04-30)
+## Current State (2026-05-06)
 
 **v0.1 정식 출하 가능 상태** (T01~T12, T14 모두 `[x]`, 145 tests pass, tarpaulin 95.87%, vault 실전 검증 통과).
 
@@ -9,15 +9,18 @@
 - 결과: 284 identical / 55 local_only_changed / 17 remote_only_changed / 0 drift / 0 failed (총 356 파일)
 - 도구 동작 자체는 입증됨.
 
-**ADR 0001 결정 (2026-04-30)**: gh CLI subprocess 채택 + `gitless-push` 영구 폐지. 디테일은 `docs/adr/0001-gh-subprocess-and-drop-push-tool.md`.
-- Phase 4 GraphQL batching부터 `gh api graphql` subprocess로 구현. 인증·rate limit·재시도 모두 gh에 위임.
-- Phase 3 `gitless-push`는 만들지 않음. read-only 영구 결정. push는 Claude Code가 `gh` 명령으로 직접 처리.
-- T13 (Fine-grained PAT 권한 검증)은 obsolete — gh가 인증 책임을 맡으므로 PAT 가이드 자체가 도구 책임 밖.
+**ADR 0001 (2026-04-30)**: gh CLI subprocess 채택 + `gitless-push` 영구 폐지. `docs/adr/0001-gh-subprocess-and-drop-push-tool.md`.
+- Phase 4 GraphQL batching은 `gh api graphql`로 구현. 인증·rate limit·재시도 gh 위임.
+- Phase 3 `gitless-push`는 만들지 않음. read-only 영구 결정. push는 Claude Code가 `gh`로 직접.
+- T13 (Fine-grained PAT 검증)은 obsolete — 인증 책임이 도구 외부로 이동.
 
-**다음 세션 진입점 후보**:
-1. **v0.1 ureq → gh 마이그레이션 결정** (ADR 0001 follow-up open question #1). Claude Code 마찰 즉시 제거 vs Phase 4까지 점진 전환. 결정 시 별도 ADR.
-2. **Phase 2 (`gitless-sync init`)** — 편의 명령어. ADR 0001과 독립적.
-3. **Phase 4 GraphQL batching 진입** — gh subprocess 기반으로 신규 작성.
+**ADR 0002 (2026-05-06)**: v0.1 ureq → gh subprocess 일괄 마이그레이션. `docs/adr/0002-migrate-v0.1-to-gh-subprocess.md`.
+- v0.1 scan/diff REST 호출을 즉시 `gh api` subprocess로 전환 결정. ureq + mockito 의존성 제거.
+- `--token` 인자 + `resolve_token` 경로 제거. 인증은 `gh auth login` 한 줄.
+- 통합 테스트는 gh stub 기반으로 재설계 필요(테스트 전략 결정이 선행 task).
+- 결정만 박힘. 실제 마이그레이션 task 분해는 다음 세션 진입점.
+
+**다음 세션 진입점**: ADR 0002 마이그레이션 task 분해 + `docs/ralph/implementation-plan.md` 채우기. Phase 2(`init`)와 Phase 4(GraphQL batching)는 마이그레이션 완료 후 진입.
 
 ## Project Overview
 git이 없는 로컬 디렉토리를 GitHub repo와 단방향으로 비교해, 드리프트를 정량적으로 보고하는 read-only AI 친화 CLI. iCloud 동기화 디렉토리처럼 git 사용 자체가 불가능한 환경에서 "평행우주 드리프트"를 막기 위한 도구. 도구는 사실(4분류 JSON)만 제공하고 결정은 호출자(사람 또는 AI)에게 맡긴다.
@@ -25,7 +28,7 @@ git이 없는 로컬 디렉토리를 GitHub repo와 단방향으로 비교해, �
 ## Key Constraints
 - **OS**: Windows 1차 타겟. macOS/Linux는 부수효과로 지원하되 검증은 Windows 기준.
 - **Rust**: stable 채널, MSRV 1.95.0. `rust-toolchain.toml`로 고정.
-- **HTTP**: v0.1 코드는 blocking `ureq` (rest backend). Phase 4부터는 `gh` CLI subprocess (ADR 0001). async 도입은 명시적 요구 발생 시까지 보류.
+- **HTTP**: 모든 GitHub API 호출은 `gh` CLI subprocess (ADR 0001 + ADR 0002). v0.1 ureq 코드는 마이그레이션 대상. async 도입은 명시적 요구 발생 시까지 보류.
 - **Safety**: `#![forbid(unsafe_code)]` 워크스페이스 lint. release profile `panic = "abort"`.
 - **Cargo.lock**: binary CLI이므로 commit 대상.
 - **Test coverage**: Unit test 라인 커버리지 ≥ 80% (cargo-tarpaulin LLVM 백엔드). 합의된 강제 조건.
@@ -40,7 +43,7 @@ crates/gitless-sync/src/
 ├── commands/
 │   ├── scan/              # scan 명령어 자체 모듈
 │   │   ├── mod.rs         # entry point + ScanArgs
-│   │   ├── github.rs      # Trees / Blobs / Commits API (v0.1: ureq, Phase 4+: gh subprocess via ADR 0001)
+│   │   ├── github.rs      # Trees / Blobs / Commits API (gh subprocess via ADR 0001 + ADR 0002)
 │   │   ├── walker.rs      # 로컬 디렉토리 walk (walkdir + ignore)
 │   │   ├── compare.rs     # 4분류 판정 + Status enum + FileEntry
 │   │   └── output.rs      # ScanReport JSON 직렬화
