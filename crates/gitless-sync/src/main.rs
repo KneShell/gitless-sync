@@ -83,8 +83,8 @@ fn main() -> ExitCode {
         Commands::Scan {
             summary_only,
             status,
-        } => commands::scan::run_with_base(
-            &commands::scan::ScanArgs {
+        } => {
+            let scan_args = commands::scan::ScanArgs {
                 repo: cli.repo,
                 branch: cli.branch,
                 local: cli.local,
@@ -96,9 +96,20 @@ fn main() -> ExitCode {
                 status,
                 backend: cli.backend,
                 verbose: cli.verbose,
-            },
-            &api_base,
-        ),
+            };
+            // Transient dual-mode (M2b1): keep the legacy ureq path alive while
+            // `GITLESS_API_BASE` is set so the existing mockito-based
+            // integration tests stay green. Production unsets the variable and
+            // routes through `RealGhClient` + `gh api` subprocess. M2b2/M2c
+            // collapse this into the gh-subprocess path and M4a/M4b rewrite the
+            // integration tests to use `MockGhClient`.
+            if std::env::var("GITLESS_API_BASE").is_ok() {
+                commands::scan::run_with_base(&scan_args, &api_base)
+            } else {
+                let client = shared::gh::RealGhClient::new();
+                commands::scan::run_with_client(&scan_args, &client)
+            }
+        }
         Commands::Diff { path } => commands::diff::run_with_base(
             &commands::diff::DiffArgs {
                 repo: cli.repo,

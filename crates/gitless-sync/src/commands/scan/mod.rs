@@ -12,6 +12,7 @@ use rayon::prelude::*;
 
 use crate::shared::config;
 use crate::shared::error::GitlessError;
+use crate::shared::gh::GhClient;
 use crate::shared::hash::blob_hash;
 use crate::shared::ignore::IgnoreMatcher;
 use crate::shared::normalize::prepare_for_hash;
@@ -70,6 +71,112 @@ pub(crate) fn run_with_base(args: &ScanArgs, base: &str) -> Result<(), GitlessEr
         return Err(GitlessError::PartialFailure { failed_count });
     }
     Ok(())
+}
+
+/// Run `scan` with a [`GhClient`] injected for the Trees call (M2b1).
+///
+/// Production main.rs picks this entry when `GITLESS_API_BASE` is unset,
+/// passing [`shared::gh::RealGhClient`]. Unit tests pass `MockGhClient`.
+/// `fetch_blob` and `fetch_last_commit_at` still go through the legacy
+/// `*_with_base` ureq path until M2b2 migrates them to `GhClient` too;
+/// during this transient state Commits-API calls hit `GITHUB_API_BASE`
+/// directly (no env override here — the legacy ureq path in
+/// [`run_with_base`] still serves the integration tests).
+pub(crate) fn run_with_client(args: &ScanArgs, client: &impl GhClient) -> Result<(), GitlessError> {
+    if args.backend == Backend::Graphql {
+        return Err(GitlessError::Config(
+            "GraphQL backend not implemented in v0.1; use --backend rest. Phase 4 ETA.".to_string(),
+        ));
+    }
+    let (report, failed_count) = build_report_with_client(args, client, github::GITHUB_API_BASE)?;
+    let json = output::serialize(&report, args.pretty).expect("ScanReport serialization is total");
+    println!("{json}");
+    if failed_count > 0 {
+        return Err(GitlessError::PartialFailure { failed_count });
+    }
+    Ok(())
+}
+
+/// Sibling of [`build_report`] that uses [`github::fetch_tree`] (gh subprocess)
+/// instead of [`github::fetch_tree_with_base`] (ureq). Folded back into a single
+/// function in M2b2 once `fetch_blob` and `fetch_last_commit_at` are also
+/// migrated to `GhClient`.
+fn build_report_with_client(
+    args: &ScanArgs,
+    client: &impl GhClient,
+    base: &str,
+) -> Result<(ScanReport, usize), GitlessError> {
+    let local_root = Path::new(&args.local);
+    let toml_path = local_root.join("gitless-sync.toml");
+    let cfg = config::load(Some(&toml_path))?;
+
+    let repo = args
+        .repo
+        .as_deref()
+        .or(cfg.repo.as_deref())
+        .ok_or_else(|| GitlessError::Config("repo not specified".to_string()))?
+        .to_string();
+    let branch = args.branch.clone();
+
+    let mut ignore_patterns = cfg.ignore.clone();
+    ignore_patterns.extend(args.ignore.iter().cloned());
+
+    let token_spec = args.token.as_deref().ok_or(GitlessError::AuthFailed)?;
+    let token = config::resolve_token(token_spec)?;
+
+    let matcher = IgnoreMatcher::new(local_root, &ignore_patterns)?;
+
+    if args.verbose >= 1 {
+        eprintln!("info: scanning {} against {repo}@{branch}", args.local);
+    }
+
+    let remote_files = github::fetch_tree(client, &repo, &branch)?;
+    let local_files = walker::walk(local_root, &matcher)?;
+
+    if args.verbose >= 1 {
+        eprintln!(
+            "info: found {} local files, {} remote files",
+            local_files.len(),
+            remote_files.len()
+        );
+    }
+    if args.verbose >= 2 {
+        for lf in &local_files {
+            eprintln!("debug: local entry {}", lf.relative_path);
+        }
+    }
+
+    let (mut entries, summary, failed_count) = assemble_entries(
+        &local_files,
+        &remote_files,
+        base,
+        &repo,
+        &branch,
+        &token,
+        args.keep_bom,
+    )?;
+
+    if let Some(filter) = parse_status_filter(args.status.as_deref())? {
+        entries.retain(|e| filter.contains(&e.status));
+    }
+
+    let files = if args.summary_only {
+        None
+    } else {
+        Some(entries)
+    };
+
+    let report = ScanReport {
+        schema_version: SCHEMA_VERSION.to_string(),
+        scanned_at: Utc::now(),
+        repo,
+        branch,
+        local_root: args.local.clone(),
+        summary,
+        files,
+    };
+
+    Ok((report, failed_count))
 }
 
 /// Run the full pipeline up to (but not including) stdout serialization.
@@ -1146,5 +1253,75 @@ mod tests {
         let result =
             fetch_commit_dates_parallel("http://127.0.0.1:0", "o/r", "main", "tok", &[]).unwrap();
         assert!(result.is_empty());
+    }
+
+    // --- run_with_client / build_report_with_client (M2b1) -------------------
+
+    fn tree_args(repo: &str, branch: &str) -> Vec<String> {
+        vec![
+            "api".to_string(),
+            format!("repos/{repo}/git/trees/{branch}?recursive=1"),
+        ]
+    }
+
+    fn ok_resp(stdout: &[u8]) -> crate::shared::gh::GhResponse {
+        crate::shared::gh::GhResponse {
+            stdout: stdout.to_vec(),
+            stderr: String::new(),
+            exit_code: 0,
+        }
+    }
+
+    #[test]
+    fn run_with_client_returns_config_error_for_graphql_backend() {
+        let dir = TempDir::new().unwrap();
+        let mut args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        args.backend = Backend::Graphql;
+        let mock = crate::shared::gh::MockGhClient::new();
+        let err = run_with_client(&args, &mock).unwrap_err();
+        assert!(matches!(err, GitlessError::Config(ref msg) if msg.contains("GraphQL")));
+        assert_eq!(err.exit_code(), 1);
+    }
+
+    #[test]
+    fn run_with_client_propagates_truncated_from_mock() {
+        let dir = TempDir::new().unwrap();
+        let mut mock = crate::shared::gh::MockGhClient::new();
+        mock.stub(
+            tree_args("o/r", "main"),
+            ok_resp(br#"{"sha":"x","tree":[],"truncated":true}"#),
+        );
+        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let err = run_with_client(&args, &mock).unwrap_err();
+        assert!(matches!(err, GitlessError::TreesTruncated));
+        assert_eq!(err.exit_code(), 5);
+    }
+
+    #[test]
+    fn build_report_with_client_returns_summary_for_empty_tree() {
+        let dir = TempDir::new().unwrap();
+        let mut mock = crate::shared::gh::MockGhClient::new();
+        mock.stub(
+            tree_args("o/r", "main"),
+            ok_resp(br#"{"sha":"x","tree":[],"truncated":false}"#),
+        );
+        let args = args_for(dir.path(), Some("o/r"), Some("literal:tok"));
+        let (report, failed) =
+            build_report_with_client(&args, &mock, "http://127.0.0.1:0").unwrap();
+        assert_eq!(failed, 0);
+        assert_eq!(report.repo, "o/r");
+        assert_eq!(report.summary.identical, 0);
+        assert_eq!(report.summary.local_only_changed, 0);
+        assert_eq!(report.summary.remote_only_changed, 0);
+    }
+
+    #[test]
+    fn build_report_with_client_returns_auth_failed_when_token_missing() {
+        let dir = TempDir::new().unwrap();
+        let mock = crate::shared::gh::MockGhClient::new();
+        let args = args_for(dir.path(), Some("o/r"), None);
+        let err = build_report_with_client(&args, &mock, "http://127.0.0.1:0").unwrap_err();
+        assert!(matches!(err, GitlessError::AuthFailed));
+        assert_eq!(err.exit_code(), 2);
     }
 }
