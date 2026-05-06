@@ -140,7 +140,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` 시나리오 12 (truncated): `MockGhClient` stdout JSON에 `truncated: true` → exit 5.
   - `[AUTO]` 시나리오 13 (`--summary-only`), 14 (`--status`), 15 (partial failure) 재현.
   - `[AUTO]` `cargo test --test integration` 전체 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### M5a. rayon 측정 (자율) `[AUTO]`
 - **Spec reference**: `docs/ralph/guardrails.md` § G-011, `docs/specs/spec-github-api.md` § 병렬 호출 정책
