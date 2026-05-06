@@ -1,7 +1,7 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-06T20:00:00Z (M4b 완료 — 통합 테스트 에러 + partial failure 시나리오 10~15 박제. `tests/integration.rs`에 `err_resp` 헬퍼 + scenario_10 (AuthFailed/exit 2/AUTH_FAILED), scenario_11 primary + secondary (RateLimitExceeded/exit 3/RATE_LIMIT_EXCEEDED), scenario_12 (TreesTruncated/exit 5/TREES_TRUNCATED), scenario_13 (--summary-only `files` 필드 omit), scenario_14 (--status filter 한정), scenario_15 (`#[cfg(windows)]` `OpenOptionsExt::share_mode(0)`로 try_hash_local 실패 → PartialFailure/exit 4/`status: failed`) 추가. 141 unit + 12 integration tests pass. tarpaulin 90.42% (+2.90% — error.rs to_stderr_payload/error_code 통합 호출 cover로 +48%).)
+- Last updated: 2026-05-06T21:00:00Z (M5a [!] BLOCKED — G-017: `gh -F`가 commits API GET 요청을 POST로 자동 전환 → 404. spec/code 양쪽 박힌 인자 패턴(`fetch_last_commit_at`)에 `-X GET` 누락. unit test가 MockGhClient 기반이라 method 검증 부재로 surface 안 됨. 직접 검증: `gh api repos/KneShell/gitless-sync/commits -F sha=main -F path=CLAUDE.md -F per_page=1` → 404, 동일 인자에 `-X GET` 추가 시 정상. 영구 신호 — fix task 분해 필요. G-015 auto-recovery 대상 아님.)
 - Total tasks: 14 (M0, M1, M2a, M2b1, M2b2, M2c, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
 - Completed: 9 / 14
 
@@ -154,7 +154,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
     - 본 측정 N=3 결과의 variance가 30% 초과 시 N=5로 확장 후 재계산.
     - 측정 도중 gh exit≠0 발생 시 G-015 transient retry policy 적용 (N=3 + 30s backoff). 3회 모두 실패 시 [!] + G-015 reference (auto-recovery 가능).
   - `[AUTO]` 환경(Windows + 실제 repo + 시점 timestamp) + 명령어 + raw timing(각 측정의 전체 시간 박제 — outlier 추적 가능).
-- **Status**: `[~]`
+- **Status**: `[!]` — G-017 (gh `-F` POST 자동 전환으로 commits API 404). 측정 자체 불가 — 영구 spec/code 버그. fix task 분해 필요. G-015 auto-recovery 대상 아님 (영구 신호).
 
 ### M5b. rayon 유지/제거 결정 + ADR 0003 박제 + spec/guardrail 갱신 `[AUTO]`
 - **Spec reference**: `docs/ralph/guardrails.md` § G-011, `docs/specs/spec-github-api.md` § 병렬 호출 정책
