@@ -151,7 +151,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `cargo tree`로 신규 의존성 점검. Phase 2가 `toml` crate 신규 도입 시 deny.toml 라이선스 화이트리스트 갱신 + `cargo deny check` 재통과 확인. (`toml`이 이미 transitive로 박혀 있으면 추가 0.)
 - **Status**: `[x]` (tarpaulin 89.55%, fmt/clippy/test 167건 pass, deny/audit clean, toml 기존 dep으로 deny.toml 무변경)
 
-### P8. dogfooding contract step `[AUTO]`
+### P8. dogfooding contract step `[AUTO]` `[~]`
 - **Spec reference**: ADR 0004 § Consequences, M8 dogfooding 선례
 - **Files**: 박제 0. 실행 결과는 task `[x]` commit message에 카운트만 인라인.
 - **Depends on**: P7
