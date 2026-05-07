@@ -44,7 +44,9 @@
 
 **Phase 4 완료 (2026-05-07)** — GraphQL batching + cache 도입/제거 15 task ralph 자율 진행 종료, **188 tests pass (167 unit + 21 integration), tarpaulin 90.09%**. 사람 개입 0건 (cargo PATH ralph.ps1 자체 주입). P6b 측정: 13 path scale에서 REST 2484ms vs GraphQL cluster 1437ms = **1.73x speedup** (typical), 1000 path scale 추정 **~38x**. P9 dogfooding cross-backend 정합성 통과 (REST/GraphQL 결과 ScanReport 동일).
 
-**다음 세션 진입점 후보**: Phase 5(도메인 함정 — NFD/case/encoding/submodule/symlink) / vault scale dogfooding (1000+ path cache 효과 재검토 트리거).
+**Phase 6 Step 1 완료 (2026-05-07)** — clippy 60/15/5 영구 박음 (`Cargo.toml [workspace.lints.clippy]` + workspace root `clippy.toml`). baseline 위반 1건(`commands/scan/mod.rs::assemble_entries` 7 args)을 `GitHubContext<'_, C: GhClient + Sync>` struct로 fix (args 7 → 4). 188 tests pass. Step 2(파일/모듈 ≤ 300줄, `cargo xtask` 검토) / Step 3(layer 의존 검증, `cargo-modules`) / event 기반 통신은 PROPOSED — 다음 세션 모호점 vague 후 plan 작성 + Phase 6 통째 ralph 자율 진행 예정.
+
+**다음 세션 진입점 후보**: Phase 6 Step 2~3 plan + ralph / Phase 5(도메인 함정 — NFD/case/encoding/submodule/symlink) / vault scale dogfooding (1000+ path cache 효과 재검토 트리거).
 
 ## Project Overview
 git이 없는 로컬 디렉토리를 GitHub repo와 단방향으로 비교해, 드리프트를 정량적으로 보고하는 read-only AI 친화 CLI. iCloud 동기화 디렉토리처럼 git 사용 자체가 불가능한 환경에서 "평행우주 드리프트"를 막기 위한 도구. 도구는 사실(4분류 JSON)만 제공하고 결정은 호출자(사람 또는 AI)에게 맡긴다.
