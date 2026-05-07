@@ -39,6 +39,18 @@ cargo build --release
 
 Output: `target/release/gitless-sync` (or `gitless-sync.exe` on Windows).
 
+## Quick Start
+
+```sh
+# Generate config file once per directory:
+gitless-sync init --repo owner/name --branch main > gitless-sync.toml
+
+# Then scan repeatedly without flags:
+gitless-sync scan
+```
+
+`init` writes nothing on its own — it prints TOML to stdout and you redirect (ADR 0004). `scan` then reads `gitless-sync.toml` from the working directory, so subsequent runs need no flags.
+
 ## Usage
 
 ### `scan` — full directory comparison

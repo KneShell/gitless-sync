@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-07 (Phase 2 P5 완료 — init 시나리오 16~19 통합 테스트)
+- Last updated: 2026-05-07 (Phase 2 P6 완료 — README Quick Start + clap Init after_help)
 - Total tasks: 8 (P1, P2, P3, P4, P5, P6, P7, P8)
-- Completed: 5 / 8
+- Completed: 6 / 8
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -139,7 +139,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     ```
   - `[AUTO]` `main.rs` clap `Init` subcommand에 `after_help` 또는 `long_about` 박음. 마지막 줄에 redirect 예시 1줄 — `gitless-sync init --help` 출력 마지막에 노출.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### P7. coverage 게이트 통과 검증 (phase-final) `[AUTO]`
 - **Spec reference**: `docs/ralph/project-ops.md` § Coverage, `CLAUDE.md` § Test coverage, G-007, G-012, G-013
