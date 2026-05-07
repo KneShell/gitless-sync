@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-07 (Phase 4 진입 — GraphQL batching + 로컬 SHA mtime cache)
 - Total tasks: 15 (P1, P2, P3a, P3b, P4, P5a, P5b, P5c, P6a, P6b, P6c, P7a, P7b, P8, P9)
-- Completed: 13 / 15
+- Completed: 14 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -368,7 +368,18 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - `dirs` crate 박혀 있으면 (cache 유지 결정 시) deny.toml 라이선스 화이트리스트 갱신 + cargo deny check 재통과 확인.
     - 그 외 transitive로 박힌 신규 crate (GraphQL JSON 파싱용 등)도 동일 점검.
   - `[AUTO]` 결과 박제: tests 카운트 + tarpaulin %, ureq/mockito 부재 재확인.
-- **Status**: `[~]`
+- **Verification (2026-05-07)**:
+  - **환경**: Windows 11 Pro 10.0.26100 / cargo 1.95.0 / rustc 1.95.0 (rust-toolchain.toml 고정) / tarpaulin LLVM engine.
+  - **`cargo fmt --check`**: exit 0 (위반 0).
+  - **`cargo clippy --all-targets -- -D warnings`**: exit 0 (warning 0). compile time 13.80s.
+  - **`cargo test --workspace`**: exit 0. **188 tests pass** (167 unit + 21 integration + 0 doc-tests). 실패/skip 0.
+  - **`cargo deny check`**: `advisories ok, bans ok, licenses ok, sources ok`. deny.toml 미사용 라이선스 5건 (`0BSD` / `BSD-3-Clause` / `CDLA-Permissive-2.0` / `ISC` / `Zlib`) warning은 fail 아님 (G-013 일관 — 화이트리스트 박혀 있고 unmatched는 정보 표시).
+  - **`cargo audit`**: 1068 advisories scanned vs 129 Cargo.lock crates → vulnerabilities 0.
+  - **`cargo tarpaulin --engine llvm --workspace --out Stdout`**: **90.09% (500/555 lines)**. 80% 게이트 +10.09pp. Δ vs P7b 종료 직후 동일 (코드/테스트 변경 0).
+  - **`cargo tree --workspace`** dependency audit: `grep -iE "dirs|ureq|mockito"` → 0 hit. ADR 0002 (ureq/mockito 제거) + ADR 0008 (dirs 제거 — cache 본체 obsolete) 정합 재확인. 신규 transitive crate 0 → deny.toml 갱신 불필요.
+  - **module별 라인 커버리지** (낮은 순): `main.rs 0/33 (0%)` / `walker.rs 27/33 (81.8%)` / `error.rs 33/41 (80.5%)` / `scan/output.rs 3/4 (75.0%)` / `scan/mod.rs 151/154 (98.1%)` / `graphql.rs 66/69 (95.7%)` / `diff/mod.rs 55/56 (98.2%)` / 그 외 100%. main.rs는 clap 인자 디스패치 + std::process::exit 분기로 unit test 진입점 0인 게 의도적 (Phase 2 P8 패턴 일관). 워크스페이스 전체로 90.09% 박혀 추가 unit test 0.
+  - **결론**: phase-final coverage gate 통과. 코드 변경 0 (추가 unit test 불필요). deny.toml 갱신 0 (신규 의존성 0).
+- **Status**: `[x]`
 
 ### P9. dogfooding contract step + cross-backend 정합성 `[AUTO]`
 - **Spec reference**: ADR 0006 (default GraphQL), M8/Phase 2 P8 dogfooding 선례
