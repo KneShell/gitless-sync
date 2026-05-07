@@ -117,8 +117,10 @@ pub(crate) fn fetch_blob(
 
 /// Fetch the timestamp of the most recent commit that touched `path` on `branch`.
 ///
-/// Calls `gh api repos/{repo}/commits -F sha={branch} -F path={path} -F per_page=1`
-/// and returns the `commit.committer.date` of the first item.
+/// Calls `gh api -X GET repos/{repo}/commits -F sha={branch} -F path={path} -F per_page=1`
+/// and returns the `commit.committer.date` of the first item. The explicit
+/// `-X GET` is mandatory: with only `-F` flags `gh` flips the request method
+/// to POST, and GitHub's commits endpoint then 404s (G-017).
 ///
 /// Callers MUST gate this on a known SHA difference — the Commits API is rate
 /// limited (G-003 obsoleted by gh's own rate handling, but the call-frequency
@@ -137,6 +139,8 @@ pub(crate) fn fetch_last_commit_at(
 ) -> Result<DateTime<Utc>, GitlessError> {
     let args = vec![
         "api".to_string(),
+        "-X".to_string(),
+        "GET".to_string(),
         format!("repos/{repo}/commits"),
         "-F".to_string(),
         format!("sha={branch}"),
@@ -253,6 +257,8 @@ mod tests {
     fn commits_args(repo: &str, branch: &str, path: &str) -> Vec<String> {
         vec![
             "api".to_string(),
+            "-X".to_string(),
+            "GET".to_string(),
             format!("repos/{repo}/commits"),
             "-F".to_string(),
             format!("sha={branch}"),
@@ -543,6 +549,65 @@ mod tests {
     }
 
     // --- fetch_last_commit_at ---------------------------------------------
+
+    /// Intercepts argv from a single `fetch_*` call so a test can assert on
+    /// the exact sequence production sent. Returns canned stdout + exit 0 so
+    /// the call completes and the captured args are observable.
+    struct ArgsCapture {
+        seen: std::cell::RefCell<Vec<String>>,
+        stdout: Vec<u8>,
+    }
+
+    impl ArgsCapture {
+        fn with_stdout(stdout: &[u8]) -> Self {
+            Self {
+                seen: std::cell::RefCell::new(Vec::new()),
+                stdout: stdout.to_vec(),
+            }
+        }
+    }
+
+    impl GhClient for ArgsCapture {
+        fn api(&self, args: &[String]) -> Result<GhResponse, GitlessError> {
+            *self.seen.borrow_mut() = args.to_vec();
+            Ok(GhResponse {
+                stdout: self.stdout.clone(),
+                stderr: String::new(),
+                exit_code: 0,
+            })
+        }
+    }
+
+    #[test]
+    fn fetch_last_commit_at_prepends_x_get_before_path_arg() {
+        // G-017 regression: `gh -F` flips the request method to POST, so the
+        // commits API (GET-only) returns 404 unless `-X GET` precedes the path
+        // arg. Capture production argv directly and pin the order.
+        let cap = ArgsCapture::with_stdout(ok_commits_body().as_bytes());
+        let _ = fetch_last_commit_at(&cap, "owner/repo", "main", "README.md").unwrap();
+
+        let args = cap.seen.borrow().clone();
+        let api_pos = args.iter().position(|s| s == "api").expect("'api' present");
+        let x_pos = args
+            .iter()
+            .position(|s| s == "-X")
+            .expect("'-X' must be present (G-017)");
+        let get_pos = args
+            .iter()
+            .position(|s| s == "GET")
+            .expect("'GET' must be present (G-017)");
+        let path_pos = args
+            .iter()
+            .position(|s| s == "repos/owner/repo/commits")
+            .expect("path arg present");
+
+        assert_eq!(x_pos, api_pos + 1, "-X must immediately follow 'api'");
+        assert_eq!(get_pos, x_pos + 1, "GET must immediately follow '-X'");
+        assert!(
+            get_pos < path_pos,
+            "'-X GET' must precede the path arg, got args = {args:?}"
+        );
+    }
 
     #[test]
     fn fetch_last_commit_at_returns_committer_date() {

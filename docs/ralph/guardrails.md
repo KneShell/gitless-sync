@@ -78,3 +78,4 @@
 - **영구 신호**: spec/code 정합 충돌 (`prompt-build.md` § 3 G-015 영구 신호 분류). G-015 transient retry 무의미 — gh가 일관되게 404 반환.
 - **fix 방향**: 별도 fix task (M5a-fix 또는 M2-followup) 분해 필요. 후보 패치 — (a) `args` 빌드에 `"-X".to_string(), "GET".to_string()` prepend, (b) 또는 `-F`를 query string으로 옮겨 `format!("repos/{}/{}/commits?sha={}&path={}&per_page=1")` + `-F` 제거. spec(`spec-github-api.md` § fetch_last_commit_at 예시) + 코드(`commands/scan/github.rs::commits_args`) + unit test(`commands/scan/mod.rs::commits_args` 헬퍼) + integration test(`tests/integration.rs`의 commits_args) 4곳 동시 갱신 필요.
 - **task**: M5a는 본 G-017 reference로 [!] BLOCKED. 사람이 fix task 신규 추가 후 M5a [!] → [ ] reset (G-015 auto-recovery 대상 아님 — 영구 신호).
+- **2026-05-07 fixed by M2d**: 후보 (a) 채택. M5a [!] → [ ] reset 후 ralph 재진입 가능.

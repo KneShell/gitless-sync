@@ -88,11 +88,13 @@ v0.1 ureq baseline 시그니처에서 `token` 인자 제거 + `client: &impl GhC
 
 #### `fetch_last_commit_at`
 
-- 호출: `gh api repos/{owner}/{repo}/commits -F sha={branch} -F path={path} -F per_page=1`
+- 호출: `gh api -X GET repos/{owner}/{repo}/commits -F sha={branch} -F path={path} -F per_page=1`
+- `-X GET` prepend은 필수 (G-017): `gh`는 `-F` 플래그가 하나라도 있으면 method를 POST로 자동 전환한다. commits endpoint는 GET 전용이라 POST 시 404 반환. path 인자 앞에 `-X GET`를 박아 method를 명시적으로 GET으로 고정.
 - args 빌드 예:
   ```rust
   vec![
       "api".to_string(),
+      "-X".to_string(), "GET".to_string(),
       format!("repos/{owner}/{repo}/commits"),
       "-F".to_string(), format!("sha={branch}"),
       "-F".to_string(), format!("path={path}"),
