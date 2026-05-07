@@ -160,7 +160,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - cache_path sanitize (`KneShell/gitless-sync` + `main` → `KneShell__gitless-sync__main.json`)
     - (P5에서 매트릭스 확장)
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### P5a. GraphQL 단위 테스트 매트릭스 `[AUTO, 코드]`
 - **Spec reference**: `spec-github-api.md` Acceptance Criteria
