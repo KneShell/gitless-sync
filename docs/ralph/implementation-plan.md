@@ -302,7 +302,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - speedup ratio 박음. 1차/2차 timing 차이 + cache hit 비율 (100% 기대) 검증.
   - `[AUTO]` 측정 도중 transient 실패는 G-015 retry policy 적용.
   - `[AUTO]` raw data를 본 task acceptance 본문에 박음 — speedup ratio가 § Phase 4 사전 결정 §15 임계값 (≥2x 유지 / <1.5x 제거 / 경계 yagni 제거)과 어떤 관계인지 명시.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### P7a. ADR 0007 + spec-github-api § GraphQL backend batch size 박제 `[AUTO, 문서/spec/코드]`
 - **Spec reference**: P6a raw data
