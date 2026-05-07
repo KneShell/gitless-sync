@@ -36,6 +36,44 @@
 - **1000+ path scale에서 mtime cache 재도입 검토** — 50 path scale에선 hash 비중 작아 cache 효과 noise floor 안. vault scale (수백~수천 files)에서 hash 비중 증가 시 speedup 가능성 (ADR 0008 § Future work).
 - **Trees API sub-tree 재귀 fallback** (truncated repo 지원, G-002 해소).
 
+## Phase 6 — Code Quality Strengthening (PROPOSED, 2026-05-07)
+
+> 사용자 stance: SonarLint 패턴의 quality gate 강화. 현재 hard gate(test ≥80% / fmt / clippy / deny / audit)에 **코드 구조·복잡도 게이트** 추가.
+
+### Step 1 — clippy 룰 강화 (low-effort, 우선 박음)
+
+함수 라인·cognitive complexity·인자 수를 clippy `deny` lint로 박는다. `clippy.toml` workspace 단위 + 각 crate root에 `#![deny(...)]`.
+
+| 룰 | clippy lint | 임계값 (사용자 취향) | clippy default |
+|---|---|---|---|
+| 함수 ≤ 60줄 | `clippy::too_many_lines` | 60 | 100 |
+| cognitive complexity | `clippy::cognitive_complexity` | 15 | 25 |
+| 함수 인자 ≤ 5 | `clippy::too_many_arguments` | 5 | 7 |
+
+**진행 순서**:
+1. **baseline 측정** — 임시 `clippy.toml`로 임계값 박고 `cargo clippy --all-targets` 실행 → 위반 수/위치 raw data 수집.
+2. **임계값 + 강제 정책 결정** — baseline 보고 (a) 즉시 강제 (위반 즉시 리팩터링) / (b) baseline freeze (현재 위반은 allow, 신규만 fail) / (c) warning only 중 결정.
+3. **`clippy.toml` + workspace lint 영구 박음** — 결정된 정책으로.
+
+### Step 2 — 파일/모듈 ≤ 300줄 (medium-effort, 자체 게이트)
+
+clippy에 직접 lint 부재. **`cargo xtask check-line-limits` 박음** (또는 PowerShell 스크립트). project-ops § Validation에 게이트 추가. baseline 측정 후 임계값 조정 (Rust trait impl + match arms로 자연 길어지는 경우 마진 검토).
+
+도입 시점: Step 1 baseline 안정 후.
+
+### Step 3 — Layer 의존 검증 (medium-effort)
+
+"같은 layer 내부 cross-ref 금지"의 layer 정의 결정 필요:
+- (a) vertical slice 유지 (`commands/scan/` ↔ `commands/diff/` 간 참조 금지 — 이미 박힘)
+- (b) horizontal layer 신규 정의 (CLI / domain / IO 분리)
+- (c) slice 안에서 같은 layer file 간 참조 금지 (`mod.rs` ↔ `walker.rs`)
+
+`cargo-modules` JSON 추출 + `cargo xtask layer-deps` 자체 검증. 정의 결정 후 진행.
+
+### 미정 / yagni 의심
+
+- **Event 기반 layer 통신** — Rust 관용 대비 비용 큼 (channel/actor/observer 중 선택, async 도입 가능성). 진짜 필요한지 사용자 재확인 필요. 실용적 대안 = layer 가시성 강화 + 함수 호출 유지.
+
 ## Phase 5 — 도메인 함정 정리
 
 > "언젠가는 터질 폭탄"이므로 비목표가 아닌 명시적 후속 단계로 박는다.
