@@ -66,11 +66,6 @@ pub fn run_with_client<C: GhClient + Sync>(
     args: &ScanArgs,
     client: &C,
 ) -> Result<(), GitlessError> {
-    if args.backend == Backend::Graphql {
-        return Err(GitlessError::Config(
-            "GraphQL backend not implemented in v0.1; use --backend rest. Phase 4 ETA.".to_string(),
-        ));
-    }
     let (report, failed_count) = build_report(args, client)?;
     let json = output::serialize(&report, args.pretty).expect("ScanReport serialization is total");
     println!("{json}");
@@ -806,17 +801,6 @@ mod tests {
         // Concrete check: exit code mapping for the variant produced by run_with_client.
         let err = GitlessError::PartialFailure { failed_count: 2 };
         assert_eq!(err.exit_code(), 4);
-    }
-
-    #[test]
-    fn run_with_client_returns_config_error_for_graphql_backend() {
-        let dir = TempDir::new().unwrap();
-        let mut args = args_for(dir.path(), Some("o/r"));
-        args.backend = Backend::Graphql;
-        let mock = MockGhClient::new();
-        let err = run_with_client(&args, &mock).unwrap_err();
-        assert!(matches!(err, GitlessError::Config(ref msg) if msg.contains("GraphQL")));
-        assert_eq!(err.exit_code(), 1);
     }
 
     #[test]
