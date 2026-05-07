@@ -15,18 +15,33 @@ pub struct InitArgs {
     pub ignore: Vec<String>,
 }
 
-/// Emit a `gitless-sync.toml` body to `writer`.
+/// Hint always written to stderr after a successful emit. tty 감지 분기 0
+/// (`spec-cli-interface.md` § stderr hint).
+pub const STDERR_HINT: &str = "Tip: redirect stdout to ./gitless-sync.toml to persist this config.";
+
+/// Emit a `gitless-sync.toml` body to `stdout` and a redirect hint to
+/// `stderr`.
 ///
 /// Stable order: `repo` then `branch` then `ignore`. Optional fields are
 /// emitted only when set / non-empty (`spec-cli-interface.md` § init).
 ///
 /// # Errors
-/// Propagates any [`std::io::Error`] from the writer as [`GitlessError::Io`].
-/// Empty-`repo` validation is handled by P4, not here.
-pub fn run<W: Write>(args: &InitArgs, writer: &mut W) -> Result<(), GitlessError> {
-    writeln!(writer, "repo = \"{}\"", args.repo)?;
+/// - [`GitlessError::Config`] when `repo` is empty
+///   (`spec-error-contracts.md` § init 에러 케이스). stdout / stderr 둘 다
+///   이 경우 미emit.
+/// - Propagates any [`std::io::Error`] from either writer as
+///   [`GitlessError::Io`].
+pub fn run<W: Write, E: Write>(
+    args: &InitArgs,
+    stdout: &mut W,
+    stderr: &mut E,
+) -> Result<(), GitlessError> {
+    if args.repo.is_empty() {
+        return Err(GitlessError::Config("repo not specified".to_string()));
+    }
+    writeln!(stdout, "repo = \"{}\"", args.repo)?;
     if let Some(branch) = args.branch.as_deref() {
-        writeln!(writer, "branch = \"{branch}\"")?;
+        writeln!(stdout, "branch = \"{branch}\"")?;
     }
     if !args.ignore.is_empty() {
         let joined = args
@@ -35,8 +50,9 @@ pub fn run<W: Write>(args: &InitArgs, writer: &mut W) -> Result<(), GitlessError
             .map(|p| format!("\"{p}\""))
             .collect::<Vec<_>>()
             .join(", ");
-        writeln!(writer, "ignore = [{joined}]")?;
+        writeln!(stdout, "ignore = [{joined}]")?;
     }
+    writeln!(stderr, "{STDERR_HINT}")?;
     Ok(())
 }
 
@@ -45,15 +61,19 @@ mod tests {
     use super::*;
     use crate::shared::config::Config;
 
-    fn emit(args: &InitArgs) -> String {
-        let mut buf = Vec::new();
-        run(args, &mut buf).expect("run should succeed for valid args");
-        String::from_utf8(buf).expect("emitted bytes are utf-8")
+    fn emit(args: &InitArgs) -> (String, String) {
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        run(args, &mut stdout, &mut stderr).expect("run should succeed for valid args");
+        (
+            String::from_utf8(stdout).expect("emitted stdout bytes are utf-8"),
+            String::from_utf8(stderr).expect("emitted stderr bytes are utf-8"),
+        )
     }
 
     #[test]
     fn emits_repo_only_when_branch_and_ignore_unset() {
-        let out = emit(&InitArgs {
+        let (out, _) = emit(&InitArgs {
             repo: "a/b".to_string(),
             branch: None,
             ignore: vec![],
@@ -63,7 +83,7 @@ mod tests {
 
     #[test]
     fn emits_repo_and_branch_in_order() {
-        let out = emit(&InitArgs {
+        let (out, _) = emit(&InitArgs {
             repo: "a/b".to_string(),
             branch: Some("dev".to_string()),
             ignore: vec![],
@@ -73,7 +93,7 @@ mod tests {
 
     #[test]
     fn emits_ignore_with_single_pattern() {
-        let out = emit(&InitArgs {
+        let (out, _) = emit(&InitArgs {
             repo: "a/b".to_string(),
             branch: None,
             ignore: vec!["*.tmp".to_string()],
@@ -83,7 +103,7 @@ mod tests {
 
     #[test]
     fn emits_ignore_with_multiple_patterns_comma_space_joined() {
-        let out = emit(&InitArgs {
+        let (out, _) = emit(&InitArgs {
             repo: "a/b".to_string(),
             branch: None,
             ignore: vec!["dist/".to_string(), "*.tmp".to_string()],
@@ -93,7 +113,7 @@ mod tests {
 
     #[test]
     fn emits_all_fields_when_present() {
-        let out = emit(&InitArgs {
+        let (out, _) = emit(&InitArgs {
             repo: "owner/name".to_string(),
             branch: Some("main".to_string()),
             ignore: vec![
@@ -115,7 +135,7 @@ mod tests {
             branch: Some("dev".to_string()),
             ignore: vec!["dist/".to_string(), "*.tmp".to_string()],
         };
-        let toml_text = emit(&args);
+        let (toml_text, _) = emit(&args);
         let parsed: Config = toml::from_str(&toml_text).expect("emitted toml should parse");
         assert_eq!(parsed.repo.as_deref(), Some("owner/name"));
         assert_eq!(parsed.branch.as_deref(), Some("dev"));
@@ -132,10 +152,55 @@ mod tests {
             branch: None,
             ignore: vec![],
         };
-        let toml_text = emit(&args);
+        let (toml_text, _) = emit(&args);
         let parsed: Config = toml::from_str(&toml_text).expect("emitted toml should parse");
         assert_eq!(parsed.repo.as_deref(), Some("a/b"));
         assert_eq!(parsed.branch, None);
         assert!(parsed.ignore.is_empty());
+    }
+
+    #[test]
+    fn empty_repo_returns_config_error_with_exit_code_one() {
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let err = run(
+            &InitArgs {
+                repo: String::new(),
+                branch: None,
+                ignore: vec![],
+            },
+            &mut stdout,
+            &mut stderr,
+        )
+        .expect_err("empty repo must error");
+        assert!(matches!(err, GitlessError::Config(_)));
+        assert_eq!(err.exit_code(), 1);
+        let GitlessError::Config(msg) = &err else {
+            panic!("expected Config variant, got {err:?}");
+        };
+        assert!(
+            msg.contains("repo not specified"),
+            "expected 'repo not specified' substring, got: {msg}"
+        );
+        assert!(stdout.is_empty(), "stdout must stay empty on error");
+        assert!(stderr.is_empty(), "stderr hint must not emit on error path");
+    }
+
+    #[test]
+    fn emits_redirect_hint_to_stderr_on_success() {
+        let (_, hint) = emit(&InitArgs {
+            repo: "a/b".to_string(),
+            branch: None,
+            ignore: vec![],
+        });
+        assert_eq!(hint, format!("{STDERR_HINT}\n"));
+        assert!(
+            hint.contains("redirect stdout"),
+            "expected redirect hint, got: {hint}"
+        );
+        assert!(
+            hint.contains("gitless-sync.toml"),
+            "expected hint to mention target file, got: {hint}"
+        );
     }
 }
