@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-07T01:15:00Z (M2d 완료 — G-017 fix 박힘. M5a reset은 별도 commit.)
+- Last updated: 2026-05-07T01:18:00Z (M5a 측정 완료 — rayon 4.86x speedup. M5b로 ADR 0003 박제 진입 가능.)
 - Total tasks: 15 (M0, M1, M2a, M2b1, M2b2, M2c, M2d, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
-- Completed: 11 / 15
+- Completed: 12 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -167,7 +167,22 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
     - 본 측정 N=3 결과의 variance가 30% 초과 시 N=5로 확장 후 재계산.
     - 측정 도중 gh exit≠0 발생 시 G-015 transient retry policy 적용 (N=3 + 30s backoff). 3회 모두 실패 시 [!] + G-015 reference (auto-recovery 가능).
   - `[AUTO]` 환경(Windows + 실제 repo + 시점 timestamp) + 명령어 + raw timing(각 측정의 전체 시간 박제 — outlier 추적 가능).
-- **Status**: `[~]` — M2d 완료로 G-017 fix 박힘 (2026-05-07). 측정 진행 중.
+- **측정 결과 (2026-05-07T01:16~01:18Z)**:
+  - 환경: Windows 11 Pro 10.0.26100 / gh 2.88.1 / cargo 1.95.0 / release binary (`target/release/gitless-sync.exe`). wall-clock은 PowerShell `Measure-Command`.
+  - 대상: `KneShell/gitless-sync` @ main, local = `D:\00.Projects\02.Personal\05.gitless-sync`. 측정 직전 8개 commit된 `.md` 파일에 trailing newline 임시 추가 → 13개 path가 commits API 호출 분기 (양쪽 SHA 상이). 측정 종료 후 `git restore`로 복원, 코드 임시 변경(par_iter→iter)도 동시 revert.
+  - 명령어: `gitless-sync.exe scan --repo KneShell/gitless-sync --branch main --local <local> --summary-only`
+  - (a) rayon 8 concurrent (default `MAX_COMMITS_CONCURRENCY = 8`, `par_iter` 경로):
+    - warm-up dropped: 1395.1 ms
+    - N=3 raw ms: 1360.5, 1354.8, 1337.7
+    - mean 1351.0 ms / min 1337.7 / max 1360.5 / `(max-min)/mean` 1.7% (≪30%)
+  - (b) sequential (par_iter → iter, ThreadPool 우회 — 측정 후 revert 완료):
+    - warm-up dropped: 6897.0 ms
+    - N=3 raw ms: 6054.3, 6917.5, 6718.9
+    - mean 6563.6 ms / min 6054.3 / max 6917.5 / `(max-min)/mean` 13.2% (<30%)
+  - **speedup**: 6563.6 / 1351.0 ≈ **4.86x** (rayon 8c가 sequential보다 약 5배 빠름). 13 commits API 호출 기준 이론 max speedup 6.5x; 실제 4.86x는 subprocess spawn 오버헤드 + Trees/walk 공통 비용(약 1.3s)이 분모에 남아 발생한 비례 손실.
+  - variance 둘 다 30% 미만 → N=5 확장 불필요.
+  - gh exit≠0 발생 0회 → G-015 retry 미발동.
+- **Status**: `[x]`
 
 ### M5b. rayon 유지/제거 결정 + ADR 0003 박제 + spec/guardrail 갱신 `[AUTO]`
 - **Spec reference**: `docs/ralph/guardrails.md` § G-011, `docs/specs/spec-github-api.md` § 병렬 호출 정책
