@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-07T03:00:00Z (M7 진입 — 빌드 게이트 검증 시작.)
+- Last updated: 2026-05-07T03:30:00Z (M7 완료 — 빌드 게이트 통과: 154 tests, tarpaulin 90.47%, deny/audit clean.)
 - Total tasks: 15 (M0, M1, M2a, M2b1, M2b2, M2c, M2d, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
-- Completed: 13 / 15
+- Completed: 14 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -209,13 +209,24 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
 
 ### M7. 빌드 게이트 통과 검증 `[AUTO]`
 - **Spec reference**: `docs/ralph/project-ops.md` § Coverage, `CLAUDE.md` § Test coverage, G-007
-- **Files**: 미달 모듈에 unit test 추가 (필요 시)
+- **Files**: 미달 모듈에 unit test 추가 (필요 시) — 추가 0 (기존 154 tests로 90.47% 달성).
 - **Depends on**: M3, M4b, M5b, M6
 - **Acceptance criteria**:
   - `[AUTO]` `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --workspace`, `cargo deny check`, `cargo audit` 모두 통과.
   - `[AUTO]` `cargo tarpaulin --engine llvm --workspace --out Stdout` 라인 커버리지 ≥ 80%.
   - `[AUTO]` `cargo tree`로 `ureq`, `mockito` 의존성 부재 확인. (M5b에서 rayon 제거 결정 시 rayon도 부재.)
-- **Status**: `[~]`
+- **검증 결과 (2026-05-07T03:30:00Z)**:
+  - 환경: Windows 11 Pro / cargo 1.95.0 / gh 2.88.1 / `C:\Users\dasgut\.cargo\bin` PATH 주입.
+  - `cargo fmt --check` → exit 0.
+  - `cargo clippy --all-targets -- -D warnings` → exit 0 (warning 0).
+  - `cargo test --workspace` → exit 0 (142 unit + 12 integration = 154 tests pass, 0 failed, 0 ignored).
+  - `cargo tarpaulin --engine llvm --workspace --out Stdout` → exit 0, **90.47% (408/451 lines)**, 80% 게이트 통과.
+  - `cargo deny check` → exit 0 (advisories ok, bans ok, licenses ok, sources ok; unmatched license allowance warnings는 fail 아님).
+  - `cargo audit` → exit 0 (129 crate deps 스캔, vulnerabilities 0).
+  - `cargo tree -i ureq` → not found ✓ (M2c 삭제 확인).
+  - `cargo tree -i mockito` → not found ✓ (M2c 삭제 확인).
+  - `cargo tree -i rayon` → `rayon v1.12.0` 단일 path (M5b keep 결정 정렬).
+- **Status**: `[x]`
 
 ### M8. Self dogfooding contract step `[AUTO]`
 - **Spec reference**: ADR 0002 § Consequences, tribunal P3/P4 sema gap risk (#12)
