@@ -13,6 +13,7 @@ GitHub Trees / Blobs / Commits API를 `gh api` subprocess로 호출 (ADR 0001 + 
 - ADR 0003: rayon 8 concurrent 유지 결정 (M5a 측정 4.86x speedup) — REST backend 단독 시점.
 - ADR 0005: rayon은 REST backend 한정. GraphQL backend는 alias batching 단독 (Phase 4).
 - ADR 0006: default backend `rest` → `graphql` 전환 (Phase 4). REST는 `--backend rest` explicit fallback으로 유지.
+- ADR 0007: GraphQL alias batch size default 200 confirmed (P6a raw data 기반, 2026-05-07).
 
 ## 작업 범위
 
@@ -147,7 +148,7 @@ pub(crate) fn fetch_last_commit_at_batch(
 #### Alias batching 패턴
 
 - 한 alias = `history(first: 1, path: ...)` = 1 node. GitHub GraphQL node 한도 500,000 기준 1 path = 1 node로 직선 환산.
-- batch size **default 200** alias/request. `roadmap.md` § Phase 4 GraphQL batching 권장 상한과 일관 — P6a 측정 + P7a ADR 0007에서 confirm/조정.
+- batch size **default 200** alias/request (ADR 0007 confirmed). `roadmap.md` § Phase 4 GraphQL batching 권장 상한과 일관 — P6a 측정 결과 13 path scale에서 batch 100 vs 200은 1 chunk로 처리되어 functional 동등 + measurement noise 지배. yagni 일관으로 권장값 200 default 유지 결정.
 - paths가 batch size 초과 시 `paths.chunks(GRAPHQL_BATCH_SIZE)`로 순차 호출. chunk 응답을 `HashMap`으로 합산 (REST rayon과 달리 request 단위 추가 병렬화 없음 — ADR 0005).
 
 #### Path → alias mangling
@@ -248,7 +249,11 @@ GraphQL 응답에는 `data`와 `errors[]`가 공존할 수 있다 — 일부 ali
 
 #### batch size 변경 정책
 
-batch size 변경 시 본 § GraphQL backend + ADR 0007 동시 갱신 (P6a raw data → P7a ADR 박음). 단위 테스트의 chunk 분할 시나리오 (300 paths → 200+100 등)도 결정값에 정렬.
+batch size 변경 시 본 § GraphQL backend + ADR 0007 동시 갱신 (P6a raw data → P7a ADR 0007 박힘, batch 200 default confirmed). 단위 테스트의 chunk 분할 시나리오 (300 paths → 200+100 등)도 결정값에 정렬.
+
+변경 트리거 (ADR 0007 § 향후 재평가 트리거):
+- secondary rate limit (점수 기반) 발생 시 batch size 하향 + ADR 0007 갱신.
+- vault scale (수백~천 path) 측정에서 batch 100 vs 200 식별 가능한 차이 surface 시 raw data 박고 재결정.
 
 ### 병렬 호출 정책 (Latency)
 

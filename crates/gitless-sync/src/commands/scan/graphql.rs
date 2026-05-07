@@ -29,8 +29,12 @@ use super::github::map_gh_error;
 
 /// Number of alias entries packed into a single `gh api graphql` request.
 ///
-/// Default 200 per `roadmap.md` § Phase 4 GraphQL batching. P6a measures the
-/// 100-vs-200 trade-off and P7a (ADR 0007) confirms or adjusts.
+/// Default 200 per `roadmap.md` § Phase 4 GraphQL batching, confirmed by
+/// ADR 0007 (P6a raw data, 2026-05-07): at 13-path scale batch 100 vs 200
+/// resolve to a single chunk and are functionally equivalent — measurement
+/// noise dominated. yagni keeps the recommended ceiling. Any change requires
+/// a coordinated update of this constant + `spec-github-api.md` § GraphQL
+/// backend + ADR 0007.
 pub(crate) const GRAPHQL_BATCH_SIZE: usize = 200;
 
 /// Fetch the timestamp of the most recent commit per path on `branch`.
