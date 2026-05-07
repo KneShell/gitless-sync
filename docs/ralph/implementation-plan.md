@@ -54,7 +54,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - § Consequences: `--force` / `--write` / 충돌 처리 코드 0. CLAUDE.md/ADR 0001 룰 갱신 0. README + --help + stderr hint 보강 필요 (P6에서 처리).
     - § References: ADR 0001, `spec-cli-interface.md`, sample CLI 패턴(`gh api > out.json`).
   - `[AUTO]` `CLAUDE.md` § Current State 갱신: "Phase 2 진행 중 — `gitless-sync init` (ADR 0004 stdout redirect)" 한 줄 추가.
-  - `[AUTO]` `CLAUDE.md` § 사용자 취향 결정 또는 § 검증된 함정에 "init은 도구가 파일 작성 안 함, stdout TOML + redirect 패턴 (ADR 0004)" 한 줄 박음.
+  - `[AUTO]` `CLAUDE.md` § 사용자 취향 결정 (검증·토론 대상 X) section에 "init은 도구가 파일 작성 안 함, stdout TOML + redirect 패턴 (ADR 0004)" 한 줄 박음.
 - **Status**: `[ ]`
 
 ### P2. spec 갱신 — Phase 2 init 정의 `[AUTO, spec-only]`
@@ -70,7 +70,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
 
 ### P3. init mod 신규 + CLI 디스패치 + TOML 직렬화 + 단위 테스트 매트릭스 `[AUTO, 코드]`
 - **Spec reference**: `spec-cli-interface.md` § init subcommand (P2 갱신본), `spec-config.md` § 스키마
-- **Files**: `crates/gitless-sync/src/commands/init/mod.rs` (신규), `crates/gitless-sync/src/commands/mod.rs` (init 모듈 노출 — `pub(crate) mod init;`), `crates/gitless-sync/src/main.rs` (clap subcommand + 디스패치), `crates/gitless-sync/src/lib.rs` (init 모듈 export — 통합 테스트가 진입점 호출)
+- **Files**: `crates/gitless-sync/src/commands/init/mod.rs` (신규), `crates/gitless-sync/src/commands/mod.rs` (init 모듈 노출 — `pub(crate) mod init;`), `crates/gitless-sync/src/main.rs` (clap subcommand + 디스패치), `crates/gitless-sync/src/lib.rs` (init 모듈 export — 통합 테스트가 진입점 호출), `crates/gitless-sync/src/shared/error.rs`, `crates/gitless-sync/src/shared/hash.rs`, `crates/gitless-sync/src/shared/normalize.rs`, `crates/gitless-sync/src/commands/scan/compare.rs`, `crates/gitless-sync/src/commands/scan/output.rs` (lib export로 surface된 pedantic clippy `must_use` / `# Errors` / `# Panics` 동반 정리 — v0.2 M4a Files 확장 선례, 발생 시만 수정)
 - **Depends on**: P2
 - **Acceptance criteria**:
   - `[AUTO]` `commands/init/mod.rs` 신규:
@@ -90,6 +90,8 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - repo + ignore (2개): `--ignore "dist/" --ignore "*.tmp"` → `ignore = ["dist/", "*.tmp"]`
     - 모든 필드: repo + branch + ignore (다중)
     - **round-trip 검증**: emit된 TOML이 `toml::from_str::<Config>` 파싱 통과 + 모든 필드 일치.
+  - `[AUTO]` **emit 형식 baseline**: v0.1 `shared/config.rs::Config` struct round-trip 통과 기준 — 충돌 시 emit 측 조정 (Config struct는 baseline, 변경 금지).
+  - `[AUTO]` **lib export cascade 정리**: init mod export로 surface된 pedantic clippy warning(`must_use` / `# Errors` / `# Panics` 등)은 본 task Files 영역 안에서 동반 정리. 영역 초과 시 [!] + 사람이 plan Files 확장 결정 후 reset (ralph 자율 회복 0 — § Constraints 영역 룰).
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
 - **Status**: `[ ]`
 
@@ -113,10 +115,12 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
 - **Files**: `crates/gitless-sync/tests/integration.rs`
 - **Depends on**: P4
 - **Acceptance criteria**:
-  - `[AUTO]` 시나리오 16 (init 정상 emit): `cargo run -- init --repo a/b --branch main --ignore "*.tmp"` → stdout 캡처 → `toml::from_str::<Config>` 파싱 통과 → repo/branch/ignore 모든 필드 일치. exit 0.
-  - `[AUTO]` 시나리오 17 (init repo 미명시): `cargo run -- init --branch main` → exit 1 + stderr JSON에 `error_code: "CONFIG"` + `message`에 "repo not specified" substring 포함.
-  - `[AUTO]` 시나리오 18 (init stderr hint): 정상 init 실행 후 stderr 캡처 → `redirect stdout` substring 포함 확인.
-  - `[AUTO]` 시나리오 19 (init → scan 라운드트립): init stdout 캡처 → tempdir에 `gitless-sync.toml` 작성 → 같은 tempdir에서 `commands::scan::run_with_client(&args, &MockGhClient stub)` 호출 → toml에서 repo/branch 자동 로드 + scan 정상 동작 확인 (MockGhClient stub 응답 정상 시).
+  - `[AUTO]` **테스트 패턴**: library entry(`commands::init::run` / `commands::scan::run_with_client`) 직접 호출 + writer / MockGhClient inject. `cargo run --` 자식 프로세스 호출은 P8 dogfooding 한정 — Windows + PowerShell EOL/encoding 잡음 회피. exit code 검증은 `err.exit_code()` 메서드로 대체.
+  - `[AUTO]` 시나리오 16 (init 정상 emit): `commands::init::run(&InitArgs { repo, branch, ignore }, &mut Vec<u8>)` → `Ok(())` + Vec capture → `toml::from_str::<Config>` 파싱 통과 + repo/branch/ignore 모든 필드 일치.
+  - `[AUTO]` 시나리오 17 (init repo 미명시): `InitArgs { repo: "".into(), .. }` → `Err(GitlessError::Config(_))` + `err.exit_code() == 1` + `err.error_code() == "CONFIG"` + 에러 메시지에 "repo not specified" substring.
+  - `[AUTO]` 시나리오 18 (init stderr hint): 정상 init 실행 시 stderr writer inject로 capture → `redirect stdout` substring 포함.
+  - `[AUTO]` 시나리오 19 (init → scan 라운드트립): init writer로 TOML capture → tempdir에 작성 → 같은 tempdir 기반 ScanArgs build → `commands::scan::run_with_client(&args, &MockGhClient stub)` 호출 → toml에서 repo/branch 자동 로드 + scan 정상 동작 확인 (MockGhClient stub 응답 정상 시).
+  - `[AUTO]` **escalation**: 시나리오 19 단독 실패 + 16~18 통과 시 P5 통째 [!] + 사람이 P5 분할(P5a/P5b) 또는 19를 별도 escalation task로 분리 결정. ralph 자율 회복 0 (라운드트립 정합 충돌 가능성 — 영구 신호).
   - `[AUTO]` `cargo test --test integration` 전체 통과.
 - **Status**: `[ ]`
 
@@ -152,6 +156,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
 - **Files**: 박제 0. 실행 결과는 task `[x]` commit message에 카운트만 인라인.
 - **Depends on**: P7
 - **Acceptance criteria**:
+  - `[AUTO]` **진입 사전 점검**: `gh auth status` exit 0 확인. 실패(인증 만료 / scope 부족) 시 즉시 [!] + 명시 메시지 ("P8 dogfooding requires `gh auth status` exit 0 — run `gh auth refresh -s repo` or `gh auth login`"). G-015 영구 신호 — auto-recovery 대상 아님, 사람 대기.
   - `[AUTO]` ralph 환경에서 release 빌드: `cargo build --release` exit 0.
   - `[AUTO]` `cargo run --release -- init --repo KneShell/gitless-sync --branch main` 실행 → stdout 캡처 → tempdir의 `gitless-sync.toml`로 작성. exit 0.
   - `[AUTO]` 작성된 toml이 `toml::from_str::<Config>` 파싱 통과 + repo/branch 필드 일치.

@@ -55,3 +55,4 @@
   - `cargo run -- scan` exit code ≠ 0 + stderr에 network 키워드
   - 영구 signal (즉시 [!] + 별도 G-NNN 신규): gh stderr `HTTP 401`(인증 만료, 사람 회복 필요), `gh: command not found`/`Command::new` IO err(미설치), spec/code 정합 충돌, parse error 등.
 - **auto-recovery**: G-015로 [!] 박힌 task는 `prompt-build.md` § 1 [!] auto-recovery 룰에 따라 다음 iteration 자동 [!]→[ ] reset. 사람 개입 0. 영구 사유는 사람 대기.
+- **경계 모호 case**: stderr 패턴이 transient/permanent 분류 모호한 경우(예: gh `HTTP 503` 단발 vs backend 영구 issue). default는 transient retry 시도(N=3 + 30s backoff). 3회 실패 시 [!] + commit message에 stderr 본문 박음(grep 가능 형태). 사람이 패턴 보고 G-015 substring 추가 또는 새 G-NNN 박은 후 task reset.
