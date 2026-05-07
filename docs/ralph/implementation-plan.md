@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-07 (Phase 4 진입 — GraphQL batching + 로컬 SHA mtime cache)
 - Total tasks: 15 (P1, P2, P3a, P3b, P4, P5a, P5b, P5c, P6a, P6b, P6c, P7a, P7b, P8, P9)
-- Completed: 12 / 15
+- Completed: 13 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -354,7 +354,8 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - 제거 시: cache.rs 통째 삭제 + walker.rs/mod.rs cache 통합 코드 삭제 + lib.rs cache export 삭제 + Cargo.toml `dirs` 삭제 + Cargo.lock 갱신 + spec-config § cache 섹션 삭제 + ADR 0009 본문에 "**2026-05-07 obsolete by ADR 0008**: cache 효과 미달로 제거 결정" 한 줄 추가 + CLAUDE.md § Critical Rules § 도구 본성 한 줄 (Internal cache 예외 ...) 제거 + § 사용자 취향 결정에서 cache 관련 한 줄 제거.
   - `[AUTO]` `CLAUDE.md` Current State 갱신: ADR 0007 + ADR 0008 결정 박스 추가.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`, `cargo deny check`, `cargo audit` 통과 (cache 제거 시 dirs 부재 확인).
-- **Status**: `[~]`
+- **Decision (2026-05-07)**: P6c raw data — N=3 cold/warm speedup **1.040x**, N=5 **0.988x**, 둘 다 < 1.5x 제거 영역 (경계도 아님). **Cache 제거 결정 confirmed**. ADR 0008 박힘 + ADR 0009 obsolete 마크 + spec-config § Cache 본문 단축 + CLAUDE.md Current State / 도구 본성 한 줄 정리. 코드: `crates/gitless-sync/src/shared/cache.rs` 삭제 + `shared/mod.rs` `pub mod cache` 제거 + `commands/scan/mod.rs` cache load/save 진입점 + `build_pre_entries` lookup/insert 분기 제거 (`assemble_entries` 인자 단순화) + `Cargo.toml` `dirs = "5"` (production + dev) 제거 + `Cargo.lock` 자동 재생성 (129 crate, dirs/dirs-sys/option-ext 0). 통합 테스트 시나리오 22/23/25 + cache helper(cache_file_for / sanitize_component_local / cleanup_cache_for) 제거. validation: fmt --check OK / clippy --all-targets -- -D warnings OK / cargo test --workspace 188 pass (167 unit + 21 integration) / tarpaulin 90.09% (500/555) / cargo deny check OK / cargo audit OK (exit 0).
+- **Status**: `[x]`
 
 ### P8. coverage 게이트 통과 검증 (phase-final, M7 패턴) `[AUTO]`
 - **Spec reference**: `docs/ralph/project-ops.md` § Coverage, `CLAUDE.md` § Test coverage, G-007, G-012, G-013

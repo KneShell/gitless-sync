@@ -26,7 +26,16 @@
 
 **Phase 2 완료 (2026-05-07)** — `gitless-sync init` 8 task ralph 자율 진행 종료, **167 tests pass, tarpaulin 89.55%**. P8 dogfooding 통과 (init → tempdir/toml → scan --local 라운드트립, summary 0/1/43/0/0 = 44 files invariant 일치, scan에서 toml 자동 로드 확인).
 
-**Phase 4 진행 중 (2026-05-07)** — GraphQL batching + mtime cache (ADR 0005/0006/0009). default backend `rest` → `graphql` 전환, REST는 explicit fallback 유지. GraphQL backend는 rayon 미사용(alias batching 자체가 병렬). internal cache는 read-only 본성의 예외로 명확화.
+**Phase 4 진행 중 (2026-05-07)** — GraphQL batching (ADR 0005/0006). default backend `rest` → `graphql` 전환, REST는 explicit fallback 유지. GraphQL backend는 rayon 미사용(alias batching 자체가 병렬).
+
+**ADR 0007 (2026-05-07)**: GraphQL batch size 200 default 유지 박제. `docs/adr/0007-graphql-batch-size.md`.
+- P6a 측정: 13 path scale에서 batch 100/200은 1 chunk로 functional 동등. wire latency 단발 spike(GraphQL `committedDate` 자연 변동)가 batch size 효과보다 한 자릿수 큼.
+- yagni + roadmap.md § Phase 4 권장 상한 일관 → batch 200 confirmed.
+
+**ADR 0008 (2026-05-07)**: mtime cache 제거 결정. `docs/adr/0008-mtime-cache-keep-or-drop.md`.
+- P6c 측정: 50 path scale에서 cold/warm speedup 1.040x (N=3) / 0.988x (N=5) — 둘 다 < 1.5x 제거 영역, 경계도 아님.
+- cache 본체(`shared/cache.rs` ~360 LOC + `dirs` crate dep + `scan/mod.rs` cache 진입점) 제거. ADR 0009 obsolete cascade.
+- 50 path scale 한정 — 1000+ path scale에서 hash 비중이 늘어 speedup이 커질 가능성은 v0.3+에서 재검토.
 
 **다음 세션 진입점 후보**: Phase 5(도메인 함정).
 
@@ -87,7 +96,6 @@ crates/gitless-sync/src/
 
 ### 도구 본성
 - **Read-only (영구).** 어떤 task든 파일 쓰기·원격 변경을 도입해서는 안 된다. write 도구를 만들지 않는다 (ADR 0001).
-  - Read-only는 **user 데이터·원격 보존**이 본질. Internal cache는 예외 (ADR 0009).
 - **사실만 제공.** 도구는 결정을 내리지 않는다. AI/사람이 결과를 보고 다음 액션을 결정.
 - **임의 디렉토리 + 임의 GitHub repo 간 비교.** vault 같은 특정 도메인 종속 금지.
 

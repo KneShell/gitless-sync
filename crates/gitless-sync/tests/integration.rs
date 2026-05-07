@@ -598,24 +598,18 @@ fn scenario_19_init_output_round_trips_into_scan_run() {
 }
 
 // ===========================================================================
-// P5c — PRD scenarios 20-25 (GraphQL backend + mtime cache)
+// P5c — PRD scenarios 20, 21, 24 (GraphQL backend + cross-backend parity)
 // ===========================================================================
 //
 // Scenarios 20-21 exercise the GraphQL backend (ADR 0006) end-to-end through
-// `build_report` / `run_with_client`. Scenarios 22-23, 25 exercise the mtime
-// cache (ADR 0009) by running the same `ScanArgs` twice and asserting the
-// observable effect on the second pass — `build_report` writes the cache to
-// the OS user-cache directory between calls. Scenario 24 asserts cross-backend
+// `build_report` / `run_with_client`. Scenario 24 asserts cross-backend
 // equivalence: REST and GraphQL must produce byte-identical `summary` and
 // `files[]` sets when fed equivalent stub data.
 //
-// Tests rely on each scenario owning a unique `repo` slug so the per-scan
-// cache file is isolated from siblings, and they delete the cache file up
-// front to start every run from a known state.
+// Scenarios 22, 23, 25 (mtime cache matrix) were retired by ADR 0008
+// (2026-05-07) — cache itself was removed after P6c measured speedup ≈ 1.0x.
 
 use std::fmt::Write as _;
-use std::path::PathBuf;
-use std::time::Duration;
 
 fn graphql_ok_body(entries: &[(&str, &str)]) -> String {
     let mut alias_entries = String::new();
@@ -637,41 +631,6 @@ fn graphql_err_body(code: &str, message: &str) -> String {
     )
 }
 
-/// Mirrors `crate::shared::cache::cache_path` so integration tests can locate
-/// (and clobber) the cache file without exposing the production helper.
-/// Sanitization rules must match `shared::cache::sanitize_component`; the spec
-/// fixtures in `cache.rs::tests` keep them aligned.
-fn cache_file_for(repo: &str, branch: &str) -> PathBuf {
-    let base = dirs::cache_dir().expect("OS user-cache directory available");
-    let filename = format!(
-        "{}__{}.json",
-        sanitize_component_local(repo),
-        sanitize_component_local(branch),
-    );
-    base.join("gitless-sync").join(filename)
-}
-
-fn sanitize_component_local(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars() {
-        if c == '/' {
-            out.push_str("__");
-        } else if matches!(c, '<' | '>' | ':' | '"' | '\\' | '|' | '?' | '*') {
-            out.push('_');
-        } else {
-            out.push(c);
-        }
-    }
-    out
-}
-
-fn cleanup_cache_for(repo: &str, branch: &str) {
-    let path = cache_file_for(repo, branch);
-    if path.exists() {
-        let _ = fs::remove_file(&path);
-    }
-}
-
 // ---- PRD 시나리오 20: GraphQL backend 정상 (drift trigger → committedDate 매핑) ----
 
 #[test]
@@ -681,7 +640,6 @@ fn scenario_20_graphql_backend_returns_normal_scan_report() {
 
     let repo = "p5c-test/scenario-20-graphql-ok";
     let branch = "main";
-    cleanup_cache_for(repo, branch);
 
     let mut mock = TestGhClient::new();
     let trees_body = r#"{"sha":"x","tree":[{"path":"a.md","mode":"100644","type":"blob","sha":"remote-different","size":12}],"truncated":false}"#;
@@ -713,7 +671,6 @@ fn scenario_21_graphql_rate_limited_extension_maps_to_rate_limit_exceeded() {
     fs::write(dir.path().join("a.md"), "x\n").unwrap();
     let repo = "p5c-test/scenario-21-rate";
     let branch = "main";
-    cleanup_cache_for(repo, branch);
 
     let mut mock = TestGhClient::new();
     let trees_body = r#"{"sha":"x","tree":[{"path":"a.md","mode":"100644","type":"blob","sha":"different","size":2}],"truncated":false}"#;
@@ -737,7 +694,6 @@ fn scenario_21_graphql_unauthenticated_extension_maps_to_auth_failed() {
     fs::write(dir.path().join("a.md"), "x\n").unwrap();
     let repo = "p5c-test/scenario-21-auth";
     let branch = "main";
-    cleanup_cache_for(repo, branch);
 
     let mut mock = TestGhClient::new();
     let trees_body = r#"{"sha":"x","tree":[{"path":"a.md","mode":"100644","type":"blob","sha":"different","size":2}],"truncated":false}"#;
@@ -761,7 +717,6 @@ fn scenario_21_graphql_not_found_extension_falls_through_to_http() {
     fs::write(dir.path().join("a.md"), "x\n").unwrap();
     let repo = "p5c-test/scenario-21-notfound";
     let branch = "main";
-    cleanup_cache_for(repo, branch);
 
     let mut mock = TestGhClient::new();
     let trees_body = r#"{"sha":"x","tree":[{"path":"a.md","mode":"100644","type":"blob","sha":"different","size":2}],"truncated":false}"#;
@@ -783,96 +738,6 @@ fn scenario_21_graphql_not_found_extension_falls_through_to_http() {
     }
 }
 
-// ---- PRD 시나리오 22: cache miss → hit (mtime 보존 + 내용 변경 → cache hit이면 1차 SHA 그대로) ----
-
-#[test]
-fn scenario_22_cache_hit_reuses_sha_when_mtime_preserved() {
-    let dir = TempDir::new().unwrap();
-    let path = dir.path().join("a.md");
-    fs::write(&path, "alpha\n").unwrap();
-    let original_mtime = fs::metadata(&path).unwrap().modified().unwrap();
-    let local_sha = lf_blob_hash("alpha\n");
-
-    let repo = "p5c-test/scenario-22-cache-hit";
-    let branch = "main";
-    cleanup_cache_for(repo, branch);
-
-    let mut mock = TestGhClient::new();
-    let trees_body = format!(
-        r#"{{"sha":"x","tree":[{{"path":"a.md","mode":"100644","type":"blob","sha":"{local_sha}","size":6}}],"truncated":false}}"#
-    );
-    mock.stub(tree_args(repo, branch), ok_resp(trees_body.as_bytes()));
-
-    let args = args_for(dir.path(), repo);
-
-    // 1차 scan — cache miss → hash + populate. SHA matches the tree → identical.
-    let json1 = run_to_json(&args, &mock);
-    assert_eq!(json1["summary"]["identical"], 1);
-
-    // Rewrite raw bytes with different content but restore the original mtime.
-    // A cache *miss* on pass 2 would re-hash and detect divergence
-    // (LocalOnlyChanged); a cache *hit* keeps the cached SHA → identical.
-    fs::write(&path, "DIFFERENT-CONTENT-WOULD-HASH-ELSEWHERE\n").unwrap();
-    let f = fs::OpenOptions::new().write(true).open(&path).unwrap();
-    f.set_modified(original_mtime)
-        .expect("std::fs::File::set_modified must succeed (Rust >= 1.75)");
-    drop(f);
-
-    let json2 = run_to_json(&args, &mock);
-    assert_eq!(
-        json2["summary"]["identical"], 1,
-        "cache hit should reuse the cached SHA → identical preserved"
-    );
-    assert_eq!(json2["summary"]["local_only_changed"], 0);
-}
-
-// ---- PRD 시나리오 23: cache invalidate (mtime 변경 시 re-hash) ----
-
-#[test]
-fn scenario_23_cache_invalidate_rehashes_when_mtime_changes() {
-    let dir = TempDir::new().unwrap();
-    let path = dir.path().join("a.md");
-    fs::write(&path, "alpha\n").unwrap();
-    let local_sha = lf_blob_hash("alpha\n");
-
-    let repo = "p5c-test/scenario-23-cache-invalidate";
-    let branch = "main";
-    cleanup_cache_for(repo, branch);
-
-    let mut mock = TestGhClient::new();
-    let trees_body = format!(
-        r#"{{"sha":"x","tree":[{{"path":"a.md","mode":"100644","type":"blob","sha":"{local_sha}","size":6}}],"truncated":false}}"#
-    );
-    mock.stub(tree_args(repo, branch), ok_resp(trees_body.as_bytes()));
-    // Pass 2 hashes the rewritten file → SHA diverges from tree, classifier
-    // hits the drift branch and calls Commits API. Old commit date forces
-    // LocalOnlyChanged so the cache-invalidate signal is unambiguous.
-    mock.stub(
-        commits_args(repo, branch, "a.md"),
-        ok_resp(commits_body_with_date("2020-01-01T00:00:00Z").as_bytes()),
-    );
-
-    let args = args_for(dir.path(), repo);
-
-    // 1차 scan — identical with cached SHA stored against the initial mtime.
-    let json1 = run_to_json(&args, &mock);
-    assert_eq!(json1["summary"]["identical"], 1);
-
-    // Wait long enough for the mtime to actually advance (NTFS / ext4 / APFS
-    // all resolve at ≤ 1 ms in practice; 50 ms is comfortably above noise).
-    std::thread::sleep(Duration::from_millis(50));
-    fs::write(&path, "BETA-LOCAL-DRIFT\n").unwrap();
-
-    // mtime moved → cache lookup misses → re-hash. New SHA != tree sha →
-    // LocalOnlyChanged.
-    let json2 = run_to_json(&args, &mock);
-    assert_eq!(
-        json2["summary"]["identical"], 0,
-        "stale mtime should invalidate cache and re-hash"
-    );
-    assert_eq!(json2["summary"]["local_only_changed"], 1);
-}
-
 // ---- PRD 시나리오 24: REST / GraphQL 결과 정합성 (summary + files set 동일) -----
 
 #[test]
@@ -881,7 +746,6 @@ fn scenario_24_cross_backend_produces_identical_report() {
     fs::write(dir.path().join("a.md"), "alpha-local\n").unwrap();
     let repo = "p5c-test/scenario-24-cross-backend";
     let branch = "main";
-    cleanup_cache_for(repo, branch);
 
     let trees_body = r#"{"sha":"x","tree":[{"path":"a.md","mode":"100644","type":"blob","sha":"deadbeef","size":12}],"truncated":false}"#;
     let commit_date = "2020-01-01T00:00:00Z";
@@ -922,57 +786,4 @@ fn scenario_24_cross_backend_produces_identical_report() {
     rest_files.sort_by(|a, b| a["path"].as_str().unwrap().cmp(b["path"].as_str().unwrap()));
     graphql_files.sort_by(|a, b| a["path"].as_str().unwrap().cmp(b["path"].as_str().unwrap()));
     assert_eq!(rest_files, graphql_files);
-}
-
-// ---- PRD 시나리오 25: cache 파일 손상 → graceful (warning + scan 정상) ----
-
-#[test]
-fn scenario_25_corrupt_cache_file_resets_gracefully() {
-    let dir = TempDir::new().unwrap();
-    fs::write(dir.path().join("a.md"), "alpha\n").unwrap();
-    let local_sha = lf_blob_hash("alpha\n");
-
-    let repo = "p5c-test/scenario-25-cache-corrupt";
-    let branch = "main";
-    cleanup_cache_for(repo, branch);
-
-    let mut mock = TestGhClient::new();
-    let trees_body = format!(
-        r#"{{"sha":"x","tree":[{{"path":"a.md","mode":"100644","type":"blob","sha":"{local_sha}","size":6}}],"truncated":false}}"#
-    );
-    mock.stub(tree_args(repo, branch), ok_resp(trees_body.as_bytes()));
-
-    let args = args_for(dir.path(), repo);
-
-    // 1차 scan — populates the cache file on disk.
-    let json1 = run_to_json(&args, &mock);
-    assert_eq!(json1["summary"]["identical"], 1);
-
-    // Corrupt the on-disk cache with non-JSON garbage. `Cache::load` must
-    // detect the parse failure, emit a warning, and return `Cache::default()`.
-    let cache_path = cache_file_for(repo, branch);
-    assert!(
-        cache_path.exists(),
-        "first scan must have written a cache file at {}",
-        cache_path.display()
-    );
-    fs::write(&cache_path, b"INVALID-JSON-GARBAGE-NOT-PARSABLE").unwrap();
-
-    // 2차 scan — graceful fallback. Behaves like a cold run; the report shape
-    // is identical to pass 1 because the file/tree haven't changed.
-    let json2 = run_to_json(&args, &mock);
-    assert_eq!(
-        json2["summary"]["identical"], 1,
-        "corrupt cache must reset to default and let the scan complete"
-    );
-
-    // The corrupt bytes must have been overwritten by `save` at the end of
-    // pass 2 — round-tripping confirms the cache lifecycle recovered cleanly.
-    let after = fs::read(&cache_path).unwrap();
-    assert_ne!(
-        after, b"INVALID-JSON-GARBAGE-NOT-PARSABLE",
-        "save at end of pass 2 should overwrite the garbage with valid JSON"
-    );
-    let parsed: Value = serde_json::from_slice(&after).expect("rewritten cache must be valid JSON");
-    assert_eq!(parsed["version"], 1, "version field after recovery");
 }

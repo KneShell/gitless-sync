@@ -21,7 +21,6 @@ ignore = "0.4"
 thiserror = "2"
 anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
-dirs = "5"
 toml = "0.8"
 base64 = "0.22"
 rayon = "1"
@@ -31,7 +30,6 @@ similar = "3"
 tempfile = "3"
 assert_cmd = "2"
 predicates = "3"
-dirs = "5"
 
 [[bin]]
 name = "gitless-sync"
