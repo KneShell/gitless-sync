@@ -340,7 +340,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `spec-github-api.md` § GraphQL backend batch size baseline 확정 박제 (P2 박은 default 200 → ADR 0007 결정값으로 갱신).
   - `[AUTO]` `graphql.rs::GRAPHQL_BATCH_SIZE` 상수 갱신 (결정값 != 200이면). 단위 테스트의 `paths > batch size (300 → chunk 두 번: 200+100)` 케이스도 결정값에 정렬.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### P7b. ADR 0008 + cache 유지/제거 결정 + 코드/spec 처리 `[AUTO, 문서/spec/코드]`
 - **Spec reference**: P6c raw data, § Phase 4 사전 결정 §15 임계값
