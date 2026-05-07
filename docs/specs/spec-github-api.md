@@ -8,11 +8,9 @@ GitHub Trees / Blobs / Commits API를 `gh api` subprocess로 호출 (ADR 0001 + 
 
 ## 현재 상태
 
-- **결정 박힘**:
-  - ADR 0001: `gh` subprocess 단일 통로 + read-only 영구.
-  - ADR 0002: v0.1 ureq baseline 일괄 마이그레이션. ureq + mockito 의존성 제거.
-- **코드 baseline**: ureq 함수 잔존 (마이그레이션 task M2b1/M2b2가 본체 재작성, M2c가 의존성 정리). 본 spec은 마이그레이션 후 단일 baseline.
-- **마이그레이션 task 매핑**: M2a (trait/Real/Mock 골격) → M2b1 (`fetch_tree` + `run_with_client` entry) → M2b2 (`fetch_blob` + `fetch_last_commit_at` + `run_with_base` 정리) → M2c (의존성 + guardrail 정리).
+- ADR 0001: `gh` subprocess 단일 통로 + read-only 영구.
+- ADR 0002: v0.1 ureq baseline → gh subprocess 마이그레이션 완료 (2026-05-07). ureq + mockito 의존성 제거. 단일 baseline.
+- ADR 0003: rayon 8 concurrent 유지 결정 (M5a 측정 4.86x speedup).
 
 ## 작업 범위
 
@@ -150,4 +148,3 @@ v0.1 ureq baseline 시그니처에서 `token` 인자 제거 + `client: &impl GhC
 - `[AUTO]` `fetch_last_commit_at`가 MockGhClient stub 응답에서 첫 commit의 date를 `DateTime<Utc>`로 파싱.
 - `[AUTO]` `fetch_last_commit_at`가 빈 commits 배열 응답 → `GitlessError::Http(...)` (예상 외 케이스).
 - `[AUTO]` `RealGhClient::new()` 호출 후 `gh` 미존재 환경에서 첫 `api()` 호출이 `GitlessError::Config("gh CLI not found in PATH; install from https://cli.github.com/")` 반환.
-- ~~`[HUMAN]` 실제 GitHub repo + 실제 PAT(Fine-grained `Contents: Read`)로 `fetch_tree` 1회 통합 검증.~~ **OBSOLETE (ADR 0001).** vault 실전 검증 (2026-04-29, OAuth via `gh auth token`, 356 파일)으로 입증. PAT 권한 가이드는 gh subprocess 채택으로 도구 책임 밖.

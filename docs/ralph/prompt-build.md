@@ -20,7 +20,7 @@ Read in this order, fully:
 - Follow the architecture in `CLAUDE.md`: vertical slice (`commands/<name>/`) vs `shared/`. Don't put command-specific logic in `shared/`.
 - Replace `todo!()` with real implementations. If a function signature needs to change, update the corresponding spec acceptance criterion in `implementation-plan.md` first.
 - Add unit tests in the same file (`#[cfg(test)] mod tests`). Coverage gate is 80% (`project-ops.md`).
-- GitHub API mocking uses `GhClient` trait + `MockGhClient` inject (M0~M2). M2 완료 후 `mockito` import 추가 금지. M2 진행 중 룰은 `guardrails.md` G-009 참조.
+- GitHub API mocking uses `GhClient` trait + `MockGhClient` inject. ureq + mockito 의존성은 ADR 0002로 제거됨 — 추가 금지.
 
 ## 3. Validation (Backpressure)
 Run in order. Do NOT proceed to step 4 until all pass.

@@ -2,16 +2,6 @@
 
 > 이 파일은 ralph가 자동 로드하지 않는다. 사람이 v0.1 완료 후 다음 phase 진입할 때 참조.
 
-## Next Up — v0.1 ureq → gh subprocess 일괄 마이그레이션
-
-> ADR 0002 (2026-05-06) 결정. 상세는 `docs/adr/0002-migrate-v0.1-to-gh-subprocess.md`.
-
-- v0.1 scan/diff REST 호출을 `gh api` subprocess로 전환. ureq + mockito 의존성 제거.
-- `--token` 인자 + `resolve_token` 경로 제거. 인증은 `gh auth login`로 단일화.
-- 통합 테스트는 mockito 기반에서 gh stub 기반으로 재설계. 전략 결정이 선행 task.
-- guardrail G-003 / G-011은 도구 책임 종료. rayon 유지 여부는 마이그레이션 후 측정으로 결정.
-- 에러 매핑(`GitlessError::AuthFailed` 등)은 gh 종료 코드 + stderr 파싱으로 재정의. `spec-error-contracts.md` 갱신.
-
 ## Phase 2 — 편의 명령어
 - `gitless-sync init` — `gitless-sync.toml` 설정 파일 생성 도우미.
   - 입력: `--repo`, `--branch` 등 인자 또는 prompt
