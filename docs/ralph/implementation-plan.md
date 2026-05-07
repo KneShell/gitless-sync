@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-07 (Phase 2 P6 완료 — README Quick Start + clap Init after_help)
+- Last updated: 2026-05-07 (Phase 2 P7 완료 — coverage 89.55%, fmt/clippy/test/deny/audit 게이트 통과)
 - Total tasks: 8 (P1, P2, P3, P4, P5, P6, P7, P8)
-- Completed: 6 / 8
+- Completed: 7 / 8
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -141,7 +141,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
 - **Status**: `[x]`
 
-### P7. coverage 게이트 통과 검증 (phase-final) `[AUTO]` `[~]`
+### P7. coverage 게이트 통과 검증 (phase-final) `[AUTO]` `[x]`
 - **Spec reference**: `docs/ralph/project-ops.md` § Coverage, `CLAUDE.md` § Test coverage, G-007, G-012, G-013
 - **Files**: 미달 모듈에 unit test 추가 (필요 시), `deny.toml` (신규 의존성 도입 시)
 - **Depends on**: P6
@@ -149,7 +149,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --workspace`, `cargo deny check`, `cargo audit` 모두 통과.
   - `[AUTO]` `cargo tarpaulin --engine llvm --workspace --out Stdout` 라인 커버리지 ≥ 80%.
   - `[AUTO]` `cargo tree`로 신규 의존성 점검. Phase 2가 `toml` crate 신규 도입 시 deny.toml 라이선스 화이트리스트 갱신 + `cargo deny check` 재통과 확인. (`toml`이 이미 transitive로 박혀 있으면 추가 0.)
-- **Status**: `[ ]`
+- **Status**: `[x]` (tarpaulin 89.55%, fmt/clippy/test 167건 pass, deny/audit clean, toml 기존 dep으로 deny.toml 무변경)
 
 ### P8. dogfooding contract step `[AUTO]`
 - **Spec reference**: ADR 0004 § Consequences, M8 dogfooding 선례
