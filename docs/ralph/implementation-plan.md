@@ -212,7 +212,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - 시나리오 25: cache 손상 graceful (`.json` 파일 임의 파괴 → scan 정상 + warning emit)
   - `[AUTO]` 테스트 패턴: library entry inject (Phase 2 P5 패턴 일관). `cargo run --` 자식 프로세스 호출 0.
   - `[AUTO]` `cargo test --test integration` 전체 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### P6a. GraphQL batch size 100 vs 200 측정 `[AUTO]`
 - **Spec reference**: ADR 0007 박을 raw data 수집 (P7a)
