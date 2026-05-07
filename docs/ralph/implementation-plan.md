@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-07 (Phase 4 진입 — GraphQL batching + 로컬 SHA mtime cache)
 - Total tasks: 15 (P1, P2, P3a, P3b, P4, P5a, P5b, P5c, P6a, P6b, P6c, P7a, P7b, P8, P9)
-- Completed: 11 / 15
+- Completed: 12 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -340,7 +340,8 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `spec-github-api.md` § GraphQL backend batch size baseline 확정 박제 (P2 박은 default 200 → ADR 0007 결정값으로 갱신).
   - `[AUTO]` `graphql.rs::GRAPHQL_BATCH_SIZE` 상수 갱신 (결정값 != 200이면). 단위 테스트의 `paths > batch size (300 → chunk 두 번: 200+100)` 케이스도 결정값에 정렬.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
-- **Status**: `[~]`
+- **Decision (2026-05-07)**: P6a raw data 기반 — 13 path scale에서 batch 100/200은 1 chunk로 functional 동등 + measurement noise(GraphQL `committedDate` latency 단발 spike) 지배. yagni + roadmap.md § Phase 4 권장 상한 일관 → **batch 200 default 유지** confirmed. ADR 0007 박힘. spec-github-api.md § Alias batching 패턴 + § batch size 변경 정책 갱신. graphql.rs `GRAPHQL_BATCH_SIZE = 200` 그대로 + doc comment에 ADR 0007 reference 박음. 단위 테스트 `chunks_paths_above_batch_size` (300 → 200+100) 정합 유지. validation: fmt --check OK / clippy --all-targets -- -D warnings OK / cargo test --workspace 210 pass (186 unit + 24 integration) / tarpaulin 90.85% (576/634).
+- **Status**: `[x]`
 
 ### P7b. ADR 0008 + cache 유지/제거 결정 + 코드/spec 처리 `[AUTO, 문서/spec/코드]`
 - **Spec reference**: P6c raw data, § Phase 4 사전 결정 §15 임계값
