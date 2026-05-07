@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-07 (Phase 4 진입 — GraphQL batching + 로컬 SHA mtime cache)
 - Total tasks: 15 (P1, P2, P3a, P3b, P4, P5a, P5b, P5c, P6a, P6b, P6c, P7a, P7b, P8, P9)
-- Completed: 4 / 15
+- Completed: 5 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -160,7 +160,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - cache_path sanitize (`KneShell/gitless-sync` + `main` → `KneShell__gitless-sync__main.json`)
     - (P5에서 매트릭스 확장)
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### P5a. GraphQL 단위 테스트 매트릭스 `[AUTO, 코드]`
 - **Spec reference**: `spec-github-api.md` Acceptance Criteria

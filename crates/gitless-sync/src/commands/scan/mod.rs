@@ -11,6 +11,7 @@ use std::path::Path;
 use chrono::{DateTime, Utc};
 use rayon::prelude::*;
 
+use crate::shared::cache;
 use crate::shared::config;
 use crate::shared::error::GitlessError;
 use crate::shared::gh::GhClient;
@@ -113,6 +114,12 @@ pub fn build_report<C: GhClient + Sync>(
         eprintln!("info: scanning {} against {repo}@{branch}", args.local);
     }
 
+    let cache_path_opt = cache::cache_path(&repo, &branch).ok();
+    let mut local_cache = match &cache_path_opt {
+        Some(p) => cache::load(p),
+        None => cache::Cache::default(),
+    };
+
     let remote_files = github::fetch_tree(client, &repo, &branch)?;
     let local_files = walker::walk(local_root, &matcher)?;
 
@@ -137,6 +144,7 @@ pub fn build_report<C: GhClient + Sync>(
         &branch,
         args.keep_bom,
         args.backend,
+        &mut local_cache,
     )?;
 
     if let Some(filter) = parse_status_filter(args.status.as_deref())? {
@@ -158,6 +166,12 @@ pub fn build_report<C: GhClient + Sync>(
         summary,
         files,
     };
+
+    if let Some(p) = &cache_path_opt
+        && let Err(e) = local_cache.save(p)
+    {
+        eprintln!("warning: cache save failed: {e}");
+    }
 
     Ok((report, failed_count))
 }
@@ -201,6 +215,7 @@ fn parse_status_token(s: &str) -> Result<Status, GitlessError> {
 /// 8c REST per-path calls (ADR 0003) and a single GraphQL alias-batched
 /// request (ADR 0005). Hash failures are recorded as [`Status::Failed`]
 /// without aborting.
+#[allow(clippy::too_many_arguments)]
 fn assemble_entries<C: GhClient + Sync>(
     local_files: &[LocalFile],
     remote_files: &[RemoteFile],
@@ -209,6 +224,7 @@ fn assemble_entries<C: GhClient + Sync>(
     branch: &str,
     keep_bom: bool,
     backend: Backend,
+    cache: &mut cache::Cache,
 ) -> Result<(Vec<FileEntry>, Summary, usize), GitlessError> {
     let local_map: HashMap<&str, &LocalFile> = local_files
         .iter()
@@ -221,18 +237,24 @@ fn assemble_entries<C: GhClient + Sync>(
     all_paths.extend(local_map.keys().copied());
     all_paths.extend(remote_map.keys().copied());
 
-    let pending = build_pre_entries(&all_paths, &local_map, &remote_map, keep_bom);
+    let pending = build_pre_entries(&all_paths, &local_map, &remote_map, keep_bom, cache);
     let commit_map = fetch_commit_map(&pending, client, repo, branch, backend)?;
     Ok(finalize_entries(pending, &commit_map))
 }
 
 /// Pass 1: hash local files and capture per-path state without calling the
-/// Commits API. Hash failures are recorded as [`PreState::Failed`].
+/// Commits API.
+///
+/// `cache` is consulted first per `(relative_path, mtime)` (ADR 0009): on a
+/// hit the cached SHA is reused (no filesystem read), on a miss the file is
+/// hashed and the result is recorded for save-time persistence. Hash failures
+/// are recorded as [`PreState::Failed`].
 fn build_pre_entries(
     all_paths: &BTreeSet<&str>,
     local_map: &HashMap<&str, &LocalFile>,
     remote_map: &HashMap<&str, &RemoteFile>,
     keep_bom: bool,
+    cache: &mut cache::Cache,
 ) -> Vec<PreEntry> {
     let mut pending: Vec<PreEntry> = Vec::with_capacity(all_paths.len());
     for path in all_paths {
@@ -241,21 +263,41 @@ fn build_pre_entries(
         let remote_sha = remote.map(|r| r.sha.clone());
 
         let state = match local {
-            Some(lf) => match try_hash_local(&lf.absolute_path, keep_bom) {
-                Ok((sha, is_binary)) => PreState::Hashed {
-                    local_sha: Some(sha),
-                    remote_sha,
-                    local_mtime: Some(lf.mtime),
-                    is_binary,
-                },
-                Err(err) => {
-                    eprintln!("warning: failed to hash {path}: {err}");
-                    PreState::Failed {
+            Some(lf) => {
+                let cached = cache
+                    .lookup(&lf.relative_path, lf.mtime)
+                    .map(|(sha, is_binary)| (sha.to_string(), is_binary));
+
+                let outcome = match cached {
+                    Some(hit) => Ok(hit),
+                    None => {
+                        try_hash_local(&lf.absolute_path, keep_bom).inspect(|(sha, is_binary)| {
+                            cache.insert(
+                                lf.relative_path.clone(),
+                                lf.mtime,
+                                sha.clone(),
+                                *is_binary,
+                            );
+                        })
+                    }
+                };
+
+                match outcome {
+                    Ok((sha, is_binary)) => PreState::Hashed {
+                        local_sha: Some(sha),
                         remote_sha,
                         local_mtime: Some(lf.mtime),
+                        is_binary,
+                    },
+                    Err(err) => {
+                        eprintln!("warning: failed to hash {path}: {err}");
+                        PreState::Failed {
+                            remote_sha,
+                            local_mtime: Some(lf.mtime),
+                        }
                     }
                 }
-            },
+            }
             None => PreState::Hashed {
                 local_sha: None,
                 remote_sha,
@@ -740,6 +782,7 @@ mod tests {
         let mut mock = MockGhClient::new();
         stub_commits(&mut mock, "o/r", "main", "ghost.md", COMMITS_BODY);
 
+        let mut empty_cache = cache::Cache::default();
         let (entries, summary, failed) = assemble_entries(
             &[bogus],
             &[remote],
@@ -748,6 +791,7 @@ mod tests {
             "main",
             false,
             Backend::Rest,
+            &mut empty_cache,
         )
         .unwrap();
 
@@ -778,6 +822,7 @@ mod tests {
         // No commits stub; if assemble_entries hits the Commits API anyway, it
         // would surface as an Http error (MockGhClient default).
         let mock = MockGhClient::new();
+        let mut empty_cache = cache::Cache::default();
         let (entries, summary, failed) = assemble_entries(
             &[local],
             &[remote],
@@ -786,12 +831,97 @@ mod tests {
             "main",
             false,
             Backend::Rest,
+            &mut empty_cache,
         )
         .unwrap();
 
         assert_eq!(failed, 0);
         assert_eq!(summary.identical, 1);
         assert_eq!(entries[0].status, Status::Identical);
+    }
+
+    // --- cache integration -------------------------------------------------
+
+    #[test]
+    fn assemble_entries_populates_cache_on_miss() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("a.md"), "hello\n").unwrap();
+        let sha = blob_hash(b"hello\n");
+
+        let local = LocalFile {
+            relative_path: "a.md".to_string(),
+            absolute_path: dir.path().join("a.md"),
+            mtime: mtime(1_700_000_000),
+        };
+        let remote = RemoteFile {
+            path: "a.md".to_string(),
+            sha: sha.clone(),
+        };
+
+        let mock = MockGhClient::new();
+        let mut empty_cache = cache::Cache::default();
+        let _ = assemble_entries(
+            &[local],
+            &[remote],
+            &mock,
+            "o/r",
+            "main",
+            false,
+            Backend::Rest,
+            &mut empty_cache,
+        )
+        .unwrap();
+
+        assert_eq!(
+            empty_cache.lookup("a.md", mtime(1_700_000_000)),
+            Some((sha.as_str(), false))
+        );
+    }
+
+    #[test]
+    fn assemble_entries_uses_cache_hit_without_reading_file() {
+        // Drop the file after seeding the cache: a real read would fail with
+        // NotFound, so a successful Identical proves the cached SHA was used.
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("a.md");
+        fs::write(&path, "hello\n").unwrap();
+        let sha = blob_hash(b"hello\n");
+        let m = mtime(1_700_000_000);
+
+        let mut prefilled = cache::Cache::default();
+        prefilled.insert("a.md".to_string(), m, sha.clone(), false);
+
+        // Real metadata-derived mtime would differ, so we mint a LocalFile
+        // pointing at the (now removed) absolute_path with the cached mtime.
+        fs::remove_file(&path).unwrap();
+
+        let local = LocalFile {
+            relative_path: "a.md".to_string(),
+            absolute_path: path,
+            mtime: m,
+        };
+        let remote = RemoteFile {
+            path: "a.md".to_string(),
+            sha: sha.clone(),
+        };
+
+        let mock = MockGhClient::new();
+        let (entries, summary, failed) = assemble_entries(
+            &[local],
+            &[remote],
+            &mock,
+            "o/r",
+            "main",
+            false,
+            Backend::Rest,
+            &mut prefilled,
+        )
+        .unwrap();
+
+        assert_eq!(failed, 0);
+        assert_eq!(summary.identical, 1);
+        assert_eq!(entries[0].status, Status::Identical);
+        assert_eq!(entries[0].local_sha.as_deref(), Some(sha.as_str()));
     }
 
     // --- run_with_client ---------------------------------------------------
