@@ -167,7 +167,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
     - 본 측정 N=3 결과의 variance가 30% 초과 시 N=5로 확장 후 재계산.
     - 측정 도중 gh exit≠0 발생 시 G-015 transient retry policy 적용 (N=3 + 30s backoff). 3회 모두 실패 시 [!] + G-015 reference (auto-recovery 가능).
   - `[AUTO]` 환경(Windows + 실제 repo + 시점 timestamp) + 명령어 + raw timing(각 측정의 전체 시간 박제 — outlier 추적 가능).
-- **Status**: `[!]` — G-017 (gh `-F` POST 자동 전환으로 commits API 404). M2d 완료 후 [!] → [ ] reset 예정 (M2d acceptance에 reset 트리거 박힘).
+- **Status**: `[ ]` — M2d 완료로 G-017 fix 박힘 (2026-05-07). reset됨.
 
 ### M5b. rayon 유지/제거 결정 + ADR 0003 박제 + spec/guardrail 갱신 `[AUTO]`
 - **Spec reference**: `docs/ralph/guardrails.md` § G-011, `docs/specs/spec-github-api.md` § 병렬 호출 정책
