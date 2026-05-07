@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-07 (Phase 4 진입 — GraphQL batching + 로컬 SHA mtime cache)
 - Total tasks: 15 (P1, P2, P3a, P3b, P4, P5a, P5b, P5c, P6a, P6b, P6c, P7a, P7b, P8, P9)
-- Completed: 14 / 15
+- Completed: 15 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -394,4 +394,4 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` Cache 효과 검증 (cache 유지 결정 시): `<user-cache>/gitless-sync/KneShell__gitless-sync__main.json` 자동 생성 확인 + 같은 명령 2차 실행 timing 단축 확인 (P6 (c) raw data와 일관성 비교, ±20% 마진).
   - `[AUTO]` external command transient (network 5xx, gh exit≠0)는 G-015 retry policy 적용. 3회 실패 시 [!] + G-015 reference (auto-recovery 가능).
   - `[AUTO]` 박제 0. git log + commit message가 evidence trail. failed 비율 / cache hit 비율은 commit message에 기록만.
-- **Status**: `[~]`
+- **Status**: `[x]`
