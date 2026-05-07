@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-07 (Phase 4 진입 — GraphQL batching + 로컬 SHA mtime cache)
 - Total tasks: 15 (P1, P2, P3a, P3b, P4, P5a, P5b, P5c, P6a, P6b, P6c, P7a, P7b, P8, P9)
-- Completed: 6 / 15
+- Completed: 7 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -196,7 +196,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - cache_path sanitize 매트릭스 (특수문자 / 공백 / 한글)
     - version 미스매치 시 reset (예: 미래 version 2 cache 만나면 default 반환)
   - `[AUTO]` `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### P5c. 통합 테스트 시나리오 20~25 `[AUTO, 코드]`
 - **Spec reference**: `spec-error-contracts.md` PRD 시나리오 20~25

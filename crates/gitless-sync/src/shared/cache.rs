@@ -313,4 +313,45 @@ mod tests {
         // Non-ASCII (e.g. Korean) is preserved.
         assert_eq!(sanitize_component("한글"), "한글");
     }
+
+    #[test]
+    fn sanitize_component_preserves_space() {
+        // Space is neither `/` nor a Windows-reserved character, so it must
+        // pass through verbatim. NTFS / ext4 / APFS all accept spaces.
+        assert_eq!(
+            sanitize_component("feature with space"),
+            "feature with space"
+        );
+    }
+
+    #[test]
+    fn cache_path_handles_unicode_space_and_specials_together() {
+        // Exercise every branch of `sanitize_component` in one go: ASCII,
+        // space, Korean (preserved), and a Windows-reserved colon (replaced
+        // with `_`). Confirms the matrix listed in `spec-config.md` § Cache
+        // (특수문자 / 공백 / 한글).
+        let p = cache_path("o/r", "feat 한글:branch").unwrap();
+        let name = p.file_name().unwrap().to_string_lossy().into_owned();
+        assert_eq!(name, "o__r__feat 한글_branch.json");
+    }
+
+    #[test]
+    fn save_returns_io_error_when_parent_collides_with_a_regular_file() {
+        // Simulated fs error: a regular file already sits where `save` would
+        // need to create the parent directory. `fs::create_dir_all` cannot
+        // promote a file into a directory, so it returns an io error which
+        // bubbles up as `GitlessError::Io`. The pre-existing file must
+        // survive untouched — graceful failure does not corrupt user state.
+        let dir = TempDir::new().unwrap();
+        let blocker = dir.path().join("blocker");
+        fs::write(&blocker, b"i am a regular file").unwrap();
+        let target = blocker.join("c.json");
+
+        let c = Cache::default();
+        let result = c.save(&target);
+        assert!(matches!(result, Err(GitlessError::Io(_))));
+
+        let surviving = fs::read(&blocker).unwrap();
+        assert_eq!(surviving, b"i am a regular file");
+    }
 }
