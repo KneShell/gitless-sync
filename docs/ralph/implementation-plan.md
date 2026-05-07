@@ -354,7 +354,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - 제거 시: cache.rs 통째 삭제 + walker.rs/mod.rs cache 통합 코드 삭제 + lib.rs cache export 삭제 + Cargo.toml `dirs` 삭제 + Cargo.lock 갱신 + spec-config § cache 섹션 삭제 + ADR 0009 본문에 "**2026-05-07 obsolete by ADR 0008**: cache 효과 미달로 제거 결정" 한 줄 추가 + CLAUDE.md § Critical Rules § 도구 본성 한 줄 (Internal cache 예외 ...) 제거 + § 사용자 취향 결정에서 cache 관련 한 줄 제거.
   - `[AUTO]` `CLAUDE.md` Current State 갱신: ADR 0007 + ADR 0008 결정 박스 추가.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`, `cargo deny check`, `cargo audit` 통과 (cache 제거 시 dirs 부재 확인).
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### P8. coverage 게이트 통과 검증 (phase-final, M7 패턴) `[AUTO]`
 - **Spec reference**: `docs/ralph/project-ops.md` § Coverage, `CLAUDE.md` § Test coverage, G-007, G-012, G-013
