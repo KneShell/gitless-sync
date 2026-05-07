@@ -129,15 +129,14 @@ pub fn build_report<C: GhClient + Sync>(
         }
     }
 
-    let (mut entries, summary, failed_count) = assemble_entries(
-        &local_files,
-        &remote_files,
+    let ctx = GitHubContext {
         client,
-        &repo,
-        &branch,
-        args.keep_bom,
-        args.backend,
-    )?;
+        repo: &repo,
+        branch: &branch,
+        backend: args.backend,
+    };
+    let (mut entries, summary, failed_count) =
+        assemble_entries(&local_files, &remote_files, &ctx, args.keep_bom)?;
 
     if let Some(filter) = parse_status_filter(args.status.as_deref())? {
         entries.retain(|e| filter.contains(&e.status));
@@ -194,6 +193,15 @@ fn parse_status_token(s: &str) -> Result<Status, GitlessError> {
     }
 }
 
+/// GitHub call context — bundles client, repo coordinates, and backend choice
+/// for `assemble_entries` and `fetch_commit_map` callers.
+struct GitHubContext<'a, C: GhClient + Sync> {
+    client: &'a C,
+    repo: &'a str,
+    branch: &'a str,
+    backend: Backend,
+}
+
 /// Compare matched local/remote files and produce per-entry report rows.
 ///
 /// Calls a Commits API lookup only for paths whose SHA differs on both sides.
@@ -204,11 +212,8 @@ fn parse_status_token(s: &str) -> Result<Status, GitlessError> {
 fn assemble_entries<C: GhClient + Sync>(
     local_files: &[LocalFile],
     remote_files: &[RemoteFile],
-    client: &C,
-    repo: &str,
-    branch: &str,
+    ctx: &GitHubContext<'_, C>,
     keep_bom: bool,
-    backend: Backend,
 ) -> Result<(Vec<FileEntry>, Summary, usize), GitlessError> {
     let local_map: HashMap<&str, &LocalFile> = local_files
         .iter()
@@ -222,7 +227,7 @@ fn assemble_entries<C: GhClient + Sync>(
     all_paths.extend(remote_map.keys().copied());
 
     let pending = build_pre_entries(&all_paths, &local_map, &remote_map, keep_bom);
-    let commit_map = fetch_commit_map(&pending, client, repo, branch, backend)?;
+    let commit_map = fetch_commit_map(&pending, ctx.client, ctx.repo, ctx.branch, ctx.backend)?;
     Ok(finalize_entries(pending, &commit_map))
 }
 
@@ -742,16 +747,14 @@ mod tests {
         let mut mock = MockGhClient::new();
         stub_commits(&mut mock, "o/r", "main", "ghost.md", COMMITS_BODY);
 
-        let (entries, summary, failed) = assemble_entries(
-            &[bogus],
-            &[remote],
-            &mock,
-            "o/r",
-            "main",
-            false,
-            Backend::Rest,
-        )
-        .unwrap();
+        let ctx = GitHubContext {
+            client: &mock,
+            repo: "o/r",
+            branch: "main",
+            backend: Backend::Rest,
+        };
+        let (entries, summary, failed) =
+            assemble_entries(&[bogus], &[remote], &ctx, false).unwrap();
 
         assert_eq!(failed, 1);
         assert_eq!(summary.failed, 1);
@@ -780,16 +783,14 @@ mod tests {
         // No commits stub; if assemble_entries hits the Commits API anyway, it
         // would surface as an Http error (MockGhClient default).
         let mock = MockGhClient::new();
-        let (entries, summary, failed) = assemble_entries(
-            &[local],
-            &[remote],
-            &mock,
-            "o/r",
-            "main",
-            false,
-            Backend::Rest,
-        )
-        .unwrap();
+        let ctx = GitHubContext {
+            client: &mock,
+            repo: "o/r",
+            branch: "main",
+            backend: Backend::Rest,
+        };
+        let (entries, summary, failed) =
+            assemble_entries(&[local], &[remote], &ctx, false).unwrap();
 
         assert_eq!(failed, 0);
         assert_eq!(summary.identical, 1);

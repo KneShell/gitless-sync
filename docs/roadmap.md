@@ -36,24 +36,25 @@
 - **1000+ path scale에서 mtime cache 재도입 검토** — 50 path scale에선 hash 비중 작아 cache 효과 noise floor 안. vault scale (수백~수천 files)에서 hash 비중 증가 시 speedup 가능성 (ADR 0008 § Future work).
 - **Trees API sub-tree 재귀 fallback** (truncated repo 지원, G-002 해소).
 
-## Phase 6 — Code Quality Strengthening (PROPOSED, 2026-05-07)
+## Phase 6 — Code Quality Strengthening (IN PROGRESS, 2026-05-07)
 
 > 사용자 stance: SonarLint 패턴의 quality gate 강화. 현재 hard gate(test ≥80% / fmt / clippy / deny / audit)에 **코드 구조·복잡도 게이트** 추가.
 
-### Step 1 — clippy 룰 강화 (low-effort, 우선 박음)
+### Step 1 — clippy 룰 강화 (low-effort) — COMPLETED (2026-05-07)
 
-함수 라인·cognitive complexity·인자 수를 clippy `deny` lint로 박는다. `clippy.toml` workspace 단위 + 각 crate root에 `#![deny(...)]`.
+함수 라인·cognitive complexity·인자 수를 clippy `deny` lint로 영구 박음. workspace `Cargo.toml [workspace.lints.clippy]` + workspace root `clippy.toml`.
 
-| 룰 | clippy lint | 임계값 (사용자 취향) | clippy default |
+| 룰 | clippy lint | 임계값 (영구 박음) | clippy default |
 |---|---|---|---|
 | 함수 ≤ 60줄 | `clippy::too_many_lines` | 60 | 100 |
 | cognitive complexity | `clippy::cognitive_complexity` | 15 | 25 |
 | 함수 인자 ≤ 5 | `clippy::too_many_arguments` | 5 | 7 |
 
-**진행 순서**:
-1. **baseline 측정** — 임시 `clippy.toml`로 임계값 박고 `cargo clippy --all-targets` 실행 → 위반 수/위치 raw data 수집.
-2. **임계값 + 강제 정책 결정** — baseline 보고 (a) 즉시 강제 (위반 즉시 리팩터링) / (b) baseline freeze (현재 위반은 allow, 신규만 fail) / (c) warning only 중 결정.
-3. **`clippy.toml` + workspace lint 영구 박음** — 결정된 정책으로.
+**baseline 측정 결과 (2026-05-07)**: too_many_lines (60) / cognitive_complexity (15) 위반 **0건**. too_many_arguments (5) 위반 **1건** — `commands/scan/mod.rs::assemble_entries` (7 args).
+
+**fix**: `GitHubContext<'_, C: GhClient + Sync>` struct 신규 박음 (`client + repo + branch + backend` 4 fields wrap) → `assemble_entries` args 7 → 4. 호출 측 3건 (production + test 2) `ctx` inject. `fetch_commit_map`은 5 args로 통과, yagni 일관 그대로 둠.
+
+**검증**: fmt + clippy(`-D warnings` + workspace lint deny) + test 188 통과 (167 unit + 21 integration). 옵션 (a) 즉시 강제 + 영구 박음 채택.
 
 ### Step 2 — 파일/모듈 ≤ 300줄 (medium-effort, 자체 게이트)
 
