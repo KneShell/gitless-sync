@@ -10,7 +10,7 @@ read-only CLI라도 호출자(특히 AI)가 안정적으로 다룰 수 있도록
 ## 현재 상태
 - `crates/gitless-sync/src/shared/error.rs`에 `GitlessError` enum + `exit_code()` + `error_code()` + `to_stderr_payload()` 모두 구현 완료.
 - `main.rs`에서 에러 발생 시 stderr JSON 출력 + exit code 매핑 동작.
-- 빠진 것: 각 GitHub API / IO 호출 지점에서 적절한 `GitlessError` variant 매핑(M2b1/M2b2가 본 spec 매핑 표대로 박음), partial failure 누적 로직.
+- 각 GitHub API / IO 호출 지점에서 `GitlessError` variant 매핑 + partial failure 누적 로직 모두 박힘 (ADR 0002 마이그레이션 완료, 2026-05-07).
 - **gh CLI 최소 버전 floor**: `gh >= 2.40.0` (2023-12-07 릴리스). 근거: 멀티 계정 인증(`gh auth switch`/`gh auth status` 정비)이 박힌 시점으로 토큰/호스트 해석이 안정적. `gh api`의 `-F`/`-f`/recursive query는 그 전부터 안정이었으나 인증 측 안정성을 floor로 잡는다 [source: https://github.com/cli/cli/releases/tag/v2.40.0]. 현재 최신은 v2.92.0 (2026-04-28) 기준 [source: https://github.com/cli/cli/releases].
 
 ## 작업 범위
