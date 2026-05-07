@@ -1,7 +1,7 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-07 (Phase 2 P4 완료 — `--repo` empty validation + stderr hint inject)
+- Last updated: 2026-05-07 (Phase 2 P5 진행 중 — init 시나리오 16~19 통합 테스트)
 - Total tasks: 8 (P1, P2, P3, P4, P5, P6, P7, P8)
 - Completed: 4 / 8
 
@@ -110,7 +110,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
 - **Status**: `[x]`
 
-### P5. 통합 테스트 — init 시나리오 16~19 `[AUTO, 코드]`
+### P5. 통합 테스트 — init 시나리오 16~19 `[AUTO, 코드]` `[~]`
 - **Spec reference**: `spec-cli-interface.md` § init subcommand Acceptance Criteria, `spec-error-contracts.md` PRD 시나리오 17
 - **Files**: `crates/gitless-sync/tests/integration.rs`
 - **Depends on**: P4
@@ -122,7 +122,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` 시나리오 19 (init → scan 라운드트립): init writer로 TOML capture → tempdir에 작성 → 같은 tempdir 기반 ScanArgs build → `commands::scan::run_with_client(&args, &MockGhClient stub)` 호출 → toml에서 repo/branch 자동 로드 + scan 정상 동작 확인 (MockGhClient stub 응답 정상 시).
   - `[AUTO]` **escalation**: 시나리오 19 단독 실패 + 16~18 통과 시 P5 통째 [!] + 사람이 P5 분할(P5a/P5b) 또는 19를 별도 escalation task로 분리 결정. ralph 자율 회복 0 (라운드트립 정합 충돌 가능성 — 영구 신호).
   - `[AUTO]` `cargo test --test integration` 전체 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### P6. README "Quick Start" + --help 갱신 `[AUTO, 문서]`
 - **Spec reference**: ADR 0004 § Consequences (README + --help 보강 필요)
