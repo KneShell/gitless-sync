@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-07T03:30:00Z (M7 완료 — 빌드 게이트 통과: 154 tests, tarpaulin 90.47%, deny/audit clean.)
+- Last updated: 2026-05-07T05:00:00Z (M8 완료 — self dogfooding 통과: exit 0, 43 files, 36/7/0/0/0, failed 0/43.)
 - Total tasks: 15 (M0, M1, M2a, M2b1, M2b2, M2c, M2d, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
-- Completed: 14 / 15
+- Completed: 15 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -242,4 +242,13 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` 위 4개 조건 충족 시 [x]. failed 비율은 commit message에 기록만 (BLOCKED 게이트 아님). 동일 코드 + 동일 repo 상태에서 결과 단조 보장.
   - `[AUTO]` external command transient(network 5xx, gh exit≠0)는 G-015 retry policy 적용. 3회 실패 시 [!] + G-015 reference (auto-recovery 가능).
   - `[AUTO]` 별도 release evidence 파일 박제 0. git log + commit message가 evidence trail.
-- **Status**: `[~]`
+- **검증 결과 (2026-05-07T05:00:00Z)**:
+  - 환경: Windows 11 Pro 10.0.26100 / cargo 1.95.0 / gh 2.88.1 (active KneShell account, repo scope) / `target/release/gitless-sync.exe` (cargo build --release 9.92s).
+  - 명령: `gitless-sync.exe scan --repo KneShell/gitless-sync --branch main --local D:\00.Projects\02.Personal\05.gitless-sync` (no `--summary-only`).
+  - exit code: **0** (∈ {0, 4} ✓).
+  - stdout: 10895 bytes, `serde_json::from_str` (PowerShell `ConvertFrom-Json`) 파싱 성공 ✓. stderr 0 bytes.
+  - summary 5 카운트: identical=36, local_only_changed=7, remote_only_changed=0, drift=0, failed=0 (모두 Int64 ≥ 0 ✓).
+  - invariant: 36 + 7 + 0 + 0 + 0 = 43 = files.length ✓.
+  - failed 비율: 0/43 = 0% (BLOCKED 게이트 아님, 기록만).
+  - G-015 transient retry 미발동 (gh exit≠0 0회).
+- **Status**: `[x]`
