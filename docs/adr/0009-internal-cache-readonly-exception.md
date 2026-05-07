@@ -1,8 +1,11 @@
 # ADR 0009: read-only 본성 명확화 — internal cache는 예외
 
-- **Status**: Accepted
+- **Status**: Obsolete (2026-05-07, superseded by ADR 0008 — cache 효과 미달로 제거 결정)
 - **Date**: 2026-05-07
-- **Related**: ADR 0001 (read-only 영구), ADR 0004 (init stdout TOML — 도구 파일 작성 0), `docs/specs/spec-config.md`, `CLAUDE.md` § Critical Rules § 도구 본성, `docs/ralph/implementation-plan.md` § Phase 4 사전 결정 §8~10
+- **Related**: ADR 0001 (read-only 영구), ADR 0004 (init stdout TOML — 도구 파일 작성 0), ADR 0008 (cache 제거), `docs/specs/spec-config.md`, `CLAUDE.md` § Critical Rules § 도구 본성, `docs/ralph/implementation-plan.md` § Phase 4 사전 결정 §8~10
+
+> **2026-05-07 obsolete by ADR 0008**: P6c 측정에서 cache hit speedup이 1.0x 안쪽(noise floor)으로 § Phase 4 사전 결정 §15 임계값 < 1.5x 제거 영역. cache 본체 삭제로 본 ADR의 "internal cache는 예외" 명확화 룰도 비활성. 본문은 결정 트레일 보존 목적으로만 유지.
+
 
 ## Context
 
