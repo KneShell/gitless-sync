@@ -42,6 +42,7 @@
 ## G-011: GitHub abuse detection / 동시 요청 제한
 - **문제**: rate limit (5,000/h, G-003)와 별개로, GitHub은 burst가 큰 동시 요청에 abuse detection을 발동시켜 일시 차단할 수 있다. T09에서 rayon으로 commits API 병렬 호출 시 무제한으로 풀면 위험.
 - **해결**: 동시 요청 수 = **8** (default). rayon thread pool 크기를 명시 제어: `rayon::ThreadPoolBuilder::new().num_threads(8).build().unwrap().install(|| paths.par_iter()...)` 또는 동등 수단. burst 시 server 측 throttle (429 응답) 가능성 있으나 exponential backoff은 v0.1 비목표 — `GitlessError::Http(...)`로 매핑 후 즉시 종료. 동시 요청 수 변경 시 본 G와 `spec-github-api.md` § 병렬 호출 정책 동시 갱신.
+- **2026-05-07 confirmed by ADR 0003**: rayon 유지 결정. M5a 측정(commit `5e95312`)에서 8 concurrent vs sequential 4.86x speedup 입증, M5a 본 측정 중 abuse detection 0회 발동. cap = 8 그대로. cap 변경 시 본 G + spec § 병렬 호출 정책 + ADR 0003 동시 갱신.
 
 ## G-012: 전체 80% 커버리지 게이트는 T12에서 통과
 - **문제**: ralph build iteration의 step 4 (`cargo tarpaulin --engine llvm --workspace --out Stdout` ≥ 80%)는 T01~T11 진행 중에는 자연스럽게 미달. 다수 모듈이 `todo!()` 스텁 상태이므로 자기 task 내에서 80%를 끌어올릴 수단이 없다 (다른 task 파일을 건드리면 "Do NOT modify other tasks' files" 위배). T01~T03 모두 동일 조건에서 `[x]`로 완료된 선례가 있다.
