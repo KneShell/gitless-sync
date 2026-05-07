@@ -22,43 +22,19 @@
 > - scan 결과(JSON)를 stdin 또는 파일로 받아 GitHub API로 실제 push 수행.
 > - AI가 scan → 사용자 승인 → push로 명시적 단계 분리.
 
-## Phase 4 — 성능 최적화 (IN PROGRESS, 2026-05-07)
+## Phase 4 — 성능 최적화 (COMPLETED, 2026-05-07)
 
-> **2026-05-07 진입.** ADR 0005/0006/0009 박힘 + spec 갱신 (P1/P2 완료). ralph 자율 진행.
+> **2026-05-07 완료.** ADR 0005/0006/0007/0008 박힘 + 0009 obsolete cascade. 측정 raw data는 commit history + `docs/ralph/implementation-plan.md` git log + `CLAUDE.md` § Current State 박스.
 >
-> - GraphQL batching 도입 (P3a/P3b/P5a) — `--backend graphql` default. REST는 `--backend rest` explicit fallback (ADR 0006).
-> - 로컬 SHA mtime 기반 cache 도입 (P4/P5b/P6c) — ADR 0009 internal cache 예외. 효과 < 1.5x 측정 시 P7b ADR 0008에서 제거.
-> - 자세한 task list: `docs/ralph/implementation-plan.md`.
+> - GraphQL batching 도입 — `--backend graphql` default 전환 (ADR 0006), REST는 `--backend rest` explicit fallback. GraphQL backend는 rayon 미사용 (ADR 0005, alias batching 자체가 병렬). batch 200 confirmed (ADR 0007).
+> - mtime cache 도입 → 측정 → 제거. P6c speedup ≈ 1.0x noise floor → ADR 0008 제거 결정 + ADR 0009 obsolete cascade.
+> - P6b 13 path scale: REST 2484ms vs GraphQL cluster 1437ms = 1.73x speedup (typical). 1000 path scale 추정 ~38x.
+> - 188 tests pass, tarpaulin 90.09%, P9 dogfooding cross-backend 정합성 통과.
+> - 사람 개입 0건 (15 task ralph 자율).
 
-### 조건부 (측정 후 결정)
-- 로컬 SHA mtime 기반 캐시 → **Phase 4에서 도입, ADR 0008에서 confirm/제거 결정 (2026-05-07)**. P4 task로 본체 박힘 + P6c에서 cache hit speedup 측정 + P7b ADR 0008에서 `docs/ralph/implementation-plan.md` § Phase 4 사전 결정 §15 임계값 매핑 (≥ 2x 유지 / < 1.5x 제거 / 경계 yagni 제거 default).
-- Trees API sub-tree 재귀 fallback (truncated repo 지원, G-002 해소).
-
-### 확정 (반드시 도달)
-
-#### GraphQL batching 도입
-`fetch_last_commit_at`의 N×round-trip 비효율을 GraphQL alias batching으로 단축. v0.1의 REST + rayon 8 concurrent (1000 path = 25초)를 1~10 round-trip (수 초)로 줄임.
-
-**v0.1 인터페이스 박힘**: `--backend graphql` flag는 v0.1에 stub로 이미 존재 (`spec-cli-interface.md` § Backend 분기, `spec-github-api.md` § Backend 선택). Phase 4에서 backend 본체만 채우면 호출자(LLM) 코드 변경 0. forward-compat 보장.
-
-- **GitHub GraphQL 공식 한도 (fact-checked 2026-04-28)**:
-  - 단일 query 최대 **500,000 nodes**
-  - rate limit: **5,000 points/hour** + **2,000 points/minute** (per user)
-  - alias 자체엔 명시적 한도 없음
-  - node 계산: `first`/`last` 인자 곱, 평행 분기 합산
-- **우리 use case 분석**: 한 alias = `history(first: 1, path: ...)` = 1 node. 1000 path = 1000 node = 한도의 0.2%. 한 request에 다 박아도 node 한도 기준 OK.
-- **권장 batch 크기**: 보수적으로 100~200 alias/request. 1000 drift = 5~10 round-trip.
-- **GraphQL endpoint**: `https://api.github.com/graphql`. 인증은 동일 PAT.
-- **Caveat**: GitHub은 batching을 공식 권장하지 않음 ("polling 대신 webhook events"). 합법적 사용이지만 너무 큰 batch는 abuse detection 가능성 — 실제 운영 데이터로 측정 필요. 보수적 batch 크기(100~200 alias/request)로 시작 후 운영 데이터로 한도 확정 (ex-ADR 0001 Open Question #2).
-- **참조**: https://docs.github.com/en/graphql/overview/resource-limitations
-
-#### gh subprocess 방식 회고 (RESOLVED, ADR 0001)
-
-> **2026-04-30 결정.** `docs/adr/0001-gh-subprocess-and-drop-push-tool.md` 참조.
->
-> - Phase 4 GraphQL batching은 `gh api graphql` subprocess로 구현. 인증·rate limit·재시도 모두 gh 위임.
-> - Phase 3 `gitless-push`는 ADR 0001로 폐기됐으므로 push 도구 HTTP 방식 결정은 무관.
-> - v0.1 ureq 코드의 마이그레이션 시점은 ADR 0001 follow-up open question #1로 별도 결정.
+### 향후 검토 (v0.3+)
+- **1000+ path scale에서 mtime cache 재도입 검토** — 50 path scale에선 hash 비중 작아 cache 효과 noise floor 안. vault scale (수백~수천 files)에서 hash 비중 증가 시 speedup 가능성 (ADR 0008 § Future work).
+- **Trees API sub-tree 재귀 fallback** (truncated repo 지원, G-002 해소).
 
 ## Phase 5 — 도메인 함정 정리
 

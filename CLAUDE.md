@@ -26,7 +26,12 @@
 
 **Phase 2 완료 (2026-05-07)** — `gitless-sync init` 8 task ralph 자율 진행 종료, **167 tests pass, tarpaulin 89.55%**. P8 dogfooding 통과 (init → tempdir/toml → scan --local 라운드트립, summary 0/1/43/0/0 = 44 files invariant 일치, scan에서 toml 자동 로드 확인).
 
-**Phase 4 진행 중 (2026-05-07)** — GraphQL batching (ADR 0005/0006). default backend `rest` → `graphql` 전환, REST는 explicit fallback 유지. GraphQL backend는 rayon 미사용(alias batching 자체가 병렬).
+**ADR 0005 (2026-05-07)**: rayon backend별 정책. `docs/adr/0005-rayon-backend-policy.md`.
+- GraphQL backend는 rayon 미사용 (alias batching 자체가 병렬). REST backend는 ADR 0003 그대로 rayon 8c 유지.
+
+**ADR 0006 (2026-05-07)**: default backend `rest` → `graphql` 전환. `docs/adr/0006-default-backend-graphql.md`.
+- REST는 `--backend rest` explicit fallback 유지 (v0.1 자산 보존, GraphQL 운영 이슈 시 즉시 fallback).
+- LLM 친화성 = 0 (호출자 ScanReport 동일) — 결정 기준은 운영 안정성 + 자동 이득.
 
 **ADR 0007 (2026-05-07)**: GraphQL batch size 200 default 유지 박제. `docs/adr/0007-graphql-batch-size.md`.
 - P6a 측정: 13 path scale에서 batch 100/200은 1 chunk로 functional 동등. wire latency 단발 spike(GraphQL `committedDate` 자연 변동)가 batch size 효과보다 한 자릿수 큼.
@@ -37,7 +42,9 @@
 - cache 본체(`shared/cache.rs` ~360 LOC + `dirs` crate dep + `scan/mod.rs` cache 진입점) 제거. ADR 0009 obsolete cascade.
 - 50 path scale 한정 — 1000+ path scale에서 hash 비중이 늘어 speedup이 커질 가능성은 v0.3+에서 재검토.
 
-**다음 세션 진입점 후보**: Phase 5(도메인 함정).
+**Phase 4 완료 (2026-05-07)** — GraphQL batching + cache 도입/제거 15 task ralph 자율 진행 종료, **188 tests pass (167 unit + 21 integration), tarpaulin 90.09%**. 사람 개입 0건 (cargo PATH ralph.ps1 자체 주입). P6b 측정: 13 path scale에서 REST 2484ms vs GraphQL cluster 1437ms = **1.73x speedup** (typical), 1000 path scale 추정 **~38x**. P9 dogfooding cross-backend 정합성 통과 (REST/GraphQL 결과 ScanReport 동일).
+
+**다음 세션 진입점 후보**: Phase 5(도메인 함정 — NFD/case/encoding/submodule/symlink) / vault scale dogfooding (1000+ path cache 효과 재검토 트리거).
 
 ## Project Overview
 git이 없는 로컬 디렉토리를 GitHub repo와 단방향으로 비교해, 드리프트를 정량적으로 보고하는 read-only AI 친화 CLI. iCloud 동기화 디렉토리처럼 git 사용 자체가 불가능한 환경에서 "평행우주 드리프트"를 막기 위한 도구. 도구는 사실(4분류 JSON)만 제공하고 결정은 호출자(사람 또는 AI)에게 맡긴다.
