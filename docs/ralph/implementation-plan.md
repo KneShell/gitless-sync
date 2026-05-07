@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-07 (Phase 4 진입 — GraphQL batching + 로컬 SHA mtime cache)
 - Total tasks: 15 (P1, P2, P3a, P3b, P4, P5a, P5b, P5c, P6a, P6b, P6c, P7a, P7b, P8, P9)
-- Completed: 5 / 15
+- Completed: 6 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -179,7 +179,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - alias mangling: 200 paths → a0, a1, ..., a199 안전 매핑 + 응답 → path 역매핑 정합
     - GraphQL escape: path에 `"` / `\\` / `\n` 포함 시 query string 안전 escape (실제 호출 인자 검증)
   - `[AUTO]` `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### P5b. Cache 단위 테스트 매트릭스 `[AUTO, 코드]`
 - **Spec reference**: `spec-config.md` cache Acceptance

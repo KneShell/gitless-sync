@@ -343,9 +343,9 @@ mod tests {
 
     #[test]
     fn chunks_paths_above_batch_size() {
-        // Build paths > GRAPHQL_BATCH_SIZE. Stub each chunk's response so the
-        // function must perform two `gh api graphql` calls and merge them.
-        let total = GRAPHQL_BATCH_SIZE + 5;
+        // 300 paths → two chunks: 200 (first BATCH_SIZE) + 100. The function
+        // must perform two `gh api graphql` calls and merge the responses.
+        let total = GRAPHQL_BATCH_SIZE + 100;
         let paths: Vec<String> = (0..total).map(|i| format!("p{i}.md")).collect();
         let date = "2026-05-07T10:00:00Z";
 
@@ -357,6 +357,9 @@ mod tests {
             .iter()
             .map(String::as_str)
             .collect();
+
+        assert_eq!(chunk1.len(), GRAPHQL_BATCH_SIZE, "first chunk = BATCH_SIZE");
+        assert_eq!(chunk2.len(), 100, "second chunk = remainder");
 
         let chunk1_owned: Vec<String> = chunk1.iter().map(|s| (*s).to_string()).collect();
         let chunk2_owned: Vec<String> = chunk2.iter().map(|s| (*s).to_string()).collect();
@@ -382,5 +385,177 @@ mod tests {
         for p in &paths {
             assert!(map.contains_key(p), "missing path {p}");
         }
+    }
+
+    // --- happy path: multi-path -------------------------------------------
+
+    #[test]
+    fn returns_committed_dates_for_ten_paths() {
+        let paths: Vec<String> = (0..10).map(|i| format!("p{i}.md")).collect();
+        let dates: Vec<String> = (0..10)
+            .map(|i| format!("2026-05-07T10:{i:02}:00Z"))
+            .collect();
+        let entries: Vec<(&str, &str)> = paths
+            .iter()
+            .zip(dates.iter())
+            .map(|(p, d)| (p.as_str(), d.as_str()))
+            .collect();
+
+        let query = build_query("owner", "repo", "main", &paths);
+        let body = ok_response_for(&entries);
+
+        let mut mock = MockGhClient::new();
+        mock.stub(graphql_args(&query), ok_resp(body.as_bytes()));
+
+        let map = fetch_last_commit_at_batch(&mock, "owner/repo", "main", &paths).unwrap();
+        assert_eq!(map.len(), 10);
+        for (i, p) in paths.iter().enumerate() {
+            let expected = format!("2026-05-07T10:{i:02}:00+00:00");
+            let dt = map.get(p).unwrap_or_else(|| panic!("missing {p}"));
+            assert_eq!(dt.to_rfc3339(), expected, "path {p} index {i}");
+        }
+    }
+
+    // --- alias mangling round-trip: full batch with unique per-path dates -
+
+    #[test]
+    fn alias_mangling_full_batch_round_trips_correctly() {
+        // Exactly GRAPHQL_BATCH_SIZE paths in a single chunk, each with a
+        // unique committedDate. Unique dates make this assertion failable if
+        // the alias→path index ever drifts (every path's date is checked
+        // against its expected slot, not just presence).
+        let total = GRAPHQL_BATCH_SIZE;
+        let paths: Vec<String> = (0..total).map(|i| format!("p{i}.md")).collect();
+        let dates: Vec<String> = (0..total)
+            .map(|i| {
+                let hour = 10 + i / 60;
+                let minute = i % 60;
+                format!("2026-05-07T{hour:02}:{minute:02}:00Z")
+            })
+            .collect();
+        let entries: Vec<(&str, &str)> = paths
+            .iter()
+            .zip(dates.iter())
+            .map(|(p, d)| (p.as_str(), d.as_str()))
+            .collect();
+
+        let query = build_query("owner", "repo", "main", &paths);
+        let body = ok_response_for(&entries);
+
+        let mut mock = MockGhClient::new();
+        mock.stub(graphql_args(&query), ok_resp(body.as_bytes()));
+
+        let map = fetch_last_commit_at_batch(&mock, "owner/repo", "main", &paths).unwrap();
+        assert_eq!(map.len(), total);
+        for (i, p) in paths.iter().enumerate() {
+            let hour = 10 + i / 60;
+            let minute = i % 60;
+            let expected = format!("2026-05-07T{hour:02}:{minute:02}:00+00:00");
+            let dt = map.get(p).unwrap_or_else(|| panic!("missing path {p}"));
+            assert_eq!(dt.to_rfc3339(), expected, "alias a{i} for path {p}");
+        }
+    }
+
+    // --- errors[] extensions.code: code-specific mapping -------------------
+
+    #[test]
+    fn unauthenticated_extension_code_maps_to_auth_failed() {
+        let body = r#"{"data":null,"errors":[{"message":"login required","extensions":{"code":"UNAUTHENTICATED"}}]}"#;
+        let paths = vec!["a.md".to_string()];
+        let query = build_query("owner", "repo", "main", &paths);
+        let mut mock = MockGhClient::new();
+        mock.stub(graphql_args(&query), ok_resp(body.as_bytes()));
+
+        let err = fetch_last_commit_at_batch(&mock, "owner/repo", "main", &paths).unwrap_err();
+        assert!(matches!(err, GitlessError::AuthFailed));
+    }
+
+    #[test]
+    fn not_found_extension_code_falls_through_to_http() {
+        let body = r#"{"data":null,"errors":[{"message":"object not found","extensions":{"code":"NOT_FOUND"}}]}"#;
+        let paths = vec!["a.md".to_string()];
+        let query = build_query("owner", "repo", "main", &paths);
+        let mut mock = MockGhClient::new();
+        mock.stub(graphql_args(&query), ok_resp(body.as_bytes()));
+
+        let err = fetch_last_commit_at_batch(&mock, "owner/repo", "main", &paths).unwrap_err();
+        match err {
+            GitlessError::Http(msg) => {
+                assert!(msg.contains("NOT_FOUND"), "got: {msg}");
+                assert!(msg.contains("object not found"), "got: {msg}");
+            }
+            other => panic!("expected Http, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn internal_server_error_falls_through_to_http() {
+        let body = r#"{"data":null,"errors":[{"message":"oops","extensions":{"code":"INTERNAL_SERVER_ERROR"}}]}"#;
+        let paths = vec!["a.md".to_string()];
+        let query = build_query("owner", "repo", "main", &paths);
+        let mut mock = MockGhClient::new();
+        mock.stub(graphql_args(&query), ok_resp(body.as_bytes()));
+
+        let err = fetch_last_commit_at_batch(&mock, "owner/repo", "main", &paths).unwrap_err();
+        match err {
+            GitlessError::Http(msg) => {
+                assert!(msg.contains("INTERNAL_SERVER_ERROR"), "got: {msg}");
+            }
+            other => panic!("expected Http, got {other:?}"),
+        }
+    }
+
+    // --- partial errors policy: data present + non-empty errors → fail ----
+
+    #[test]
+    fn partial_errors_with_data_present_returns_fail() {
+        // Some aliases resolved (`data` non-null) but `errors[]` is non-empty.
+        // Per spec § Partial errors policy, errors[0] is mapped and the call
+        // fails — the partial data is never returned.
+        let body = r#"{"data":{"repository":{"ref":{"target":{"a0":{"nodes":[{"committedDate":"2026-05-07T10:00:00Z"}]}}}}},"errors":[{"message":"throttled","extensions":{"code":"RATE_LIMITED"}}]}"#;
+        let paths = vec!["good.md".to_string(), "bad.md".to_string()];
+        let query = build_query("owner", "repo", "main", &paths);
+        let mut mock = MockGhClient::new();
+        mock.stub(graphql_args(&query), ok_resp(body.as_bytes()));
+
+        let err = fetch_last_commit_at_batch(&mock, "owner/repo", "main", &paths).unwrap_err();
+        assert!(matches!(err, GitlessError::RateLimitExceeded { .. }));
+    }
+
+    // --- build_query escape variants: backslash and newline ---------------
+
+    #[test]
+    fn build_query_escapes_path_with_backslash() {
+        let paths = vec![r"weird\name.md".to_string()];
+        let q = build_query("owner", "repo", "main", &paths);
+        // Raw `\` byte in input → literal `\\` (two chars) in query string.
+        assert!(q.contains(r#"path: "weird\\name.md""#), "got: {q}");
+    }
+
+    #[test]
+    fn build_query_escapes_path_with_newline() {
+        let paths = vec!["weird\nname.md".to_string()];
+        let q = build_query("owner", "repo", "main", &paths);
+        // Raw newline byte in input → literal `\n` (backslash + n) in query.
+        assert!(q.contains(r#"path: "weird\nname.md""#), "got: {q}");
+    }
+
+    // --- escape end-to-end: argv match through MockGhClient ---------------
+
+    #[test]
+    fn fetch_with_escape_chars_in_path_routes_through_escaped_query() {
+        // MockGhClient keys on exact argv. If escape ever drifted, the stub
+        // wouldn't match and the call would fail with `no stub registered`.
+        let raw_path = "weird\"name\\here.md";
+        let paths = vec![raw_path.to_string()];
+        let query = build_query("owner", "repo", "main", &paths);
+        let body = ok_response_for(&[(raw_path, "2026-05-07T10:00:00Z")]);
+
+        let mut mock = MockGhClient::new();
+        mock.stub(graphql_args(&query), ok_resp(body.as_bytes()));
+
+        let map = fetch_last_commit_at_batch(&mock, "owner/repo", "main", &paths).unwrap();
+        assert_eq!(map.len(), 1);
+        assert!(map.contains_key(raw_path));
     }
 }
