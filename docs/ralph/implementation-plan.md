@@ -80,6 +80,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - 진입점 시그니처: `fetch_last_commit_at_batch(client, repo, branch, paths) -> Result<HashMap<String, DateTime<Utc>>, GitlessError>`.
     - alias batching 패턴 — 한 alias = `history(first: 1, path: X)` = 1 node. batch size default **200** (P7 ADR 0007에서 confirm).
     - query 빌더 의사코드 박음 (`repo.ref(qualifiedName: "refs/heads/{branch}").target { ... on Commit { history aliases ... } }`).
+    - **timestamp 필드는 `committedDate` 사용** (REST `committer.date`와 일관). `authoredDate`는 commit author date라 cherry-pick / rebase 시 committer date와 달라짐 → cross-backend 정합 깨짐. 사용 금지.
     - path → alias mangling: `a` + sequential index (`a0`, `a1`, ..., `a199`). 응답 매핑은 Vec<&str>로 alias→path 역인덱스.
     - partial errors 통째 fail 정책 (errors[] 배열 비어 있지 않으면 즉시 매핑 후 fail).
     - § 병렬 호출 정책 갱신: backend별 분기 — REST = rayon 8c (ADR 0003), GraphQL = alias batching only (ADR 0005). MAX_COMMITS_CONCURRENCY는 REST 한정 active.
