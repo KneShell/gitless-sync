@@ -141,7 +141,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
 - **Status**: `[x]`
 
-### P7. coverage 게이트 통과 검증 (phase-final) `[AUTO]`
+### P7. coverage 게이트 통과 검증 (phase-final) `[AUTO]` `[~]`
 - **Spec reference**: `docs/ralph/project-ops.md` § Coverage, `CLAUDE.md` § Test coverage, G-007, G-012, G-013
 - **Files**: 미달 모듈에 unit test 추가 (필요 시), `deny.toml` (신규 의존성 도입 시)
 - **Depends on**: P6
