@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-06T22:00:00Z (M6 [x] — README + gh CLI prerequisites. M5a still [!] BLOCKED: G-017 (`gh -F`가 commits API GET → POST 자동 전환으로 404). spec/code 양쪽 박힌 인자 패턴(`fetch_last_commit_at`)에 `-X GET` 누락. unit test가 MockGhClient 기반이라 method 검증 부재로 surface 안 됨. 직접 검증: `gh api repos/KneShell/gitless-sync/commits -F sha=main -F path=CLAUDE.md -F per_page=1` → 404, 동일 인자에 `-X GET` 추가 시 정상. 영구 신호 — fix task 분해 필요. G-015 auto-recovery 대상 아님.)
-- Total tasks: 14 (M0, M1, M2a, M2b1, M2b2, M2c, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
-- Completed: 10 / 14
+- Last updated: 2026-05-07T00:00:00Z (M2d 신규 — G-017 fix task. M5a dep을 M2c → M2d로 갱신, M2d 완료 후 M5a [!] → [ ] reset 트리거.)
+- Total tasks: 15 (M0, M1, M2a, M2b1, M2b2, M2c, M2d, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
+- Completed: 10 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -17,8 +17,8 @@
 
 ```
 M0 → M1 → M2a → M2b1 → M2b2 → M2c
+                              ├──→ M2d → M5a → M5b
                               ├──→ M3 → M4a → M4b
-                              ├──→ M5a → M5b
                               └──→ M6
                                      ↓
                                    M7 → M8
@@ -106,6 +106,19 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`, `cargo deny check`, `cargo audit` 통과.
 - **Status**: `[x]`
 
+### M2d. fetch_last_commit_at `-X GET` fix (G-017) `[AUTO, 코드+spec]`
+- **Spec reference**: `docs/specs/spec-github-api.md` § fetch_last_commit_at 호출 인자 패턴, `docs/ralph/guardrails.md` G-017 (영구 spec/code 버그 — `gh -F`가 commits API GET 요청을 POST로 자동 전환)
+- **Files**: `docs/specs/spec-github-api.md`, `crates/gitless-sync/src/commands/scan/github.rs`, `crates/gitless-sync/src/commands/scan/mod.rs` (단위 테스트가 commits_args 헬퍼 검증 시), `crates/gitless-sync/tests/integration.rs` (MockGhClient stub args 검증 시), `docs/ralph/implementation-plan.md` (M5a [!] → [ ] reset)
+- **Depends on**: M2c
+- **Acceptance criteria**:
+  - `[AUTO]` 후보 (a) 채택: `fetch_last_commit_at`의 `gh api` 인자 빌드에 `"-X".to_string(), "GET".to_string()`을 path 인자 앞에 prepend. 구체적으로는 `commits_args` (또는 동등 헬퍼)가 `["-X", "GET", "repos/{owner}/{repo}/commits", "-F", "sha={branch}", "-F", "path={path}", "-F", "per_page=1"]` 시퀀스 반환.
+  - `[AUTO]` `spec-github-api.md` § fetch_last_commit_at 호출 인자 패턴 예시에 `-X GET` prepend 박제. M0에 박힌 "Commits: `gh api repos/{owner}/{repo}/commits -F sha={branch} -F path={path} -F per_page=1`" 표현을 "Commits: `gh api -X GET repos/{owner}/{repo}/commits -F sha={branch} -F path={path} -F per_page=1`"로 갱신. 갱신 사유 G-017 reference 한 줄 명시.
+  - `[AUTO]` 단위 테스트: `commits_args` 출력 시퀀스에 `"-X"`와 `"GET"`이 path 인자 앞에 포함되는지 검증 추가. 또는 `MockGhClient` stub이 args 시퀀스 패턴 매칭하는 방식이라면 stub 등록 args에 `-X GET` 반영.
+  - `[AUTO]` 통합 테스트: `tests/integration.rs`의 `MockGhClient` stub 등록이 `fetch_last_commit_at` 인자를 `-X GET` 포함 시퀀스로 매칭하도록 갱신. fetch_last_commit_at 호출하는 PRD 시나리오(2/3/4 등) 통과 확인.
+  - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
+  - `[AUTO]` 본 task `[x]` mark + commit과 **별도 commit**으로 `docs/ralph/implementation-plan.md` M5a Status를 `[!]` → `[ ]` reset (commit message: `chore: M5a reset (G-017 fixed by M2d)`). G-017 본문도 "**2026-05-07 fixed by M2d**: 후보 (a) 채택. M5a [!] → [ ] reset 후 ralph 재진입 가능." 한 줄 추가.
+- **Status**: `[ ]`
+
 ### M3. CLI 인자 + config 토큰 경로 제거 `[AUTO, 코드]`
 - **Spec reference**: `docs/specs/spec-cli-interface.md`, `docs/specs/spec-config.md`
 - **Files**: `crates/gitless-sync/src/main.rs`, `crates/gitless-sync/src/shared/config.rs`, `crates/gitless-sync/src/commands/scan/mod.rs`, `crates/gitless-sync/src/commands/diff/mod.rs`, `docs/specs/spec-cli-interface.md`, `docs/specs/spec-config.md`
@@ -145,7 +158,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
 ### M5a. rayon 측정 (자율) `[AUTO]`
 - **Spec reference**: `docs/ralph/guardrails.md` § G-011, `docs/specs/spec-github-api.md` § 병렬 호출 정책
 - **Files**: 측정 raw data를 task `[~]` commit message + acceptance 본문에 박제 (M5b가 ADR 0003에 옮김).
-- **Depends on**: M2c
+- **Depends on**: M2d
 - **Acceptance criteria**:
   - `[AUTO]` ralph 환경에서 `KneShell/gitless-sync` repo 또는 vault scale repo 대상 자율 측정. (a) rayon 8 concurrent + gh subprocess vs (b) 순차 gh subprocess 시간 측정.
   - `[AUTO]` **측정 신뢰성 룰**:
@@ -154,7 +167,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
     - 본 측정 N=3 결과의 variance가 30% 초과 시 N=5로 확장 후 재계산.
     - 측정 도중 gh exit≠0 발생 시 G-015 transient retry policy 적용 (N=3 + 30s backoff). 3회 모두 실패 시 [!] + G-015 reference (auto-recovery 가능).
   - `[AUTO]` 환경(Windows + 실제 repo + 시점 timestamp) + 명령어 + raw timing(각 측정의 전체 시간 박제 — outlier 추적 가능).
-- **Status**: `[!]` — G-017 (gh `-F` POST 자동 전환으로 commits API 404). 측정 자체 불가 — 영구 spec/code 버그. fix task 분해 필요. G-015 auto-recovery 대상 아님 (영구 신호).
+- **Status**: `[!]` — G-017 (gh `-F` POST 자동 전환으로 commits API 404). M2d 완료 후 [!] → [ ] reset 예정 (M2d acceptance에 reset 트리거 박힘).
 
 ### M5b. rayon 유지/제거 결정 + ADR 0003 박제 + spec/guardrail 갱신 `[AUTO]`
 - **Spec reference**: `docs/ralph/guardrails.md` § G-011, `docs/specs/spec-github-api.md` § 병렬 호출 정책
