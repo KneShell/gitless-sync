@@ -39,7 +39,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
 
 ## Tasks
 
-### P1. ADR 0004 박음 + CLAUDE.md Current State 갱신 `[AUTO, 문서/spec]`
+### P1. ADR 0004 박음 + CLAUDE.md Current State 갱신 `[AUTO, 문서/spec]` `[~]`
 - **Spec reference**: `docs/adr/0001-gh-subprocess-and-drop-push-tool.md` § Read-only 영구 (정합 명시), `CLAUDE.md` § Current State / § Critical Rules / § 검증된 함정
 - **Files**: `docs/adr/0004-init-stdout-redirect.md` (신규), `CLAUDE.md`
 - **Depends on**: none
@@ -55,7 +55,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - § References: ADR 0001, `spec-cli-interface.md`, sample CLI 패턴(`gh api > out.json`).
   - `[AUTO]` `CLAUDE.md` § Current State 갱신: "Phase 2 진행 중 — `gitless-sync init` (ADR 0004 stdout redirect)" 한 줄 추가.
   - `[AUTO]` `CLAUDE.md` § 사용자 취향 결정 (검증·토론 대상 X) section에 "init은 도구가 파일 작성 안 함, stdout TOML + redirect 패턴 (ADR 0004)" 한 줄 박음.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### P2. spec 갱신 — Phase 2 init 정의 `[AUTO, spec-only]`
 - **Spec reference**: `docs/specs/spec-cli-interface.md`, `docs/specs/spec-config.md`, `docs/specs/spec-error-contracts.md`, `docs/roadmap.md` § Phase 2
