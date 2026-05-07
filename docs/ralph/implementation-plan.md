@@ -264,7 +264,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - speedup ratio 박음. 1000 path scale 추정 박음 (linear extrapolation, sublinear 조심).
   - `[AUTO]` 측정 도중 transient 실패는 G-015 retry policy 적용.
   - `[AUTO]` raw data를 본 task acceptance 본문에 박음.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### P6c. Cache hit rate 측정 `[AUTO]`
 - **Spec reference**: § Phase 4 사전 결정 §15 임계값 (ADR 0008 결정용 raw data)
