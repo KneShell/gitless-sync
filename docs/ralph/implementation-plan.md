@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-07 (Phase 2 P7 완료 — coverage 89.55%, fmt/clippy/test/deny/audit 게이트 통과)
+- Last updated: 2026-05-07 (Phase 2 완료 — P8 dogfooding 통과, init→tempdir TOML→scan 라운드트립 invariant 일치)
 - Total tasks: 8 (P1, P2, P3, P4, P5, P6, P7, P8)
-- Completed: 7 / 8
+- Completed: 8 / 8
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -151,7 +151,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `cargo tree`로 신규 의존성 점검. Phase 2가 `toml` crate 신규 도입 시 deny.toml 라이선스 화이트리스트 갱신 + `cargo deny check` 재통과 확인. (`toml`이 이미 transitive로 박혀 있으면 추가 0.)
 - **Status**: `[x]` (tarpaulin 89.55%, fmt/clippy/test 167건 pass, deny/audit clean, toml 기존 dep으로 deny.toml 무변경)
 
-### P8. dogfooding contract step `[AUTO]` `[~]`
+### P8. dogfooding contract step `[AUTO]` `[x]`
 - **Spec reference**: ADR 0004 § Consequences, M8 dogfooding 선례
 - **Files**: 박제 0. 실행 결과는 task `[x]` commit message에 카운트만 인라인.
 - **Depends on**: P7
@@ -163,4 +163,4 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` 같은 tempdir 또는 `--local D:\00.Projects\02.Personal\05.gitless-sync`로 `cargo run --release -- scan` 실행 → exit 0 + stdout JSON 파싱 통과 + summary 5 카운트(`identical`/`local_only_changed`/`remote_only_changed`/`drift`/`failed`) invariant 일치 (M8 게이트).
   - `[AUTO]` external command transient(network 5xx, gh exit≠0)는 G-015 retry policy 적용. 3회 실패 시 [!] + G-015 reference (auto-recovery 가능).
   - `[AUTO]` 박제 0. git log + commit message가 evidence trail. failed 비율은 commit message에 기록만 (BLOCKED 게이트 아님).
-- **Status**: `[ ]`
+- **Status**: `[x]` (init → tempdir/gitless-sync.toml → scan --local tempdir 라운드트립. summary 0 identical / 1 local_only_changed / 43 remote_only_changed / 0 drift / 0 failed = 44 files invariant 일치, scan에서 toml 자동 로드 확인)
