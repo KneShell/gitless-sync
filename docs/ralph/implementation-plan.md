@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-07 (Phase 4 진입 — GraphQL batching + 로컬 SHA mtime cache)
 - Total tasks: 15 (P1, P2, P3a, P3b, P4, P5a, P5b, P5c, P6a, P6b, P6c, P7a, P7b, P8, P9)
-- Completed: 8 / 15
+- Completed: 9 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -227,7 +227,29 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - speedup 또는 slowdown 명시 (200 baseline 대비).
   - `[AUTO]` 측정 도중 transient 실패 (gh exit≠0)는 G-015 retry policy 적용 (N=3 + 30s backoff). 3회 실패 시 [!] + G-015 reference (auto-recovery 가능).
   - `[AUTO]` raw data를 본 task acceptance 본문에 박음 (M5a 패턴 — 환경 / 명령어 / N=3 raw ms / mean / variance / speedup).
-- **Status**: `[~]`
+- **Raw data (2026-05-07)**:
+  - **환경**: Windows 11 Pro 10.0.26100 / gh 2.88.1 (KneShell account active) / cargo 1.95.0 / release binary `target/release/gitless-sync.exe`. wall-clock = PowerShell `Measure-Command`. `gh auth status` exit 0 확인 완료.
+  - **대상**: `KneShell/gitless-sync` @ main, local = `D:\00.Projects\02.Personal\05.gitless-sync`. 측정 직전 13개 commited `.md` 파일에 trailing newline 임시 추가 → SHA mismatch로 GraphQL 호출 분기 (status는 `local_only_changed`로 분류되지만 `local_sha != remote_sha`라 commits API/GraphQL 호출 — `commands/scan/mod.rs::fetch_commit_map`). M8 dogfooding과 분기 동일. 측정 종료 후 `git restore`로 모두 복원, 코드 임시 변경(`GRAPHQL_BATCH_SIZE = 100`)도 revert 완료.
+  - **명령어**: `gitless-sync.exe scan --repo KneShell/gitless-sync --branch main --local <local> --summary-only`. cache 매 시퀀스 시작 시 `Remove-Item $env:LOCALAPPDATA\gitless-sync\KneShell__gitless-sync__main.json` 으로 cold start.
+  - **(a) batch 200 (default)** — N=3 본 측정 후 variance 30% 초과 → N=5 확장:
+    - warm-up dropped: 1821.8 ms
+    - N=5 raw ms: 2303.5, 1588.6, 1556.9, 1697.9, 3236.4
+    - mean **2076.7 ms** / min 1556.9 / max 3236.4 / `(max-min)/mean` **80.9%** (≫30%)
+  - **(b) batch 100 (코드 임시 `GRAPHQL_BATCH_SIZE = 100`, 측정 후 revert)** — N=3:
+    - warm-up dropped: 1768.3 ms
+    - N=3 raw ms: 1676.7, 1651.4, 1755.9
+    - mean **1694.7 ms** / min 1651.4 / max 1755.9 / `(max-min)/mean` **6.2%** (<30%)
+  - **(c) batch 200 재측정 (cache 재 cold start)** — variance 검증용:
+    - warm-up dropped: 1731.9 ms
+    - N=3 raw ms: 1567.5, 6044.3, 1814.7
+    - mean **3142.2 ms** / min 1567.5 / max 6044.3 / `(max-min)/mean` **142.5%** (≫30%)
+  - **분석**:
+    - 13 paths × 1 chunk: batch 100과 batch 200 모두 `paths.chunks(N)` 호출에서 1개 chunk 생성 (13 ≤ 100 ≤ 200). 즉 발사되는 GraphQL request의 alias 개수·body 크기 동일 — 코드 분기는 chunk loop 한 번만 돌고 종료. **batch size 차이가 wire/server 단위에서 식별 불가능한 scale**.
+    - batch 200의 두 차례 시퀀스(81%, 143%) 모두 high outlier(3236.4 ms / 6044.3 ms)에 의해 mean 왜곡. batch 100 시퀀스는 outlier 0회 (variance 6%). 동일 코드 경로(1 chunk)인데 분포가 갈리는 건 **GitHub `committedDate` GraphQL latency의 자연 변동**이 지배적이라는 신호.
+    - 단순 mean 비교로 batch 100 가 batch 200 baseline (a) 대비 1.225x 빠른 모습이지만, batch 200 (c) 와 비교하면 1.854x. 이 격차는 코드 인자가 아니라 N=3~5 표본의 운에 가까움.
+  - **결론** (P7a ADR 0007 입력): 13 path scale에서 batch 100/200은 **functional하게 동일한 단일 GraphQL request**. wire latency 변동이 batch size 효과보다 한 자릿수 큼 → 본 raw data로 batch 100 우위를 주장할 근거 부족. yagni + roadmap.md § Phase 4 권장 상한 일관성 → **batch 200 default 유지** 권장. 250+ path scale 측정은 KneShell/gitless-sync 외 repo 또는 synthetic 시나리오가 필요하나 v0.1/v0.2 비목표.
+  - **transient retry**: gh exit ≠ 0 발생 0회 → G-015 retry 미발동.
+- **Status**: `[x]`
 
 ### P6b. REST vs GraphQL baseline 측정 `[AUTO]`
 - **Spec reference**: ADR 0006 (default GraphQL) 정당화 raw data
