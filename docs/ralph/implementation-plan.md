@@ -139,7 +139,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     ```
   - `[AUTO]` `main.rs` clap `Init` subcommand에 `after_help` 또는 `long_about` 박음. 마지막 줄에 redirect 예시 1줄 — `gitless-sync init --help` 출력 마지막에 노출.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### P7. coverage 게이트 통과 검증 (phase-final) `[AUTO]`
 - **Spec reference**: `docs/ralph/project-ops.md` § Coverage, `CLAUDE.md` § Test coverage, G-007, G-012, G-013
