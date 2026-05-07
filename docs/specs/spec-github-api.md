@@ -127,15 +127,12 @@ v0.1 ureq baseline 시그니처에서 `token` 인자 제거 + `client: &impl GhC
 
 ### 병렬 호출 정책 (Latency)
 
-> **⚠️ M5b 결과 미정 박스**
-> ADR 0002 § Consequences에서 "병렬 subprocess spawn 비용 vs 순차 호출 시간 trade-off는 측정해 rayon 유지/제거 결정 — 별도 task"로 미정. M5a (측정) → M5b (ADR 0003 박제) 후 본 섹션은 결정에 따라 (a) 확정 박제 또는 (b) 통째 삭제.
->
-> 본 박스가 박혀 있는 동안의 baseline 정책 (확정 아님):
+> **확정 (ADR 0003, 2026-05-07).** M5a 측정(commit `5e95312`)에서 rayon 8c vs sequential 4.86x speedup 입증 → ADR 0003에서 rayon 유지 결정. 본 섹션은 baseline이 아닌 확정 정책.
 
 - `fetch_last_commit_at`은 차이 있는 파일 N개에 대해 직렬 호출 시 N × subprocess spawn + GitHub round-trip latency 누적 → 큰 vault에서 사용자 인내심 한계.
-- baseline 해결안: rayon으로 병렬 호출, default **8 concurrent**. (M5b 측정 결과 따라 obsolete 가능.)
-- 패턴(baseline): `paths.par_iter().map(|p| github::fetch_last_commit_at(client, repo, branch, p)).collect::<Result<Vec<_>, _>>()`.
-- 동시 요청 수 상한 = 8 (G-011, GitHub abuse detection 회피). 변경 시 G-011 갱신. (M5b 결과 따라 obsolete 가능.)
+- 해결안: rayon으로 병렬 호출, default **8 concurrent**. M5a 측정에서 13 path 기준 sequential 6.56s → rayon 8c 1.35s (4.86x speedup).
+- 패턴: `paths.par_iter().map(|p| github::fetch_last_commit_at(client, repo, branch, p)).collect::<Result<Vec<_>, _>>()` 를 `rayon::ThreadPoolBuilder::new().num_threads(8).build().unwrap().install(...)`로 thread pool 명시 제어.
+- 동시 요청 수 상한 = 8 (G-011, GitHub abuse detection 회피). 변경 시 G-011 + 본 섹션 + ADR 0003 동시 갱신.
 - burst 시 gh stderr `429` 또는 abuse detection 신호 → `GitlessError::Http(...)`로 매핑 후 즉시 종료. exponential backoff은 v0.1 비목표 (Phase 4).
 - `fetch_tree`(scan에서 1회) / `fetch_blob`(diff 명령에서만) 병렬화 대상 아님.
 
