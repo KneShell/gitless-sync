@@ -22,6 +22,8 @@ ignore = ["dist/", "*.tmp"]
 ```
 모든 필드는 옵셔널. 누락 시 다음 우선순위로 fallback.
 
+`gitless-sync init`은 본 스키마를 stdout TOML로 emit하는 도구다 — 사용자가 shell redirect로 영구 파일 생성 (ADR 0004). 자세한 정의는 `spec-cli-interface.md` § init subcommand.
+
 ### 비밀 정보 정책
 토큰 같은 비밀 정보는 도구 코드·repo에 절대 포함하지 않음. `gitless-sync.toml`에 토큰 필드 정의하지 않음 (commit 위험). 인증은 외부 `gh` CLI에 위임 (`gh auth login`) — 본 도구는 토큰 문자열을 받지도 출력하지도 않는다.
 
