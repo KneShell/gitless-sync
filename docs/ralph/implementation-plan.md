@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-07 (Phase 4 진입 — GraphQL batching + 로컬 SHA mtime cache)
 - Total tasks: 15 (P1, P2, P3a, P3b, P4, P5a, P5b, P5c, P6a, P6b, P6c, P7a, P7b, P8, P9)
-- Completed: 3 / 15
+- Completed: 4 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -131,7 +131,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `lib.rs` 전체 commands export 정렬 (통합 테스트 P5에서 진입점 호출 가능 수준).
   - `[AUTO]` **lib export cascade 정리**: 신규 `pub` surface로 발생한 pedantic clippy warning은 본 task Files 영역 안에서 동반 정리. 영역 초과 시 [!] BLOCKED + commit message에 surface된 모듈 본문 박음 → 다음 iteration에서 사람이 plan Files 확장하지 않고 **별도 task P3c (cascade overflow)로 분기 결정**. ralph 자율 우회: 영역 초과 cascade는 본 task에서 처리 안 하고 commit + [!] + 다음 iteration P3c 박힘 대기. (사람 개입 0이지만 plan 갱신 1회 필요 — Phase 2 P3 선례.)
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### P4. 로컬 SHA mtime cache 본체 `[AUTO, 코드]`
 - **Spec reference**: `spec-config.md` § cache (P2 갱신본), ADR 0009

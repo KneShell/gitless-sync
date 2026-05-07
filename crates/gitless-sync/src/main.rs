@@ -34,7 +34,7 @@ struct Cli {
     #[arg(long, global = true)]
     pretty: bool,
 
-    #[arg(long, global = true, value_enum, default_value_t = Backend::Rest)]
+    #[arg(long, global = true, value_enum, default_value_t = Backend::Graphql)]
     backend: Backend,
 
     #[arg(short = 'v', long = "verbose", global = true, action = ArgAction::Count)]
