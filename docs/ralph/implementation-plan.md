@@ -124,14 +124,14 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
 
 ### P3b. main.rs default 전환 + v0.1 stub 제거 + lib export cascade 정리 `[AUTO, 코드]`
 - **Spec reference**: ADR 0006 (default GraphQL), `spec-cli-interface.md` § Backend 분기 (P2 갱신본)
-- **Files**: `crates/gitless-sync/src/main.rs` (clap default 전환 + v0.1 stub 제거), `crates/gitless-sync/src/lib.rs` (전체 commands export 정렬), `crates/gitless-sync/src/shared/hash.rs`, `crates/gitless-sync/src/shared/normalize.rs`, `crates/gitless-sync/src/commands/scan/compare.rs`, `crates/gitless-sync/src/commands/scan/output.rs` (lib export로 surface된 pedantic clippy `must_use` / `# Errors` / `# Panics` 동반 정리 — v0.2 M4a / Phase 2 P3 cascade 선례, 발생 시만 수정)
+- **Files**: `crates/gitless-sync/src/main.rs` (clap default 전환), `crates/gitless-sync/src/commands/scan/mod.rs` (v0.1 stub error 제거 + 무용 test 제거 — P3a acceptance에서 P3b 책임 명시), `crates/gitless-sync/src/lib.rs` (전체 commands export 정렬), `crates/gitless-sync/src/shared/hash.rs`, `crates/gitless-sync/src/shared/normalize.rs`, `crates/gitless-sync/src/commands/scan/compare.rs`, `crates/gitless-sync/src/commands/scan/output.rs` (lib export로 surface된 pedantic clippy `must_use` / `# Errors` / `# Panics` 동반 정리 — v0.2 M4a / Phase 2 P3 cascade 선례, 발생 시만 수정)
 - **Depends on**: P3a
 - **Acceptance criteria**:
-  - `[AUTO]` `main.rs` clap `Backend` enum default 변경: `#[arg(default_value_t = Backend::Graphql)]`. v0.1 stub error("GraphQL backend not implemented...") 제거 (P3a에서 본체 박혔으므로 stub 무용).
+  - `[AUTO]` `main.rs` clap `Backend` enum default 변경: `#[arg(default_value_t = Backend::Graphql)]`. v0.1 stub error("GraphQL backend not implemented...") 제거 (P3a에서 본체 박혔으므로 stub 무용). 실제 stub error 위치는 `commands/scan/mod.rs::run_with_client` (P3a에서 의도적으로 잔존, P3b 책임 명시).
   - `[AUTO]` `lib.rs` 전체 commands export 정렬 (통합 테스트 P5에서 진입점 호출 가능 수준).
   - `[AUTO]` **lib export cascade 정리**: 신규 `pub` surface로 발생한 pedantic clippy warning은 본 task Files 영역 안에서 동반 정리. 영역 초과 시 [!] BLOCKED + commit message에 surface된 모듈 본문 박음 → 다음 iteration에서 사람이 plan Files 확장하지 않고 **별도 task P3c (cascade overflow)로 분기 결정**. ralph 자율 우회: 영역 초과 cascade는 본 task에서 처리 안 하고 commit + [!] + 다음 iteration P3c 박힘 대기. (사람 개입 0이지만 plan 갱신 1회 필요 — Phase 2 P3 선례.)
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### P4. 로컬 SHA mtime cache 본체 `[AUTO, 코드]`
 - **Spec reference**: `spec-config.md` § cache (P2 갱신본), ADR 0009
