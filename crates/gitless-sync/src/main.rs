@@ -53,6 +53,10 @@ enum Commands {
     Diff {
         path: String,
     },
+    #[command(
+        about = "Print a gitless-sync.toml template to stdout (you redirect to a file)",
+        after_help = "Example:\n  gitless-sync init --repo owner/name --branch main > gitless-sync.toml"
+    )]
     Init,
 }
 
