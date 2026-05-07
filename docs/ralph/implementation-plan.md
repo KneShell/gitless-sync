@@ -68,11 +68,11 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `roadmap.md` § Phase 2 갱신: 원안 "현재 디렉토리에 `gitless-sync.toml` 작성. 기존 파일 있으면 `--force` 없이 실패."를 "stdout TOML 출력 — 사용자가 `gitless-sync init ... > gitless-sync.toml`로 redirect (ADR 0004). 도구 파일 작성 0."으로 갱신. 실패 모드 `--force` / 파일 권한 / 기존 파일 충돌 항목 모두 제거 (도구 파일 작성 0이라 obsolete).
 - **Status**: `[x]`
 
-### P3. init mod 신규 + CLI 디스패치 + TOML 직렬화 + 단위 테스트 매트릭스 `[AUTO, 코드]`
+### P3. init mod 신규 + CLI 디스패치 + TOML 직렬화 + 단위 테스트 매트릭스 `[AUTO, 코드]` `[~]`
 - **Spec reference**: `spec-cli-interface.md` § init subcommand (P2 갱신본), `spec-config.md` § 스키마
 - **Files**: `crates/gitless-sync/src/commands/init/mod.rs` (신규), `crates/gitless-sync/src/commands/mod.rs` (init 모듈 노출 — `pub(crate) mod init;`), `crates/gitless-sync/src/main.rs` (clap subcommand + 디스패치), `crates/gitless-sync/src/lib.rs` (init 모듈 export — 통합 테스트가 진입점 호출), `crates/gitless-sync/src/shared/error.rs`, `crates/gitless-sync/src/shared/hash.rs`, `crates/gitless-sync/src/shared/normalize.rs`, `crates/gitless-sync/src/commands/scan/compare.rs`, `crates/gitless-sync/src/commands/scan/output.rs` (lib export로 surface된 pedantic clippy `must_use` / `# Errors` / `# Panics` 동반 정리 — v0.2 M4a Files 확장 선례, 발생 시만 수정)
 - **Depends on**: P2
-- **Acceptance criteria**:
+- **Acceptance criteria** (in progress):
   - `[AUTO]` `commands/init/mod.rs` 신규:
     - `pub(crate) struct InitArgs { repo: String, branch: Option<String>, ignore: Vec<String> }` (clap derive 또는 main.rs에서 build).
     - `pub(crate) fn run(args: &InitArgs, writer: &mut impl std::io::Write) -> Result<(), GitlessError>` 시그니처.
