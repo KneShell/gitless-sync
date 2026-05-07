@@ -368,7 +368,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - `dirs` crate 박혀 있으면 (cache 유지 결정 시) deny.toml 라이선스 화이트리스트 갱신 + cargo deny check 재통과 확인.
     - 그 외 transitive로 박힌 신규 crate (GraphQL JSON 파싱용 등)도 동일 점검.
   - `[AUTO]` 결과 박제: tests 카운트 + tarpaulin %, ureq/mockito 부재 재확인.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### P9. dogfooding contract step + cross-backend 정합성 `[AUTO]`
 - **Spec reference**: ADR 0006 (default GraphQL), M8/Phase 2 P8 dogfooding 선례
