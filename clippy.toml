@@ -1,0 +1,4 @@
+# Phase 6 Step 1 — code quality strengthening (사용자 취향 60/15/5)
+too-many-lines-threshold = 60
+cognitive-complexity-threshold = 15
+too-many-arguments-threshold = 5
