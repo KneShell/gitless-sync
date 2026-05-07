@@ -2,8 +2,8 @@
 
 ## Status
 - Last updated: 2026-05-07 (Phase 4 진입 — GraphQL batching + 로컬 SHA mtime cache)
-- Total tasks: 10 (P1, P2, P3a, P3b, P4, P5, P6, P7, P8, P9)
-- Completed: 0 / 10
+- Total tasks: 15 (P1, P2, P3a, P3b, P4, P5a, P5b, P5c, P6a, P6b, P6c, P7a, P7b, P8, P9)
+- Completed: 0 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -45,7 +45,7 @@
 ## Dependency Graph
 
 ```
-P1 → P2 → P3a → P3b → P4 → P5 → P6 → P7 → P8 → P9
+P1 → P2 → P3a → P3b → P4 → P5a → P5b → P5c → P6a → P6b → P6c → P7a → P7b → P8 → P9
 ```
 
 Linear chain. 각 task가 다음 task의 compile-clean baseline.
@@ -162,9 +162,9 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
 - **Status**: `[ ]`
 
-### P5. 단위 + 통합 테스트 매트릭스 (GraphQL + cache) `[AUTO, 코드]`
-- **Spec reference**: `spec-github-api.md` Acceptance Criteria, `spec-error-contracts.md` PRD 시나리오 20~25, `spec-config.md` cache Acceptance
-- **Files**: `crates/gitless-sync/src/commands/scan/graphql.rs::tests`, `crates/gitless-sync/src/shared/cache.rs::tests`, `crates/gitless-sync/tests/integration.rs`
+### P5a. GraphQL 단위 테스트 매트릭스 `[AUTO, 코드]`
+- **Spec reference**: `spec-github-api.md` Acceptance Criteria
+- **Files**: `crates/gitless-sync/src/commands/scan/graphql.rs::tests`
 - **Depends on**: P4
 - **Acceptance criteria**:
   - `[AUTO]` GraphQL 단위 테스트 매트릭스 (MockGhClient stub):
@@ -178,6 +178,14 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - 일부 alias만 응답 + 나머지 errors → 통째 fail (partial errors 정책)
     - alias mangling: 200 paths → a0, a1, ..., a199 안전 매핑 + 응답 → path 역매핑 정합
     - GraphQL escape: path에 `"` / `\\` / `\n` 포함 시 query string 안전 escape (실제 호출 인자 검증)
+  - `[AUTO]` `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
+- **Status**: `[ ]`
+
+### P5b. Cache 단위 테스트 매트릭스 `[AUTO, 코드]`
+- **Spec reference**: `spec-config.md` cache Acceptance
+- **Files**: `crates/gitless-sync/src/shared/cache.rs::tests`
+- **Depends on**: P5a
+- **Acceptance criteria**:
   - `[AUTO]` Cache 단위 테스트 매트릭스:
     - hit: 동일 mtime → cached sha 반환
     - miss: 첫 호출 → None
@@ -187,6 +195,14 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - save 실패 (시뮬레이션 fs error) graceful (warning, Cache 본체는 정상)
     - cache_path sanitize 매트릭스 (특수문자 / 공백 / 한글)
     - version 미스매치 시 reset (예: 미래 version 2 cache 만나면 default 반환)
+  - `[AUTO]` `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
+- **Status**: `[ ]`
+
+### P5c. 통합 테스트 시나리오 20~25 `[AUTO, 코드]`
+- **Spec reference**: `spec-error-contracts.md` PRD 시나리오 20~25
+- **Files**: `crates/gitless-sync/tests/integration.rs`
+- **Depends on**: P5b
+- **Acceptance criteria**:
   - `[AUTO]` 통합 테스트 시나리오 20~25 (`tests/integration.rs`):
     - 시나리오 20: GraphQL backend 정상 (`run_with_client(args, &MockGhClient stub graphql)` → ScanReport 정상)
     - 시나리오 21: GraphQL backend errors (rate limit / auth / not_found 매핑)
@@ -195,51 +211,81 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - 시나리오 24: Cross-backend 결과 동일 (`--backend rest` + `--backend graphql` 두 stub 같은 응답 → ScanReport `summary` + `files[]` set 동일)
     - 시나리오 25: cache 손상 graceful (`.json` 파일 임의 파괴 → scan 정상 + warning emit)
   - `[AUTO]` 테스트 패턴: library entry inject (Phase 2 P5 패턴 일관). `cargo run --` 자식 프로세스 호출 0.
-  - `[AUTO]` `cargo test --workspace`, `cargo test --test integration` 전체 통과.
+  - `[AUTO]` `cargo test --test integration` 전체 통과.
 - **Status**: `[ ]`
 
-### P6. 측정 task — batch size + REST vs GraphQL + cache `[AUTO]`
-- **Spec reference**: ADR 0007 + 0008 박을 raw data 수집 (P7)
+### P6a. GraphQL batch size 100 vs 200 측정 `[AUTO]`
+- **Spec reference**: ADR 0007 박을 raw data 수집 (P7a)
 - **Files**: 박제 0. raw data를 task `[~]` commit message + acceptance 본문에 박음.
-- **Depends on**: P5
+- **Depends on**: P5c
 - **Acceptance criteria**:
   - `[AUTO]` 환경: KneShell/gitless-sync (43 files) — minimum scale baseline. 측정 직전 `gh auth status` exit 0 확인 (실패 시 G-015 영구 신호 → [!]).
-  - `[AUTO]` (a) **GraphQL batch size 100 vs 200** (M5a 패턴):
+  - `[AUTO]` GraphQL batch size 100 vs 200 (M5a 패턴):
     - 코드 임시 변경 (`GRAPHQL_BATCH_SIZE = 100`) → 측정 → revert.
     - warm-up 1회 dropped, N=3 본 측정, variance 30% 초과 시 N=5 확장.
     - mean / min / max / variance 박제. raw timing (각 측정의 wall-clock ms) 박음.
     - speedup 또는 slowdown 명시 (200 baseline 대비).
-  - `[AUTO]` (b) **REST vs GraphQL baseline**:
-    - 동일 repo + paths(43) + warm-up drop + N=3.
-    - REST mean (rayon 8c, ADR 0003 1351ms baseline 재현 — 큰 편차 시 환경 변동 분석).
-    - GraphQL mean.
-    - speedup ratio 박음. 1000 path scale 추정 박음 (linear extrapolation, sublinear 조심).
-  - `[AUTO]` (c) **Cache hit rate**:
-    - 1차 scan (cache miss, full hash) timing.
-    - 2차 scan (cache hit, mtime 일치) timing.
-    - speedup ratio 박음. 1차/2차 timing 차이 + cache hit 비율 (100% 기대) 검증.
   - `[AUTO]` 측정 도중 transient 실패 (gh exit≠0)는 G-015 retry policy 적용 (N=3 + 30s backoff). 3회 실패 시 [!] + G-015 reference (auto-recovery 가능).
   - `[AUTO]` raw data를 본 task acceptance 본문에 박음 (M5a 패턴 — 환경 / 명령어 / N=3 raw ms / mean / variance / speedup).
 - **Status**: `[ ]`
 
-### P7. ADR 0007 + 0008 박음 + spec 갱신 `[AUTO, 문서/spec/코드]`
-- **Spec reference**: ADR 0003/0005/0009 패턴, P6 raw data
-- **Files**: `docs/adr/0007-graphql-batch-size.md` (신규), `docs/adr/0008-mtime-cache-keep-or-drop.md` (신규), `docs/specs/spec-github-api.md` (batch size baseline 박제), `docs/specs/spec-config.md` (cache 결정 박제), `CLAUDE.md` (Current State 갱신), (cache 제거 결정 시) `crates/gitless-sync/src/shared/cache.rs` 통째 삭제 + `walker.rs`/`mod.rs` cache 통합 코드 삭제 + `Cargo.toml` `dirs` dep 삭제 + `Cargo.lock` 갱신
-- **Depends on**: P6
+### P6b. REST vs GraphQL baseline 측정 `[AUTO]`
+- **Spec reference**: ADR 0006 (default GraphQL) 정당화 raw data
+- **Files**: 박제 0. raw data를 task `[~]` commit message + acceptance 본문에 박음.
+- **Depends on**: P6a
 - **Acceptance criteria**:
-  - `[AUTO]` ADR 0007 신규 — § Status: Accepted, Date: 2026-05-07. § Context: P6 (a) raw data + 측정 환경. § Decision: 100 또는 200 (P6 raw data 기반). 더 빠른 쪽 + variance 안정 쪽 채택. § Consequences: spec-github-api § GraphQL backend batch size baseline 박제. cap 변경 시 본 ADR + spec 동시 갱신.
-  - `[AUTO]` ADR 0008 신규 — § Context: P6 (c) raw data + cache hit 효과. § Decision: § Phase 4 사전 결정 §15 임계값 매핑 — speedup ≥ 2x → ① cache 유지, < 1.5x → ② cache 제거, 경계(1.5~2.0x)면 raw data 박고 yagni 일관(② 제거 default). 결정 근거 raw data로 명시.
+  - `[AUTO]` 환경: P6a와 동일 (KneShell/gitless-sync 43 files). 측정 직전 `gh auth status` exit 0 재확인.
+  - `[AUTO]` REST vs GraphQL baseline:
+    - 동일 repo + paths(43) + warm-up drop + N=3.
+    - REST mean (rayon 8c, ADR 0003 1351ms baseline 재현 — 큰 편차 시 환경 변동 분석).
+    - GraphQL mean (P7a 시점엔 default 200, P7a 후엔 ADR 0007 결정값).
+    - speedup ratio 박음. 1000 path scale 추정 박음 (linear extrapolation, sublinear 조심).
+  - `[AUTO]` 측정 도중 transient 실패는 G-015 retry policy 적용.
+  - `[AUTO]` raw data를 본 task acceptance 본문에 박음.
+- **Status**: `[ ]`
+
+### P6c. Cache hit rate 측정 `[AUTO]`
+- **Spec reference**: § Phase 4 사전 결정 §15 임계값 (ADR 0008 결정용 raw data)
+- **Files**: 박제 0. raw data를 task `[~]` commit message + acceptance 본문에 박음.
+- **Depends on**: P6b
+- **Acceptance criteria**:
+  - `[AUTO]` 환경: P6a/P6b와 동일.
+  - `[AUTO]` Cache hit rate:
+    - 1차 scan (cache miss, full hash) timing — 측정 직전 user-cache 디렉토리의 `gitless-sync/KneShell__gitless-sync__main.json` 사전 삭제.
+    - 2차 scan (cache hit, mtime 일치) timing.
+    - speedup ratio 박음. 1차/2차 timing 차이 + cache hit 비율 (100% 기대) 검증.
+  - `[AUTO]` 측정 도중 transient 실패는 G-015 retry policy 적용.
+  - `[AUTO]` raw data를 본 task acceptance 본문에 박음 — speedup ratio가 § Phase 4 사전 결정 §15 임계값 (≥2x 유지 / <1.5x 제거 / 경계 yagni 제거)과 어떤 관계인지 명시.
+- **Status**: `[ ]`
+
+### P7a. ADR 0007 + spec-github-api § GraphQL backend batch size 박제 `[AUTO, 문서/spec/코드]`
+- **Spec reference**: P6a raw data
+- **Files**: `docs/adr/0007-graphql-batch-size.md` (신규), `docs/specs/spec-github-api.md` (batch size baseline 박제), `crates/gitless-sync/src/commands/scan/graphql.rs` (`GRAPHQL_BATCH_SIZE` 상수 — P6a 결정값으로 confirm 또는 갱신)
+- **Depends on**: P6c
+- **Acceptance criteria**:
+  - `[AUTO]` ADR 0007 신규 — § Status: Accepted, Date: 2026-05-07. § Context: P6a raw data + 측정 환경. § Decision: 100 또는 200 (P6a raw data 기반). 더 빠른 쪽 + variance 안정 쪽 채택. § Consequences: spec-github-api § GraphQL backend batch size baseline 박제. cap 변경 시 본 ADR + spec 동시 갱신.
+  - `[AUTO]` `spec-github-api.md` § GraphQL backend batch size baseline 확정 박제 (P2 박은 default 200 → ADR 0007 결정값으로 갱신).
+  - `[AUTO]` `graphql.rs::GRAPHQL_BATCH_SIZE` 상수 갱신 (결정값 != 200이면). 단위 테스트의 `paths > batch size (300 → chunk 두 번: 200+100)` 케이스도 결정값에 정렬.
+  - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
+- **Status**: `[ ]`
+
+### P7b. ADR 0008 + cache 유지/제거 결정 + 코드/spec 처리 `[AUTO, 문서/spec/코드]`
+- **Spec reference**: P6c raw data, § Phase 4 사전 결정 §15 임계값
+- **Files**: `docs/adr/0008-mtime-cache-keep-or-drop.md` (신규), `docs/specs/spec-config.md`, `CLAUDE.md`, (cache 제거 결정 시) `crates/gitless-sync/src/shared/cache.rs` 통째 삭제 + `crates/gitless-sync/src/commands/scan/walker.rs` cache 통합 코드 삭제 + `crates/gitless-sync/src/commands/scan/mod.rs` cache load/save 진입점 삭제 + `crates/gitless-sync/src/lib.rs` cache 모듈 export 삭제 + `crates/gitless-sync/Cargo.toml` `dirs` dep 삭제 + `Cargo.lock` 갱신 + `docs/adr/0009-internal-cache-readonly-exception.md` obsolete 마크
+- **Depends on**: P7a
+- **Acceptance criteria**:
+  - `[AUTO]` ADR 0008 신규 — § Status: Accepted, Date: 2026-05-07. § Context: P6c raw data + cache hit 효과. § Decision: § Phase 4 사전 결정 §15 임계값 매핑 — speedup ≥ 2x → ① cache 유지, < 1.5x → ② cache 제거, 경계(1.5~2.0x)면 raw data 박고 yagni 일관(② 제거 default). 결정 근거 raw data로 명시.
   - `[AUTO]` 결정에 따라 spec/code 처리:
-    - 유지: spec-config § cache 확정 박제 (P2 cross-ref 박힌 ADR 0008 → confirmed). cache.rs 코드 그대로.
-    - 제거: cache.rs + walker.rs cache 통합 통째 삭제 + Cargo.toml `dirs` 삭제 + Cargo.lock 갱신 + spec-config § cache 섹션 삭제 + ADR 0009 obsolete 마크 + CLAUDE.md cache 본성 한 줄 제거.
+    - 유지 시: `spec-config.md` § cache 확정 박제 (P2 cross-ref 박힌 ADR 0008 → confirmed). cache.rs/walker.rs/mod.rs/lib.rs/Cargo.toml 코드 그대로.
+    - 제거 시: cache.rs 통째 삭제 + walker.rs/mod.rs cache 통합 코드 삭제 + lib.rs cache export 삭제 + Cargo.toml `dirs` 삭제 + Cargo.lock 갱신 + spec-config § cache 섹션 삭제 + ADR 0009 본문에 "**2026-05-07 obsolete by ADR 0008**: cache 효과 미달로 제거 결정" 한 줄 추가 + CLAUDE.md § Critical Rules § 도구 본성 한 줄 (Internal cache 예외 ...) 제거 + § 사용자 취향 결정에서 cache 관련 한 줄 제거.
   - `[AUTO]` `CLAUDE.md` Current State 갱신: ADR 0007 + ADR 0008 결정 박스 추가.
-  - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`, `cargo deny check`, `cargo audit` 모두 통과 (cache 제거 시 cargo deny에서 dirs 부재 확인).
+  - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`, `cargo deny check`, `cargo audit` 통과 (cache 제거 시 dirs 부재 확인).
 - **Status**: `[ ]`
 
 ### P8. coverage 게이트 통과 검증 (phase-final, M7 패턴) `[AUTO]`
 - **Spec reference**: `docs/ralph/project-ops.md` § Coverage, `CLAUDE.md` § Test coverage, G-007, G-012, G-013
 - **Files**: 미달 모듈에 unit test 추가 (필요 시), `deny.toml` (신규 의존성 화이트리스트 갱신)
-- **Depends on**: P7
+- **Depends on**: P7b
 - **Acceptance criteria**:
   - `[AUTO]` `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --workspace`, `cargo deny check`, `cargo audit` 모두 통과.
   - `[AUTO]` `cargo tarpaulin --engine llvm --workspace --out Stdout` 라인 커버리지 ≥ 80%.
