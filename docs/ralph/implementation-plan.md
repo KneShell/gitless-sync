@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-07 (Phase 4 진입 — GraphQL batching + 로컬 SHA mtime cache)
 - Total tasks: 15 (P1, P2, P3a, P3b, P4, P5a, P5b, P5c, P6a, P6b, P6c, P7a, P7b, P8, P9)
-- Completed: 7 / 15
+- Completed: 8 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -212,7 +212,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - 시나리오 25: cache 손상 graceful (`.json` 파일 임의 파괴 → scan 정상 + warning emit)
   - `[AUTO]` 테스트 패턴: library entry inject (Phase 2 P5 패턴 일관). `cargo run --` 자식 프로세스 호출 0.
   - `[AUTO]` `cargo test --test integration` 전체 통과.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### P6a. GraphQL batch size 100 vs 200 측정 `[AUTO]`
 - **Spec reference**: ADR 0007 박을 raw data 수집 (P7a)
