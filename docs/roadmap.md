@@ -71,9 +71,14 @@ clippy에 직접 lint 부재. **`cargo xtask check-line-limits` 박음** (또는
 
 `cargo-modules` JSON 추출 + `cargo xtask layer-deps` 자체 검증. 정의 결정 후 진행.
 
-### 미정 / yagni 의심
+### 미정 / 다음 세션 vague 항목
 
-- **Event 기반 layer 통신** — Rust 관용 대비 비용 큼 (channel/actor/observer 중 선택, async 도입 가능성). 진짜 필요한지 사용자 재확인 필요. 실용적 대안 = layer 가시성 강화 + 함수 호출 유지.
+다음 세션 진입 시 vague로 박을 4가지 결정 (Phase 6 plan 작성 + ralph 자율 진행 전):
+
+1. **Layer 정의** — (a) vertical slice 그대로 (`commands/scan/` ↔ `commands/diff/` 간 cross-ref 금지, 이미 박힘) / (b) horizontal CLI·domain·IO 신규 정의 / (c) slice 안에서 file 간 cross-ref 금지 (`mod.rs` ↔ `walker.rs`).
+2. **파일/모듈 임계값** — 300줄이 Rust 코드(trait impl + match arms로 자연 길어짐)에 적정한지 baseline 측정(`tokei` 또는 PowerShell) 트리거. 임계값 결정 후 `cargo xtask` 또는 자체 스크립트로 게이트 박음.
+3. **`cargo xtask` 도입 여부** — Step 2(파일 라인) + Step 3(layer 의존) 자체 lint를 xtask crate로 박을지 / PowerShell 스크립트로 분리할지. xtask는 cross-platform + IDE 지원 OK이지만 첫 빌드 ~10-30s 비용.
+4. **Event 기반 layer 통신** — Rust 관용 대비 비용 큼 (channel/actor/observer/async 도입 가능성). 진짜 필요한지 yagni 검증 — 실용적 대안 = layer 가시성 강화 + 함수 호출 유지.
 
 ## Phase 5 — 도메인 함정 정리
 
