@@ -1,5 +1,6 @@
 pub mod compare;
 pub mod github;
+pub mod graphql;
 pub mod output;
 pub mod walker;
 
@@ -140,6 +141,7 @@ pub fn build_report<C: GhClient + Sync>(
         &repo,
         &branch,
         args.keep_bom,
+        args.backend,
     )?;
 
     if let Some(filter) = parse_status_filter(args.status.as_deref())? {
@@ -199,10 +201,11 @@ fn parse_status_token(s: &str) -> Result<Status, GitlessError> {
 
 /// Compare matched local/remote files and produce per-entry report rows.
 ///
-/// Calls `fetch_last_commit_at` only for paths whose SHA differs on both sides.
-/// Commits API calls go through the rayon pool with up to
-/// [`MAX_COMMITS_CONCURRENCY`] threads. Hash failures are recorded as
-/// [`Status::Failed`] without aborting.
+/// Calls a Commits API lookup only for paths whose SHA differs on both sides.
+/// Backend choice (`Backend::Rest` / `Backend::Graphql`) decides between rayon
+/// 8c REST per-path calls (ADR 0003) and a single GraphQL alias-batched
+/// request (ADR 0005). Hash failures are recorded as [`Status::Failed`]
+/// without aborting.
 fn assemble_entries<C: GhClient + Sync>(
     local_files: &[LocalFile],
     remote_files: &[RemoteFile],
@@ -210,6 +213,7 @@ fn assemble_entries<C: GhClient + Sync>(
     repo: &str,
     branch: &str,
     keep_bom: bool,
+    backend: Backend,
 ) -> Result<(Vec<FileEntry>, Summary, usize), GitlessError> {
     let local_map: HashMap<&str, &LocalFile> = local_files
         .iter()
@@ -223,7 +227,7 @@ fn assemble_entries<C: GhClient + Sync>(
     all_paths.extend(remote_map.keys().copied());
 
     let pending = build_pre_entries(&all_paths, &local_map, &remote_map, keep_bom);
-    let commit_map = fetch_commit_map(&pending, client, repo, branch)?;
+    let commit_map = fetch_commit_map(&pending, client, repo, branch, backend)?;
     Ok(finalize_entries(pending, &commit_map))
 }
 
@@ -273,13 +277,18 @@ fn build_pre_entries(
     pending
 }
 
-/// Pass 2: collect paths that need a Commits API lookup and fetch their dates
-/// in parallel. Map keyed by path so pass 3 can stitch the dates back in.
+/// Pass 2: collect paths that need a Commits API lookup and fetch their dates.
+///
+/// REST backend issues one rayon-parallel call per path (ADR 0003). GraphQL
+/// backend issues one alias-batched request per [`graphql::GRAPHQL_BATCH_SIZE`]
+/// chunk (ADR 0005). Returns a map keyed by path so pass 3 can stitch the
+/// dates back in.
 fn fetch_commit_map<C: GhClient + Sync>(
     pending: &[PreEntry],
     client: &C,
     repo: &str,
     branch: &str,
+    backend: Backend,
 ) -> Result<HashMap<String, DateTime<Utc>>, GitlessError> {
     let commit_paths: Vec<String> = pending
         .iter()
@@ -292,9 +301,18 @@ fn fetch_commit_map<C: GhClient + Sync>(
             _ => None,
         })
         .collect();
-    let commit_path_refs: Vec<&str> = commit_paths.iter().map(String::as_str).collect();
-    let commit_dates = fetch_commit_dates_parallel(client, repo, branch, &commit_path_refs)?;
-    Ok(commit_paths.into_iter().zip(commit_dates).collect())
+
+    match backend {
+        Backend::Rest => {
+            let commit_path_refs: Vec<&str> = commit_paths.iter().map(String::as_str).collect();
+            let commit_dates =
+                fetch_commit_dates_parallel(client, repo, branch, &commit_path_refs)?;
+            Ok(commit_paths.into_iter().zip(commit_dates).collect())
+        }
+        Backend::Graphql => {
+            graphql::fetch_last_commit_at_batch(client, repo, branch, &commit_paths)
+        }
+    }
 }
 
 /// Pass 3: classify each pending entry and emit `FileEntry` rows in input
@@ -727,8 +745,16 @@ mod tests {
         let mut mock = MockGhClient::new();
         stub_commits(&mut mock, "o/r", "main", "ghost.md", COMMITS_BODY);
 
-        let (entries, summary, failed) =
-            assemble_entries(&[bogus], &[remote], &mock, "o/r", "main", false).unwrap();
+        let (entries, summary, failed) = assemble_entries(
+            &[bogus],
+            &[remote],
+            &mock,
+            "o/r",
+            "main",
+            false,
+            Backend::Rest,
+        )
+        .unwrap();
 
         assert_eq!(failed, 1);
         assert_eq!(summary.failed, 1);
@@ -757,8 +783,16 @@ mod tests {
         // No commits stub; if assemble_entries hits the Commits API anyway, it
         // would surface as an Http error (MockGhClient default).
         let mock = MockGhClient::new();
-        let (entries, summary, failed) =
-            assemble_entries(&[local], &[remote], &mock, "o/r", "main", false).unwrap();
+        let (entries, summary, failed) = assemble_entries(
+            &[local],
+            &[remote],
+            &mock,
+            "o/r",
+            "main",
+            false,
+            Backend::Rest,
+        )
+        .unwrap();
 
         assert_eq!(failed, 0);
         assert_eq!(summary.identical, 1);

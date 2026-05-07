@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-07 (Phase 4 진입 — GraphQL batching + 로컬 SHA mtime cache)
 - Total tasks: 15 (P1, P2, P3a, P3b, P4, P5a, P5b, P5c, P6a, P6b, P6c, P7a, P7b, P8, P9)
-- Completed: 2 / 15 (P3a in progress)
+- Completed: 3 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -99,7 +99,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `roadmap.md` § Phase 4: 진행 중 박스 박음 (Phase 2 COMPLETED 패턴 따라). § "조건부" 카테고리 cache는 "본 phase에서 도입, ADR 0008에서 confirm"으로 갱신.
 - **Status**: `[x]`
 
-### P3a. GraphQL backend 본체 + error mapping + Backend enum 분기 `[AUTO, 코드]` `[~]`
+### P3a. GraphQL backend 본체 + error mapping + Backend enum 분기 `[AUTO, 코드]`
 - **Spec reference**: `spec-github-api.md` § GraphQL backend (P2 갱신본), `spec-error-contracts.md` § GraphQL error mapping (P2)
 - **Files**: `crates/gitless-sync/src/commands/scan/graphql.rs` (신규 — vertical slice 일관), `crates/gitless-sync/src/commands/scan/mod.rs` (Backend enum 분기), `crates/gitless-sync/src/commands/scan/github.rs` (REST 본체는 그대로), `crates/gitless-sync/src/shared/error.rs` (GraphQL error mapping helper), `crates/gitless-sync/src/lib.rs` (graphql 모듈 export 최소)
 - **Depends on**: P2
@@ -120,7 +120,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - (P5에서 매트릭스 확장)
   - `[AUTO]` **본 task는 main.rs default 미변경, v0.1 stub error 미제거** (P3b 책임). 본 task 종료 시 `--backend graphql` 호출은 여전히 v0.1 stub error 반환 (단위 테스트는 graphql.rs 직접 호출이라 영향 0). compile-clean.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
-- **Status**: `[ ]`
+- **Status**: `[x]`
 
 ### P3b. main.rs default 전환 + v0.1 stub 제거 + lib export cascade 정리 `[AUTO, 코드]`
 - **Spec reference**: ADR 0006 (default GraphQL), `spec-cli-interface.md` § Backend 분기 (P2 갱신본)
