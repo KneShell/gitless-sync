@@ -57,7 +57,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `CLAUDE.md` § 사용자 취향 결정 (검증·토론 대상 X) section에 "init은 도구가 파일 작성 안 함, stdout TOML + redirect 패턴 (ADR 0004)" 한 줄 박음.
 - **Status**: `[x]`
 
-### P2. spec 갱신 — Phase 2 init 정의 `[AUTO, spec-only]`
+### P2. spec 갱신 — Phase 2 init 정의 `[AUTO, spec-only]` `[~]`
 - **Spec reference**: `docs/specs/spec-cli-interface.md`, `docs/specs/spec-config.md`, `docs/specs/spec-error-contracts.md`, `docs/roadmap.md` § Phase 2
 - **Files**: `docs/specs/spec-cli-interface.md`, `docs/specs/spec-config.md`, `docs/specs/spec-error-contracts.md`, `docs/roadmap.md`
 - **Depends on**: P1
@@ -66,7 +66,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `spec-config.md`: 본문에 "`gitless-sync init`이 본 스키마를 stdout TOML로 emit하는 도구"임을 한 줄 cross-ref 추가. 스키마 본체는 그대로.
   - `[AUTO]` `spec-error-contracts.md`: § init 에러 케이스 추가 — `--repo` 미명시 → `GitlessError::Config("repo not specified")`, exit 1 + stderr `error_code: "CONFIG"`. Acceptance Criteria에 PRD 시나리오 17 (init repo 미명시) 추가.
   - `[AUTO]` `roadmap.md` § Phase 2 갱신: 원안 "현재 디렉토리에 `gitless-sync.toml` 작성. 기존 파일 있으면 `--force` 없이 실패."를 "stdout TOML 출력 — 사용자가 `gitless-sync init ... > gitless-sync.toml`로 redirect (ADR 0004). 도구 파일 작성 0."으로 갱신. 실패 모드 `--force` / 파일 권한 / 기존 파일 충돌 항목 모두 제거 (도구 파일 작성 0이라 obsolete).
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### P3. init mod 신규 + CLI 디스패치 + TOML 직렬화 + 단위 테스트 매트릭스 `[AUTO, 코드]`
 - **Spec reference**: `spec-cli-interface.md` § init subcommand (P2 갱신본), `spec-config.md` § 스키마
