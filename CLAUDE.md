@@ -22,6 +22,8 @@
 
 **다음 세션 진입점 후보**: v0.2 release tag / Phase 2(`gitless-sync init`) / Phase 4(GraphQL batching). 모두 마이그레이션 완료에 의존했고 unblock.
 
+**Phase 2 진행 중** — `gitless-sync init` (ADR 0004 stdout redirect). 도구는 파일 작성 0, 사용자가 `gitless-sync init --repo owner/name --branch main > gitless-sync.toml`로 redirect.
+
 ## Project Overview
 git이 없는 로컬 디렉토리를 GitHub repo와 단방향으로 비교해, 드리프트를 정량적으로 보고하는 read-only AI 친화 CLI. iCloud 동기화 디렉토리처럼 git 사용 자체가 불가능한 환경에서 "평행우주 드리프트"를 막기 위한 도구. 도구는 사실(4분류 JSON)만 제공하고 결정은 호출자(사람 또는 AI)에게 맡긴다.
 
@@ -93,6 +95,7 @@ crates/gitless-sync/src/
 ### 사용자 취향 결정 (검증·토론 대상 X)
 - Vertical slice 아키텍처 (명령어 단위 자체 모듈, `shared/`는 진짜 공통만)
 - Unit test coverage ≥ 80% (tarpaulin 라인) — 작은 CLI라도 의식적 채택.
+- init은 도구가 파일 작성 안 함, stdout TOML + redirect 패턴 (ADR 0004).
 
 ### 메모리 환경
 이 프로젝트는 obsidian vault(`C:\Users\admin\iCloudDrive\iCloud~md~obsidian`)와 별개의 auto memory 폴더를 사용한다. vault에 쌓인 사용자 컨텍스트(프로필·재무·자기성찰 등)는 여기서 자동 로드되지 않는다. 정상 동작이며, 글로벌 `~/.claude/CLAUDE.md`(Monday 페르소나 + Universal Rules)만 양쪽에서 공통이다.
