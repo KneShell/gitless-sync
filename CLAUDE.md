@@ -18,11 +18,15 @@
 - M5a 측정: 8 concurrent **1351ms** vs sequential **6564ms** → speedup **4.86x** (variance 1.7%/13.2%, N=3).
 - `MAX_COMMITS_CONCURRENCY = 8` 그대로. G-011 활성 guardrail로 유지.
 
+**ADR 0004 (2026-05-07)**: `gitless-sync init` stdout TOML + redirect 패턴. `docs/adr/0004-init-stdout-redirect.md`.
+- 도구는 파일 작성 0 — 사용자가 `gitless-sync init --repo owner/name --branch main > gitless-sync.toml`로 redirect.
+- read-only 영구(ADR 0001) 100% 정합. `--force` / `--write` / 충돌 처리 코드 0.
+
 **vault 실전 검증** (v0.1 baseline, 2026-04-29, ureq 시절): 356 파일 중 0 drift / 0 failed.
 
-**다음 세션 진입점 후보**: v0.2 release tag / Phase 2(`gitless-sync init`) / Phase 4(GraphQL batching). 모두 마이그레이션 완료에 의존했고 unblock.
+**Phase 2 완료 (2026-05-07)** — `gitless-sync init` 8 task ralph 자율 진행 종료, **167 tests pass, tarpaulin 89.55%**. P8 dogfooding 통과 (init → tempdir/toml → scan --local 라운드트립, summary 0/1/43/0/0 = 44 files invariant 일치, scan에서 toml 자동 로드 확인).
 
-**Phase 2 진행 중** — `gitless-sync init` (ADR 0004 stdout redirect). 도구는 파일 작성 0, 사용자가 `gitless-sync init --repo owner/name --branch main > gitless-sync.toml`로 redirect.
+**다음 세션 진입점 후보**: Phase 4(GraphQL batching) / Phase 5(도메인 함정).
 
 ## Project Overview
 git이 없는 로컬 디렉토리를 GitHub repo와 단방향으로 비교해, 드리프트를 정량적으로 보고하는 read-only AI 친화 CLI. iCloud 동기화 디렉토리처럼 git 사용 자체가 불가능한 환경에서 "평행우주 드리프트"를 막기 위한 도구. 도구는 사실(4분류 JSON)만 제공하고 결정은 호출자(사람 또는 AI)에게 맡긴다.

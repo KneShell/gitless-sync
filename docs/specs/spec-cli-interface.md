@@ -83,7 +83,7 @@ CLI > env > `gitless-sync.toml` > 도구 내장 기본값. 자세한 건 `spec-c
 - `[AUTO]` `cargo run -- --help`가 위 모든 플래그를 보여준다.
 - `[AUTO]` `cargo run -- scan --help`가 `--summary-only`, `--status`를 추가로 보여준다.
 - `[AUTO]` `cargo run -- diff --help`가 `<path>` positional 인자를 보여준다.
-- `[AUTO]` `cargo run -- init --help`가 `--repo`, `--branch`, `--ignore`를 보여준다 + `after_help` / `long_about`에 redirect 예시 한 줄 노출 (P6에서 박음).
+- `[AUTO]` `cargo run -- init --help`가 `--repo`, `--branch`, `--ignore`를 보여준다 + `after_help` / `long_about`에 redirect 예시 한 줄 노출.
 - `[AUTO]` `--ignore` 플래그를 두 번 이상 지정하면 `Vec<String>`에 누적된다 (clap 기본 동작).
 - `[AUTO]` `--status drift,local_only_changed` 같은 콤마 구분 입력이 `Vec<Status>`로 파싱된다.
 - `[AUTO]` clap이 알 수 없는 플래그를 받으면 비-zero 종료 + stderr에 사용법 출력 (clap 기본).
