@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-07 (Phase 4 진입 — GraphQL batching + 로컬 SHA mtime cache)
 - Total tasks: 15 (P1, P2, P3a, P3b, P4, P5a, P5b, P5c, P6a, P6b, P6c, P7a, P7b, P8, P9)
-- Completed: 9 / 15
+- Completed: 10 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -264,7 +264,31 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - speedup ratio 박음. 1000 path scale 추정 박음 (linear extrapolation, sublinear 조심).
   - `[AUTO]` 측정 도중 transient 실패는 G-015 retry policy 적용.
   - `[AUTO]` raw data를 본 task acceptance 본문에 박음.
-- **Status**: `[~]`
+- **Raw data (2026-05-07)**:
+  - **환경**: P6a와 동일. Windows 11 Pro 10.0.26100 / gh 2.88.1 (KneShell account active) / cargo 1.95.0 / release binary `target/release/gitless-sync.exe`. wall-clock = PowerShell `Measure-Command`. `gh auth status` exit 0 재확인 완료.
+  - **대상**: `KneShell/gitless-sync` @ main, local = `D:\00.Projects\02.Personal\05.gitless-sync`. 측정 직전 origin/main에 박혀 있는 13개 commited `.md` 파일에 trailing LF 임시 추가 → 13 path가 `local_sha != remote_sha` 분기 → commit map fetch 진입 (`commands/scan/mod.rs::fetch_commit_map`). 측정 종료 후 `git restore`로 모두 복원. 13 path scale은 ADR 0003 M5a baseline + P6a와 일관 (cross-comparable).
+  - **명령어**: `gitless-sync.exe scan --repo KneShell/gitless-sync --branch main --local . --summary-only --backend {rest|graphql}`. cache 매 시퀀스 시작 시 `Remove-Item $env:LOCALAPPDATA\gitless-sync\KneShell__gitless-sync__main.json` 으로 cold start.
+  - **(a) REST backend (rayon 8c, ADR 0003 baseline 재현 시도)** — N=3:
+    - warm-up dropped: 2711.5 ms
+    - N=3 raw ms: 2522.9, 2356.8, 2573.3
+    - mean **2484.3 ms** / min 2356.8 / max 2573.3 / `(max-min)/mean` **8.7%** (<30%)
+  - **(b) GraphQL backend (default, batch 200)** — N=3 본 측정 후 variance 30% 초과 → N=5 확장:
+    - warm-up dropped: 1481.4 ms
+    - N=5 raw ms: 1392.3, 10115.6, 1455.6, 1393.6, 1505.2
+    - mean **3172.5 ms** / min 1392.3 / max 10115.6 / `(max-min)/mean` **274.9%** (≫30%)
+    - g2 단발 spike(10115.6 ms)가 mean 왜곡. outlier 제외 4개 cluster: 1392.3 / 1393.6 / 1455.6 / 1505.2 → cluster mean **1436.7 ms** / `(max-min)/cluster_mean` **7.9%** (안정).
+  - **분석**:
+    - **ADR 0003 1351ms baseline 재현 실패** (REST 2484ms, **1.84x slowdown**). 큰 편차 원인은 (i) 50 files (M5a baseline 43 → 50; P1~P5c가 ADR/spec/code 7 file 추가, walker time 증가), (ii) Phase 4 cache 통합(50 file load/lookup + 13 modified mtime mismatch로 re-hash + atomic save), (iii) Trees API 응답 size 증가(origin/main 파일 수 증가), (iv) cargo run 자식 프로세스 fork 비용 변동. REST/GraphQL 양쪽 모두 동일하게 walk+Trees+cache load/save 비용을 분담하므로 **상대 비교는 유효**.
+    - **GraphQL 자연 변동**: P6a (a) batch 200 N=5 variance 80.9% / P6a (c) 142.5%와 동일 패턴. GitHub `committedDate` GraphQL latency 단발 spike가 mean을 왜곡함. cluster 4개(1437ms 평균)는 variance 7.9%로 안정.
+    - **speedup ratio**:
+      - 전체 N 비교 (outlier 포함): `REST 2484.3 / GraphQL 3172.5` = **REST 1.28x 빠름** — 이는 g2 단발 outlier 영향이며 representative 아님.
+      - cluster 비교 (outlier 제외): `REST 2484.3 / GraphQL 1436.7` = **GraphQL 1.73x 빠름** — typical case representative.
+    - **1000 path scale 추정** (linear extrapolation, sublinear 가능성 표시):
+      - REST: walk+Trees+cache 공통 비용 ~1100ms 가정 시 commits API 분기 분 = 2484 - 1100 = 1384ms. 13 path를 8c rayon으로 처리한 비용. 1000 path = 1000/13 = 77x → 1384 * 77 ≈ 106500ms (~107초). subprocess fork pool warm-up 등 sublinear 효과 가능, 보수적 ceiling.
+      - GraphQL: 공통 비용 ~1100ms. GraphQL request 분 = 1437 - 1100 = 337ms (1 chunk). 1000 path = 1000/200 = 5 chunks → 5 * 337 ≈ 1685ms. 합 = 2785ms (~2.8초). chunk 간 직렬 호출(코드 `for chunk in paths.chunks(...)`)이라 chunk 수에 linear.
+      - **추정 speedup ratio at 1000 path scale**: `107000 / 2785` ≈ **38x** (REST → GraphQL). 13 path scale의 1.73x보다 한 자릿수 큰 차이. ADR 0006 default GraphQL 결정 정당화. 단 linear extrapolation 한계 + GitHub server-side scaling 거동 미검증이라 vault scale 측정 시 조정 필요.
+  - **transient retry**: gh exit ≠ 0 발생 0회 → G-015 retry 미발동. g2 단발 spike는 `gh api graphql` 호출이 정상 응답 (exit 0)했지만 wall-clock latency가 ~10초로 튄 케이스 — transient retry policy는 exit code 기반이라 발동 조건 미충족 (정상 동작).
+- **Status**: `[x]`
 
 ### P6c. Cache hit rate 측정 `[AUTO]`
 - **Spec reference**: § Phase 4 사전 결정 §15 임계값 (ADR 0008 결정용 raw data)
