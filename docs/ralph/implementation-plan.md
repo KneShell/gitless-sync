@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-07T00:00:00Z (M2d 신규 — G-017 fix task. M5a dep을 M2c → M2d로 갱신, M2d 완료 후 M5a [!] → [ ] reset 트리거.)
+- Last updated: 2026-05-07T01:15:00Z (M2d 완료 — G-017 fix 박힘. M5a reset은 별도 commit.)
 - Total tasks: 15 (M0, M1, M2a, M2b1, M2b2, M2c, M2d, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
-- Completed: 10 / 15
+- Completed: 11 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -117,7 +117,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` 통합 테스트: `tests/integration.rs`의 `MockGhClient` stub 등록이 `fetch_last_commit_at` 인자를 `-X GET` 포함 시퀀스로 매칭하도록 갱신. fetch_last_commit_at 호출하는 PRD 시나리오(2/3/4 등) 통과 확인.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
   - `[AUTO]` 본 task `[x]` mark + commit과 **별도 commit**으로 `docs/ralph/implementation-plan.md` M5a Status를 `[!]` → `[ ]` reset (commit message: `chore: M5a reset (G-017 fixed by M2d)`). G-017 본문도 "**2026-05-07 fixed by M2d**: 후보 (a) 채택. M5a [!] → [ ] reset 후 ralph 재진입 가능." 한 줄 추가.
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### M3. CLI 인자 + config 토큰 경로 제거 `[AUTO, 코드]`
 - **Spec reference**: `docs/specs/spec-cli-interface.md`, `docs/specs/spec-config.md`

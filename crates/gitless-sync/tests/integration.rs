@@ -73,6 +73,8 @@ fn tree_args(repo: &str, branch: &str) -> Vec<String> {
 fn commits_args(repo: &str, branch: &str, path: &str) -> Vec<String> {
     vec![
         "api".to_string(),
+        "-X".to_string(),
+        "GET".to_string(),
         format!("repos/{repo}/commits"),
         "-F".to_string(),
         format!("sha={branch}"),
