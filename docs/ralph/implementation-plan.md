@@ -97,7 +97,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `spec-error-contracts.md` § GraphQL error mapping 추가 — `data.errors[].extensions.code` 표 (RATE_LIMITED → RateLimitExceeded / UNAUTHENTICATED → AuthFailed / NOT_FOUND → Http / fallthrough → Http). REST stderr 매핑 우선순위와 일관.
   - `[AUTO]` `spec-config.md` § cache 추가 — 위치 (`dirs::cache_dir() + "gitless-sync/"`), 파일명 sanitize 룰, JSON 형식, lifecycle (load → lookup/insert → save), graceful fallback. ADR 0009 cross-ref. 사용자 .gitignore 박을 필요 0 명시.
   - `[AUTO]` `roadmap.md` § Phase 4: 진행 중 박스 박음 (Phase 2 COMPLETED 패턴 따라). § "조건부" 카테고리 cache는 "본 phase에서 도입, ADR 0008에서 confirm"으로 갱신.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### P3a. GraphQL backend 본체 + error mapping + Backend enum 분기 `[AUTO, 코드]`
 - **Spec reference**: `spec-github-api.md` § GraphQL backend (P2 갱신본), `spec-error-contracts.md` § GraphQL error mapping (P2)
