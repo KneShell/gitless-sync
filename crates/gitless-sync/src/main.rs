@@ -19,8 +19,8 @@ struct Cli {
     #[arg(long, global = true)]
     repo: Option<String>,
 
-    #[arg(long, global = true, default_value = "main")]
-    branch: String,
+    #[arg(long, global = true)]
+    branch: Option<String>,
 
     #[arg(long, global = true, default_value = ".")]
     local: String,
@@ -53,6 +53,7 @@ enum Commands {
     Diff {
         path: String,
     },
+    Init,
 }
 
 fn main() -> ExitCode {
@@ -66,7 +67,7 @@ fn main() -> ExitCode {
         } => {
             let scan_args = commands::scan::ScanArgs {
                 repo: cli.repo,
-                branch: cli.branch,
+                branch: cli.branch.unwrap_or_else(|| "main".to_string()),
                 local: cli.local,
                 ignore: cli.ignore,
                 keep_bom: cli.keep_bom,
@@ -81,13 +82,21 @@ fn main() -> ExitCode {
         Commands::Diff { path } => commands::diff::run_with_client(
             &commands::diff::DiffArgs {
                 repo: cli.repo,
-                branch: cli.branch,
+                branch: cli.branch.unwrap_or_else(|| "main".to_string()),
                 local: cli.local,
                 keep_bom: cli.keep_bom,
                 path,
             },
             &client,
         ),
+        Commands::Init => {
+            let init_args = commands::init::InitArgs {
+                repo: cli.repo.unwrap_or_default(),
+                branch: cli.branch,
+                ignore: cli.ignore,
+            };
+            commands::init::run(&init_args, &mut std::io::stdout().lock())
+        }
     };
 
     match result {
