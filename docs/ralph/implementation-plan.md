@@ -1,7 +1,7 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-07 (Phase 2 P3 완료 — init mod 신규 + CLI 디스패치 + TOML 직렬화)
+- Last updated: 2026-05-07 (Phase 2 P4 진행 중 — 에러 매핑 + stderr hint)
 - Total tasks: 8 (P1, P2, P3, P4, P5, P6, P7, P8)
 - Completed: 3 / 8
 
@@ -95,7 +95,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
 - **Status**: `[x]`
 
-### P4. 에러 매핑 (--repo 미명시) + stderr hint 박음 `[AUTO, 코드]`
+### P4. 에러 매핑 (--repo 미명시) + stderr hint 박음 `[AUTO, 코드]` `[~]`
 - **Spec reference**: `spec-error-contracts.md` § init 에러 케이스 (P2 갱신본)
 - **Files**: `crates/gitless-sync/src/commands/init/mod.rs`, `crates/gitless-sync/src/main.rs`
 - **Depends on**: P3
