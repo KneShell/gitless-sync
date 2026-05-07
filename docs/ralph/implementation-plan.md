@@ -242,4 +242,4 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` 위 4개 조건 충족 시 [x]. failed 비율은 commit message에 기록만 (BLOCKED 게이트 아님). 동일 코드 + 동일 repo 상태에서 결과 단조 보장.
   - `[AUTO]` external command transient(network 5xx, gh exit≠0)는 G-015 retry policy 적용. 3회 실패 시 [!] + G-015 reference (auto-recovery 가능).
   - `[AUTO]` 별도 release evidence 파일 박제 0. git log + commit message가 evidence trail.
-- **Status**: `[ ]`
+- **Status**: `[~]`
