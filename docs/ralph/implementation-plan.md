@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-07 (Phase 4 진입 — GraphQL batching + 로컬 SHA mtime cache)
 - Total tasks: 15 (P1, P2, P3a, P3b, P4, P5a, P5b, P5c, P6a, P6b, P6c, P7a, P7b, P8, P9)
-- Completed: 0 / 15
+- Completed: 1 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -77,7 +77,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `CLAUDE.md` § 사용자 취향 결정 (검증·토론 대상 X) section에 박음:
     - "default backend는 GraphQL (ADR 0006). REST는 explicit fallback 유지."
     - "GraphQL backend는 rayon 미사용 (ADR 0005, alias batching 자체가 병렬)."
-- **Status**: `[~]`
+- **Status**: `[x]`
 
 ### P2. spec 갱신 — Phase 4 GraphQL backend + cache `[AUTO, spec-only]`
 - **Spec reference**: `docs/specs/spec-github-api.md`, `docs/specs/spec-cli-interface.md`, `docs/specs/spec-error-contracts.md`, `docs/specs/spec-config.md`, `docs/roadmap.md`

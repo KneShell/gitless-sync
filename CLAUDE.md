@@ -26,7 +26,9 @@
 
 **Phase 2 완료 (2026-05-07)** — `gitless-sync init` 8 task ralph 자율 진행 종료, **167 tests pass, tarpaulin 89.55%**. P8 dogfooding 통과 (init → tempdir/toml → scan --local 라운드트립, summary 0/1/43/0/0 = 44 files invariant 일치, scan에서 toml 자동 로드 확인).
 
-**다음 세션 진입점 후보**: Phase 4(GraphQL batching) / Phase 5(도메인 함정).
+**Phase 4 진행 중 (2026-05-07)** — GraphQL batching + mtime cache (ADR 0005/0006/0009). default backend `rest` → `graphql` 전환, REST는 explicit fallback 유지. GraphQL backend는 rayon 미사용(alias batching 자체가 병렬). internal cache는 read-only 본성의 예외로 명확화.
+
+**다음 세션 진입점 후보**: Phase 5(도메인 함정).
 
 ## Project Overview
 git이 없는 로컬 디렉토리를 GitHub repo와 단방향으로 비교해, 드리프트를 정량적으로 보고하는 read-only AI 친화 CLI. iCloud 동기화 디렉토리처럼 git 사용 자체가 불가능한 환경에서 "평행우주 드리프트"를 막기 위한 도구. 도구는 사실(4분류 JSON)만 제공하고 결정은 호출자(사람 또는 AI)에게 맡긴다.
@@ -85,6 +87,7 @@ crates/gitless-sync/src/
 
 ### 도구 본성
 - **Read-only (영구).** 어떤 task든 파일 쓰기·원격 변경을 도입해서는 안 된다. write 도구를 만들지 않는다 (ADR 0001).
+  - Read-only는 **user 데이터·원격 보존**이 본질. Internal cache는 예외 (ADR 0009).
 - **사실만 제공.** 도구는 결정을 내리지 않는다. AI/사람이 결과를 보고 다음 액션을 결정.
 - **임의 디렉토리 + 임의 GitHub repo 간 비교.** vault 같은 특정 도메인 종속 금지.
 
@@ -100,6 +103,8 @@ crates/gitless-sync/src/
 - Vertical slice 아키텍처 (명령어 단위 자체 모듈, `shared/`는 진짜 공통만)
 - Unit test coverage ≥ 80% (tarpaulin 라인) — 작은 CLI라도 의식적 채택.
 - init은 도구가 파일 작성 안 함, stdout TOML + redirect 패턴 (ADR 0004).
+- default backend는 GraphQL (ADR 0006). REST는 explicit fallback 유지.
+- GraphQL backend는 rayon 미사용 (ADR 0005, alias batching 자체가 병렬).
 
 ### 메모리 환경
 이 프로젝트는 obsidian vault(`C:\Users\admin\iCloudDrive\iCloud~md~obsidian`)와 별개의 auto memory 폴더를 사용한다. vault에 쌓인 사용자 컨텍스트(프로필·재무·자기성찰 등)는 여기서 자동 로드되지 않는다. 정상 동작이며, 글로벌 `~/.claude/CLAUDE.md`(Monday 페르소나 + Universal Rules)만 양쪽에서 공통이다.
