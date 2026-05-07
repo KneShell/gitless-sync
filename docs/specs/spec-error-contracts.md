@@ -77,6 +77,45 @@ variant 의미:
 
 **reset_at 추출 한계**: `RateLimitExceeded { reset_at }`의 `reset_at` 필드는 v0.1에서 빈 문자열로 둔다. gh stderr가 X-RateLimit-Reset 헤더 값을 항상 노출하지 않음 [unverified]. Phase 4에서 `gh api -i`(헤더 포함) 옵션 도입 검토.
 
+### GraphQL error mapping (Phase 4)
+
+> **신설 (Phase 4 P2, 2026-05-07)**: GraphQL backend(`gh api graphql`)는 gh subprocess가 exit 0으로 떨어져도 응답 JSON 안의 `errors[]` 배열에 에러를 박을 수 있다 (REST의 stderr substring 패턴과 다른 신호 경로). 매핑 source는 응답 JSON의 `data.errors[].extensions.code` enum 값.
+
+GraphQL 응답 형식 (errors 동반 케이스):
+
+```json
+{
+  "data": { ... },
+  "errors": [
+    {
+      "message": "...",
+      "extensions": { "code": "RATE_LIMITED" }
+    }
+  ]
+}
+```
+
+**매핑 표** (response가 partial result 포함해도 통째 fail — partial errors 정책):
+
+| `errors[].extensions.code` | 매핑 | exit | 출처 |
+|---|---|---|---|
+| `RATE_LIMITED` | `RateLimitExceeded { reset_at: "" }` | 3 | [source: https://docs.github.com/en/graphql/overview/resource-limitations] |
+| `UNAUTHENTICATED` | `AuthFailed` | 2 | GitHub GraphQL standard error code (token 만료 / 미인증) |
+| `NOT_FOUND` | `Http(errors[] 원문)` | 1 | GraphQL standard error code (repo / branch / object 미존재) |
+| 그 외 (예: `INTERNAL_SERVER_ERROR`) | `Http(errors[] 원문)` | 1 | fallthrough — 알려지지 않은 enum 코드 |
+
+**매칭 우선순위** (위에서 아래로):
+1. gh subprocess exit ≠ 0이면 REST과 동일 § gh 종료 코드 + stderr 매핑 우선 적용 (gh 자체가 5xx / auth 등을 stderr에 박음).
+2. gh subprocess exit == 0 + stdout JSON `errors[]` 비어 있지 않음 → 본 § GraphQL error mapping 표 적용.
+3. `errors[0].extensions.code` 값으로 표 매핑. 첫 항목 우선 (다중 errors 시 첫 항목만 매핑, 나머지 errors 원문은 message에 보존).
+4. fallthrough → `Http(errors[] 원문)`.
+
+**정규식 사용 금지**. enum 코드는 substring 비교가 아닌 정확 일치 (`code == "RATE_LIMITED"`). gh subprocess 자체 stderr 매칭은 § gh 종료 코드 + stderr 표 그대로.
+
+**REST stderr 매핑과의 우선순위 일관**: 같은 운영 신호(rate limit / auth fail)는 두 backend에서 같은 `GitlessError` variant + 같은 exit code로 떨어진다. 호출자(LLM)는 backend에 무관하게 exit code + error_code로 분기 가능.
+
+**reset_at 필드 한계**: REST과 동일하게 v0.1에서 빈 문자열. GraphQL 응답에 reset 시각이 일관 노출되지 않음 [unverified].
+
 ### stderr 출력 형식 (G-008)
 - stdout: 결과 JSON 전용. 다른 출력 일체 금지.
 - stderr: 진행 로그(verbose 레벨), 경고, 에러 JSON.
@@ -129,3 +168,8 @@ variant 의미:
 - `[AUTO]` gh 미설치 환경: `RealGhClient::new().api(&["api".to_string(), "...".to_string()])` 첫 호출이 `GitlessError::Config("gh CLI not found in PATH; install from https://cli.github.com/")` 반환 → 도구 exit code 1 + stderr `error_code: "CONFIG"`.
 - `[AUTO]` 5xx fallthrough: `MockGhClient` stub 응답 stderr `"gh: ... (HTTP 503)"` + exit 1 → `GitlessError::Http(...)` → 도구 exit code 1 + stderr `error_code: "HTTP"`.
 - `[AUTO]` PRD 검증 시나리오 17 (init repo 미명시): `cargo run -- init` (또는 `cargo run -- init --repo ""`) → 도구 exit code 1, stdout 출력 0, stderr JSON 한 줄에 `error_code: "CONFIG"` + `message`에 `"repo not specified"` substring. library 경로로는 `commands::init::run(&InitArgs { repo: "".into(), .. }, &mut Vec<u8>)` → `Err(GitlessError::Config(_))` 반환 + `err.exit_code() == 1` + `err.error_code() == "CONFIG"`.
+- `[AUTO]` GraphQL backend `errors[].extensions.code == "RATE_LIMITED"` 응답 → 도구 exit code 3 + stderr `error_code: "RATE_LIMIT_EXCEEDED"` (P5a 단위 테스트 매트릭스).
+- `[AUTO]` GraphQL backend `errors[].extensions.code == "UNAUTHENTICATED"` 응답 → 도구 exit code 2 + stderr `error_code: "AUTH_FAILED"`.
+- `[AUTO]` GraphQL backend `errors[].extensions.code == "NOT_FOUND"` 응답 → 도구 exit code 1 + stderr `error_code: "HTTP"`.
+- `[AUTO]` GraphQL backend fallthrough 코드 (`INTERNAL_SERVER_ERROR` 등) → 도구 exit code 1 + stderr `error_code: "HTTP"` + `message`에 errors[] 원문 보존.
+- `[AUTO]` GraphQL 응답에 `data` 부분 결과 + `errors[]` 비어 있지 않음 → data 무시, errors[0] 매핑 후 통째 fail (partial errors 정책 일관).

@@ -26,13 +26,15 @@
 | `--keep-bom` | UTF-8 BOM 보존 모드 | false |
 | `--json` / `--pretty` | 출력 포맷 | `--json` (compact) |
 | `-v` / `-vv` | stderr 로그 레벨 (info / debug) | warning만 |
-| `--backend <rest\|graphql>` | GitHub API 호출 backend 선택. v0.1는 `rest`만 활성, `graphql`은 인터페이스만 박힌 stub (Phase 4에서 활성화). | `rest` |
+| `--backend <rest\|graphql>` | GitHub API 호출 backend 선택. default는 `graphql` (ADR 0006), REST는 explicit fallback으로 유지. | `graphql` |
 
-### Backend 분기 (v0.1 인터페이스)
-- `--backend rest` (기본): 정상 동작. 기존 v0.1 흐름 그대로.
-- `--backend graphql`: `GitlessError::Config("GraphQL backend not implemented in v0.1; use --backend rest. Phase 4 ETA.")` 즉시 반환, exit code 1.
-- 호출자(LLM)는 v0.1부터 `--backend graphql`을 명시 가능 → Phase 4 활성화 시 호출 코드 변경 없음 (forward-compat 보장).
-- 자세한 정책: `spec-github-api.md` § Backend 선택.
+### Backend 분기
+
+> **갱신 (ADR 0006, 2026-05-07)**: default backend `rest` → `graphql` 전환. v0.1 stub 표현은 obsolete (P3a에서 본체 박힘, P3b에서 stub error 제거).
+
+- `--backend graphql` (default): `gh api graphql` subprocess + alias batching. 호출자(LLM)가 명시 안 해도 default로 활성. 자세한 정책: `spec-github-api.md` § GraphQL backend.
+- `--backend rest` (explicit fallback): v0.1/v0.2에서 검증된 REST + rayon 8c 흐름. GraphQL 운영 이슈(rate limit, alias batching 응답 정합성, partial errors 등) 발생 시 즉시 fallback. 자세한 정책: `spec-github-api.md` § Backend 선택 + § fetch_tree / fetch_blob / fetch_last_commit_at + § 병렬 호출 정책 § REST 분기.
+- 호출자(LLM) 인터페이스 변경 0 — 결과 ScanReport JSON identical. backend 인지 부담 0. v0.1부터 `--backend` flag 시그니처는 그대로 호환.
 
 ### `scan` 전용 플래그
 - `--summary-only` — `files[]` 배열 빼고 `summary` 객체만 출력. 큰 vault에서 LLM 컨텍스트 절약.
