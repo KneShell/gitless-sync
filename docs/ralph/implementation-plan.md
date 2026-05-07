@@ -196,7 +196,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - cache_path sanitize 매트릭스 (특수문자 / 공백 / 한글)
     - version 미스매치 시 reset (예: 미래 version 2 cache 만나면 default 반환)
   - `[AUTO]` `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### P5c. 통합 테스트 시나리오 20~25 `[AUTO, 코드]`
 - **Spec reference**: `spec-error-contracts.md` PRD 시나리오 20~25
