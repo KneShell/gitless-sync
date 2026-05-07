@@ -227,7 +227,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - speedup 또는 slowdown 명시 (200 baseline 대비).
   - `[AUTO]` 측정 도중 transient 실패 (gh exit≠0)는 G-015 retry policy 적용 (N=3 + 30s backoff). 3회 실패 시 [!] + G-015 reference (auto-recovery 가능).
   - `[AUTO]` raw data를 본 task acceptance 본문에 박음 (M5a 패턴 — 환경 / 명령어 / N=3 raw ms / mean / variance / speedup).
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### P6b. REST vs GraphQL baseline 측정 `[AUTO]`
 - **Spec reference**: ADR 0006 (default GraphQL) 정당화 raw data
