@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-07 (Phase 2 P4 진행 중 — 에러 매핑 + stderr hint)
+- Last updated: 2026-05-07 (Phase 2 P4 완료 — `--repo` empty validation + stderr hint inject)
 - Total tasks: 8 (P1, P2, P3, P4, P5, P6, P7, P8)
-- Completed: 3 / 8
+- Completed: 4 / 8
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -95,7 +95,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
 - **Status**: `[x]`
 
-### P4. 에러 매핑 (--repo 미명시) + stderr hint 박음 `[AUTO, 코드]` `[~]`
+### P4. 에러 매핑 (--repo 미명시) + stderr hint 박음 `[AUTO, 코드]` `[x]`
 - **Spec reference**: `spec-error-contracts.md` § init 에러 케이스 (P2 갱신본)
 - **Files**: `crates/gitless-sync/src/commands/init/mod.rs`, `crates/gitless-sync/src/main.rs`
 - **Depends on**: P3
@@ -108,7 +108,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - `--repo` 미명시 → `Err(GitlessError::Config(_))` 매칭.
     - stderr hint는 inject 패턴이라면 unit test에서 capture, 그렇지 않으면 P5 통합 테스트에서 검증.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
-- **Status**: `[ ]`
+- **Status**: `[x]`
 
 ### P5. 통합 테스트 — init 시나리오 16~19 `[AUTO, 코드]`
 - **Spec reference**: `spec-cli-interface.md` § init subcommand Acceptance Criteria, `spec-error-contracts.md` PRD 시나리오 17

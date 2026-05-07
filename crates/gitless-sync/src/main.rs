@@ -95,7 +95,11 @@ fn main() -> ExitCode {
                 branch: cli.branch,
                 ignore: cli.ignore,
             };
-            commands::init::run(&init_args, &mut std::io::stdout().lock())
+            commands::init::run(
+                &init_args,
+                &mut std::io::stdout().lock(),
+                &mut std::io::stderr().lock(),
+            )
         }
     };
 
