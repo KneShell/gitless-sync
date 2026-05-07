@@ -117,7 +117,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` 통합 테스트: `tests/integration.rs`의 `MockGhClient` stub 등록이 `fetch_last_commit_at` 인자를 `-X GET` 포함 시퀀스로 매칭하도록 갱신. fetch_last_commit_at 호출하는 PRD 시나리오(2/3/4 등) 통과 확인.
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
   - `[AUTO]` 본 task `[x]` mark + commit과 **별도 commit**으로 `docs/ralph/implementation-plan.md` M5a Status를 `[!]` → `[ ]` reset (commit message: `chore: M5a reset (G-017 fixed by M2d)`). G-017 본문도 "**2026-05-07 fixed by M2d**: 후보 (a) 채택. M5a [!] → [ ] reset 후 ralph 재진입 가능." 한 줄 추가.
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### M3. CLI 인자 + config 토큰 경로 제거 `[AUTO, 코드]`
 - **Spec reference**: `docs/specs/spec-cli-interface.md`, `docs/specs/spec-config.md`
