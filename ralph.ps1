@@ -14,6 +14,13 @@ param(
 $OutputEncoding = [System.Text.Encoding]::UTF8
 chcp 65001 > $null
 
+# Inject cargo PATH (rustup user-scoped install location) for child claude process
+if (Test-Path "$env:USERPROFILE\.cargo\bin\cargo.exe") {
+    if ($env:Path -notlike "*\.cargo\bin*") {
+        $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
+    }
+}
+
 $promptFile = switch ($Mode) {
     "plan" {
         if ($MaxIterations -eq 0) { $MaxIterations = 3 }
