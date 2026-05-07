@@ -1,7 +1,7 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-07T01:18:00Z (M5a 측정 완료 — rayon 4.86x speedup. M5b로 ADR 0003 박제 진입 가능.)
+- Last updated: 2026-05-07T02:00:00Z (M5b 진입 — rayon keep 결정 박제 중.)
 - Total tasks: 15 (M0, M1, M2a, M2b1, M2b2, M2c, M2d, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
 - Completed: 12 / 15
 
@@ -195,7 +195,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
     - 유지 시: G-011 갱신. `spec-github-api.md` § 병렬 호출 정책 확정 박제.
     - 제거 시: G-011 obsolete 마크. `Cargo.toml`에서 `rayon` 의존성 삭제. `commands/scan/mod.rs::run_with_client`의 `par_iter` → `iter`/`for` 변경. `spec-github-api.md` § 병렬 호출 정책 섹션 삭제.
   - `[AUTO]` `cargo test --workspace`, `cargo deny check`, `cargo audit` 통과 (의존성 변경 시).
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### M6. README + 의존성 안내 `[AUTO, 문서]`
 - **Spec reference**: `docs/adr/0002-migrate-v0.1-to-gh-subprocess.md` § 의존성 안내
