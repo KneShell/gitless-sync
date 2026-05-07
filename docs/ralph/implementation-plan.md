@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-07 (Phase 2 진입 — `gitless-sync init` 명령어)
+- Last updated: 2026-05-07 (Phase 2 P3 완료 — init mod 신규 + CLI 디스패치 + TOML 직렬화)
 - Total tasks: 8 (P1, P2, P3, P4, P5, P6, P7, P8)
-- Completed: 2 / 8
+- Completed: 3 / 8
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -68,11 +68,11 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `roadmap.md` § Phase 2 갱신: 원안 "현재 디렉토리에 `gitless-sync.toml` 작성. 기존 파일 있으면 `--force` 없이 실패."를 "stdout TOML 출력 — 사용자가 `gitless-sync init ... > gitless-sync.toml`로 redirect (ADR 0004). 도구 파일 작성 0."으로 갱신. 실패 모드 `--force` / 파일 권한 / 기존 파일 충돌 항목 모두 제거 (도구 파일 작성 0이라 obsolete).
 - **Status**: `[x]`
 
-### P3. init mod 신규 + CLI 디스패치 + TOML 직렬화 + 단위 테스트 매트릭스 `[AUTO, 코드]` `[~]`
+### P3. init mod 신규 + CLI 디스패치 + TOML 직렬화 + 단위 테스트 매트릭스 `[AUTO, 코드]` `[x]`
 - **Spec reference**: `spec-cli-interface.md` § init subcommand (P2 갱신본), `spec-config.md` § 스키마
 - **Files**: `crates/gitless-sync/src/commands/init/mod.rs` (신규), `crates/gitless-sync/src/commands/mod.rs` (init 모듈 노출 — `pub(crate) mod init;`), `crates/gitless-sync/src/main.rs` (clap subcommand + 디스패치), `crates/gitless-sync/src/lib.rs` (init 모듈 export — 통합 테스트가 진입점 호출), `crates/gitless-sync/src/shared/error.rs`, `crates/gitless-sync/src/shared/hash.rs`, `crates/gitless-sync/src/shared/normalize.rs`, `crates/gitless-sync/src/commands/scan/compare.rs`, `crates/gitless-sync/src/commands/scan/output.rs` (lib export로 surface된 pedantic clippy `must_use` / `# Errors` / `# Panics` 동반 정리 — v0.2 M4a Files 확장 선례, 발생 시만 수정)
 - **Depends on**: P2
-- **Acceptance criteria** (in progress):
+- **Acceptance criteria**:
   - `[AUTO]` `commands/init/mod.rs` 신규:
     - `pub(crate) struct InitArgs { repo: String, branch: Option<String>, ignore: Vec<String> }` (clap derive 또는 main.rs에서 build).
     - `pub(crate) fn run(args: &InitArgs, writer: &mut impl std::io::Write) -> Result<(), GitlessError>` 시그니처.
@@ -93,7 +93,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` **emit 형식 baseline**: v0.1 `shared/config.rs::Config` struct round-trip 통과 기준 — 충돌 시 emit 측 조정 (Config struct는 baseline, 변경 금지).
   - `[AUTO]` **lib export cascade 정리**: init mod export로 surface된 pedantic clippy warning(`must_use` / `# Errors` / `# Panics` 등)은 본 task Files 영역 안에서 동반 정리. 영역 초과 시 [!] + 사람이 plan Files 확장 결정 후 reset (ralph 자율 회복 0 — § Constraints 영역 룰).
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
-- **Status**: `[ ]`
+- **Status**: `[x]`
 
 ### P4. 에러 매핑 (--repo 미명시) + stderr hint 박음 `[AUTO, 코드]`
 - **Spec reference**: `spec-error-contracts.md` § init 에러 케이스 (P2 갱신본)
