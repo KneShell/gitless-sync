@@ -77,7 +77,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `CLAUDE.md` § 사용자 취향 결정 (검증·토론 대상 X) section에 박음:
     - "default backend는 GraphQL (ADR 0006). REST는 explicit fallback 유지."
     - "GraphQL backend는 rayon 미사용 (ADR 0005, alias batching 자체가 병렬)."
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### P2. spec 갱신 — Phase 4 GraphQL backend + cache `[AUTO, spec-only]`
 - **Spec reference**: `docs/specs/spec-github-api.md`, `docs/specs/spec-cli-interface.md`, `docs/specs/spec-error-contracts.md`, `docs/specs/spec-config.md`, `docs/roadmap.md`
