@@ -2,8 +2,8 @@
 
 ## Status
 - Last updated: 2026-05-07 (Phase 4 진입 — GraphQL batching + 로컬 SHA mtime cache)
-- Total tasks: 9 (P1, P2, P3, P4, P5, P6, P7, P8, P9)
-- Completed: 0 / 9
+- Total tasks: 10 (P1, P2, P3a, P3b, P4, P5, P6, P7, P8, P9)
+- Completed: 0 / 10
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -33,11 +33,19 @@
     - `gh api graphql` exit code 1 + stderr substring 매핑은 REST 매핑(spec-error-contracts.md)과 동일 우선순위 적용.
 12. **dogfooding**: P9에서 `KneShell/gitless-sync` (43 files) minimum scale + cross-backend (REST/GraphQL 둘 다 실행, 결과 ScanReport 동일 검증). vault scale은 사용자 환경 의존이라 자율 검증 권고 (사람 박을 일).
 13. **Performance baseline**: M5a 패턴 (warm-up drop + N=3 본 측정 + variance 30% 초과 시 N=5 확장). raw data를 task `[~]` commit message + acceptance 본문에 박음.
+14. **Transient/Permanent signal 분류** (G-015 cross-ref):
+    - **Transient** (N=3 + 30s backoff 재시도 → auto-recovery): gh exit≠0 + stderr `5xx` / `timeout` / `connection` / `rate limit` / `secondary rate limit` substring. cargo run 자식 stderr network 키워드.
+    - **Permanent** (즉시 [!] + 사람 대기, 새 G-NNN 박음): gh stderr `Bad credentials` / `HTTP 401` (인증 만료), `gh: command not found` / Command::new IO err (미설치), spec/code 정합 충돌, parse error.
+    - **모호 case**: stderr 패턴 transient/permanent 분류 모호 시 default transient retry. 3회 실패 시 [!] + commit message에 stderr 본문 박음. 사람이 G-015 substring 추가.
+15. **ADR 0008 cache 유지 임계값** (P7 결정 자의성 회피, P6 raw data 매핑):
+    - **유지**: cache hit speedup ≥ 2x (1차 scan / 2차 scan timing ratio).
+    - **제거**: speedup < 2x (코드/의존성 부담만 — `dirs` crate 1 + cache.rs 약 100 LOC).
+    - 경계 1.5x ~ 2.0x 시 → ADR 0008에서 raw data 박고 사용자 결정 reference (yagni 일관 시 제거).
 
 ## Dependency Graph
 
 ```
-P1 → P2 → P3 → P4 → P5 → P6 → P7 → P8 → P9
+P1 → P2 → P3a → P3b → P4 → P5 → P6 → P7 → P8 → P9
 ```
 
 Linear chain. 각 task가 다음 task의 compile-clean baseline.
@@ -91,9 +99,9 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
   - `[AUTO]` `roadmap.md` § Phase 4: 진행 중 박스 박음 (Phase 2 COMPLETED 패턴 따라). § "조건부" 카테고리 cache는 "본 phase에서 도입, ADR 0008에서 confirm"으로 갱신.
 - **Status**: `[ ]`
 
-### P3. GraphQL backend 본체 + error mapping + main.rs default 전환 `[AUTO, 코드]`
+### P3a. GraphQL backend 본체 + error mapping + Backend enum 분기 `[AUTO, 코드]`
 - **Spec reference**: `spec-github-api.md` § GraphQL backend (P2 갱신본), `spec-error-contracts.md` § GraphQL error mapping (P2)
-- **Files**: `crates/gitless-sync/src/commands/scan/graphql.rs` (신규 — vertical slice 일관), `crates/gitless-sync/src/commands/scan/mod.rs` (Backend enum 분기), `crates/gitless-sync/src/commands/scan/github.rs` (REST 본체는 그대로), `crates/gitless-sync/src/main.rs` (clap default 전환), `crates/gitless-sync/src/shared/error.rs` (GraphQL error mapping helper), `crates/gitless-sync/src/lib.rs` (graphql 모듈 export), `crates/gitless-sync/src/shared/hash.rs`, `crates/gitless-sync/src/shared/normalize.rs`, `crates/gitless-sync/src/commands/scan/compare.rs`, `crates/gitless-sync/src/commands/scan/output.rs` (lib export로 surface된 pedantic clippy 동반 정리 — v0.2 M4a / Phase 2 P3 cascade 선례, 발생 시만 수정)
+- **Files**: `crates/gitless-sync/src/commands/scan/graphql.rs` (신규 — vertical slice 일관), `crates/gitless-sync/src/commands/scan/mod.rs` (Backend enum 분기), `crates/gitless-sync/src/commands/scan/github.rs` (REST 본체는 그대로), `crates/gitless-sync/src/shared/error.rs` (GraphQL error mapping helper), `crates/gitless-sync/src/lib.rs` (graphql 모듈 export 최소)
 - **Depends on**: P2
 - **Acceptance criteria**:
   - `[AUTO]` `commands/scan/graphql.rs` 신규:
@@ -104,21 +112,31 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - 빈 paths 입력 → `Ok(HashMap::new())` 즉시 반환 (외부 호출 0).
   - `[AUTO]` `shared/error.rs`에 `map_graphql_error(errors: &[GraphqlError]) -> GitlessError` helper. RATE_LIMITED → RateLimitExceeded, UNAUTHENTICATED → AuthFailed, NOT_FOUND → Http, fallthrough → Http(원문).
   - `[AUTO]` `commands::scan::run_with_client` 안에서 `args.backend` enum 분기. GraphQL 분기 = `fetch_last_commit_at_batch` 1회 호출, REST 분기 = 기존 `fetch_last_commit_at` rayon 8c 병렬 (그대로).
-  - `[AUTO]` `main.rs` clap `Backend` enum default 변경: `#[arg(default_value_t = Backend::Graphql)]`. v0.1 stub error("GraphQL backend not implemented...")는 제거.
-  - `[AUTO]` `lib.rs`에 `pub mod commands;` 또는 graphql 모듈 export 정렬 (통합 테스트 진입 가능).
+  - `[AUTO]` `lib.rs`에 graphql 모듈 export 최소 (통합 테스트 진입 가능 수준).
   - `[AUTO]` 단위 테스트 minimal (`graphql.rs::tests`, MockGhClient stub):
     - 정상 batch 1개 (paths=["a.md"], stub 응답 → committedDate 매칭)
     - errors[].code == "RATE_LIMITED" → RateLimitExceeded
     - 빈 paths → Ok(empty)
     - (P5에서 매트릭스 확장)
-  - `[AUTO]` **lib export cascade 정리**: 신규 `pub` surface로 발생한 pedantic clippy warning은 본 task Files 영역 안에서 동반 정리 (Phase 2 P3 패턴 일관). 영역 초과 시 [!] + 사람 escalate.
+  - `[AUTO]` **본 task는 main.rs default 미변경, v0.1 stub error 미제거** (P3b 책임). 본 task 종료 시 `--backend graphql` 호출은 여전히 v0.1 stub error 반환 (단위 테스트는 graphql.rs 직접 호출이라 영향 0). compile-clean.
+  - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
+- **Status**: `[ ]`
+
+### P3b. main.rs default 전환 + v0.1 stub 제거 + lib export cascade 정리 `[AUTO, 코드]`
+- **Spec reference**: ADR 0006 (default GraphQL), `spec-cli-interface.md` § Backend 분기 (P2 갱신본)
+- **Files**: `crates/gitless-sync/src/main.rs` (clap default 전환 + v0.1 stub 제거), `crates/gitless-sync/src/lib.rs` (전체 commands export 정렬), `crates/gitless-sync/src/shared/hash.rs`, `crates/gitless-sync/src/shared/normalize.rs`, `crates/gitless-sync/src/commands/scan/compare.rs`, `crates/gitless-sync/src/commands/scan/output.rs` (lib export로 surface된 pedantic clippy `must_use` / `# Errors` / `# Panics` 동반 정리 — v0.2 M4a / Phase 2 P3 cascade 선례, 발생 시만 수정)
+- **Depends on**: P3a
+- **Acceptance criteria**:
+  - `[AUTO]` `main.rs` clap `Backend` enum default 변경: `#[arg(default_value_t = Backend::Graphql)]`. v0.1 stub error("GraphQL backend not implemented...") 제거 (P3a에서 본체 박혔으므로 stub 무용).
+  - `[AUTO]` `lib.rs` 전체 commands export 정렬 (통합 테스트 P5에서 진입점 호출 가능 수준).
+  - `[AUTO]` **lib export cascade 정리**: 신규 `pub` surface로 발생한 pedantic clippy warning은 본 task Files 영역 안에서 동반 정리. 영역 초과 시 [!] BLOCKED + commit message에 surface된 모듈 본문 박음 → 다음 iteration에서 사람이 plan Files 확장하지 않고 **별도 task P3c (cascade overflow)로 분기 결정**. ralph 자율 우회: 영역 초과 cascade는 본 task에서 처리 안 하고 commit + [!] + 다음 iteration P3c 박힘 대기. (사람 개입 0이지만 plan 갱신 1회 필요 — Phase 2 P3 선례.)
   - `[AUTO]` `cargo build`, `cargo test --workspace`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` 통과.
 - **Status**: `[ ]`
 
 ### P4. 로컬 SHA mtime cache 본체 `[AUTO, 코드]`
 - **Spec reference**: `spec-config.md` § cache (P2 갱신본), ADR 0009
 - **Files**: `crates/gitless-sync/src/shared/cache.rs` (신규), `crates/gitless-sync/src/commands/scan/walker.rs` (cache 통합), `crates/gitless-sync/src/commands/scan/mod.rs` (cache load/save 진입점), `crates/gitless-sync/src/lib.rs` (cache 모듈 export), `crates/gitless-sync/Cargo.toml` (`dirs` crate 추가)
-- **Depends on**: P3
+- **Depends on**: P3b
 - **Acceptance criteria**:
   - `[AUTO]` `Cargo.toml`에 `dirs = "5"` (또는 최신 안정) 추가. `Cargo.lock` 갱신.
   - `[AUTO]` `shared/cache.rs` 신규:
@@ -210,7 +228,7 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
 - **Depends on**: P6
 - **Acceptance criteria**:
   - `[AUTO]` ADR 0007 신규 — § Status: Accepted, Date: 2026-05-07. § Context: P6 (a) raw data + 측정 환경. § Decision: 100 또는 200 (P6 raw data 기반). 더 빠른 쪽 + variance 안정 쪽 채택. § Consequences: spec-github-api § GraphQL backend batch size baseline 박제. cap 변경 시 본 ADR + spec 동시 갱신.
-  - `[AUTO]` ADR 0008 신규 — § Context: P6 (c) raw data + cache hit 효과. § Decision: ① cache 유지 (의미 있는 speedup, 일반적 ≥ 2x) 또는 ② cache 제거 (효과 미달 — 코드/의존성 부담만). 결정 근거 raw data로 명시.
+  - `[AUTO]` ADR 0008 신규 — § Context: P6 (c) raw data + cache hit 효과. § Decision: § Phase 4 사전 결정 §15 임계값 매핑 — speedup ≥ 2x → ① cache 유지, < 1.5x → ② cache 제거, 경계(1.5~2.0x)면 raw data 박고 yagni 일관(② 제거 default). 결정 근거 raw data로 명시.
   - `[AUTO]` 결정에 따라 spec/code 처리:
     - 유지: spec-config § cache 확정 박제 (P2 cross-ref 박힌 ADR 0008 → confirmed). cache.rs 코드 그대로.
     - 제거: cache.rs + walker.rs cache 통합 통째 삭제 + Cargo.toml `dirs` 삭제 + Cargo.lock 갱신 + spec-config § cache 섹션 삭제 + ADR 0009 obsolete 마크 + CLAUDE.md cache 본성 한 줄 제거.
@@ -238,8 +256,8 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
 - **Acceptance criteria**:
   - `[AUTO]` **진입 사전 점검**: `gh auth status` exit 0 확인. 실패 시 즉시 [!] + 명시 메시지 (Phase 2 P8 패턴 일관). G-015 영구 신호.
   - `[AUTO]` ralph 환경에서 release 빌드: `cargo build --release` exit 0.
-  - `[AUTO]` GraphQL backend (default) 실행: `cargo run --release -- scan --repo KneShell/gitless-sync --branch main --local D:\00.Projects\02.Personal\05.gitless-sync` → exit 0 + stdout JSON 파싱 통과 + summary 5 카운트 invariant 일치 (M8/Phase 2 P8 게이트).
-  - `[AUTO]` REST backend explicit 실행: 동일 명령에 `--backend rest` 추가 → exit 0 + summary 5 카운트 invariant 일치.
+  - `[AUTO]` GraphQL backend (default) 실행: `cargo run --release -- scan --repo KneShell/gitless-sync --branch main --local D:\00.Projects\02.Personal\05.gitless-sync` → exit 0 + stdout JSON 파싱 통과 + **summary 5 카운트 invariant 일치** — `identical` + `local_only_changed` + `remote_only_changed` + `drift` + `failed` = `files.length` (M8/Phase 2 P8 게이트 동일).
+  - `[AUTO]` REST backend explicit 실행: 동일 명령에 `--backend rest` 추가 → exit 0 + 같은 5 카운트 invariant 일치.
   - `[AUTO]` **Cross-backend 정합성**: 두 실행 결과의 summary 5 카운트 정확히 동일 + `files[]` 배열 set 비교 (path/status/sha 모두 동일, order 무관). 차이 발생 시 [!] + 사람 분석 (GraphQL 응답 정합성 이슈 가능성).
   - `[AUTO]` Cache 효과 검증 (cache 유지 결정 시): `<user-cache>/gitless-sync/KneShell__gitless-sync__main.json` 자동 생성 확인 + 같은 명령 2차 실행 timing 단축 확인 (P6 (c) raw data와 일관성 비교, ±20% 마진).
   - `[AUTO]` external command transient (network 5xx, gh exit≠0)는 G-015 retry policy 적용. 3회 실패 시 [!] + G-015 reference (auto-recovery 가능).
