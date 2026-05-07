@@ -4,9 +4,9 @@
 
 ## Phase 2 — 편의 명령어
 - `gitless-sync init` — `gitless-sync.toml` 설정 파일 생성 도우미.
-  - 입력: `--repo`, `--branch` 등 인자 또는 prompt
-  - 출력: 현재 디렉토리에 `gitless-sync.toml` 작성. 기존 파일 있으면 `--force` 없이 실패.
-  - 실패 모드: 파일 권한, 기존 파일 충돌.
+  - 입력: `--repo` (필수), `--branch` (옵셔널), `--ignore` (옵셔널 반복).
+  - 출력: stdout TOML 본문 — 사용자가 `gitless-sync init ... > gitless-sync.toml`로 redirect (ADR 0004). 도구 파일 작성 0.
+  - 실패 모드: `--repo` 미명시 시 `GitlessError::Config("repo not specified")`, exit 1. 그 외 외부 호출 0이라 추가 실패 모드 없음 (`--force` / 파일 권한 / 기존 파일 충돌 항목은 obsolete — 도구가 파일을 쓰지 않음).
 - `status` 명령어는 만들지 않는다. `scan --summary-only`로 대체.
 
 ## Phase 3 — Write 도구 분리 (CANCELLED, ADR 0001)

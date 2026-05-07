@@ -14,6 +14,7 @@
 ### 명령어
 - `gitless-sync scan` — 비교 실행, 4분류 결과를 stdout JSON으로 출력.
 - `gitless-sync diff <path>` — 특정 파일의 raw text unified diff를 stdout으로 출력. 양쪽 normalize 후 비교.
+- `gitless-sync init` — repo/branch/ignore 인자에서 `gitless-sync.toml` 본문을 stdout TOML로 출력. 도구는 파일을 작성하지 않는다 — 사용자가 shell redirect로 영구 파일 생성 (ADR 0004).
 
 ### 글로벌 플래그
 | 플래그 | 의미 | 기본값 |
@@ -40,6 +41,41 @@
 ### `diff` 전용 인자
 - `<path>` — 비교할 파일의 상대 경로 (forward slash).
 
+### init subcommand
+
+#### 인자
+- `--repo <owner/name>` — **필수**. 미명시 또는 빈 문자열이면 `GitlessError::Config("repo not specified")` 즉시 반환, exit code 1, stdout 출력 0, stderr `error_code: "CONFIG"`. 글로벌 `--repo`와 다르게 init은 fallback 소스(env / toml) 없이 인자만 본다 — toml 파일을 만드는 도구이므로 자기 자신을 입력 소스로 쓸 수 없음.
+- `--branch <name>` — 옵셔널. 명시 시에만 TOML에 emit. 미명시 시 결과 TOML에 `branch` 줄 없음 → 다음 `scan` 실행 시 도구 내장 기본값 `main` fallback (`spec-config.md` § 우선순위).
+- `--ignore <pattern>` — 옵셔널 반복. 명시된 패턴 모두 TOML 배열로 emit. 미명시 시 결과 TOML에 `ignore` 줄 없음.
+- 외부 호출 0 — repo 존재 검증·인증 검사 0. 잘못된 repo가 박혀도 다음 `scan` 실행 시 자연스럽게 surface (gh CLI 에러 → `GitlessError::Http`).
+
+#### stdout 출력 형식
+- 출력은 `spec-config.md` § 스키마와 동일한 TOML 본문. emit 순서: `repo` → `branch` → `ignore` (직렬화 안정성).
+- 옵셔널 필드는 `Some` / non-empty 시에만 emit.
+- `repo` emit: `repo = "<owner/name>"\n`.
+- `branch` emit: `branch = "<name>"\n`.
+- `ignore` emit: `ignore = [<quoted, comma+space joined>]\n`. 패턴은 각각 `"..."`로 quote.
+- 결과 TOML은 round-trip 안정 — `toml::from_str::<Config>` 파싱 통과 + 모든 필드가 입력과 일치.
+
+#### stderr hint
+- 정상 init 실행 시 stderr에 항상 hint 한 줄: `Tip: redirect stdout to ./gitless-sync.toml to persist this config.`
+- tty 감지 분기 0 — redirect 여부와 무관하게 항상 emit.
+
+#### redirect 패턴
+사용자(또는 Claude Code)가 shell redirect로 영구 파일 생성:
+```bash
+gitless-sync init --repo owner/name --branch main > gitless-sync.toml
+```
+도구는 파일을 작성하지 않는다 (ADR 0001 read-only 영구). 같은 디렉토리에 이미 `gitless-sync.toml`이 있으면 shell redirect가 덮어쓴다 — 도구 책임 밖. `--force` / 충돌 처리 / 파일 권한 코드 0 (ADR 0004).
+
+#### exit code
+| Code | 의미 | Variant |
+|------|------|---------|
+| 0 | 정상 emit | `Ok(())` |
+| 1 | `--repo` 미명시 (또는 빈 문자열) | `GitlessError::Config("repo not specified")` |
+
+init은 외부 호출이 없으므로 exit code 2 / 3 / 4 / 5는 발생하지 않는다.
+
 ### 인자 우선순위
 CLI > env > `gitless-sync.toml` > 도구 내장 기본값. 자세한 건 `spec-config.md`.
 
@@ -47,6 +83,12 @@ CLI > env > `gitless-sync.toml` > 도구 내장 기본값. 자세한 건 `spec-c
 - `[AUTO]` `cargo run -- --help`가 위 모든 플래그를 보여준다.
 - `[AUTO]` `cargo run -- scan --help`가 `--summary-only`, `--status`를 추가로 보여준다.
 - `[AUTO]` `cargo run -- diff --help`가 `<path>` positional 인자를 보여준다.
+- `[AUTO]` `cargo run -- init --help`가 `--repo`, `--branch`, `--ignore`를 보여준다 + `after_help` / `long_about`에 redirect 예시 한 줄 노출 (P6에서 박음).
 - `[AUTO]` `--ignore` 플래그를 두 번 이상 지정하면 `Vec<String>`에 누적된다 (clap 기본 동작).
 - `[AUTO]` `--status drift,local_only_changed` 같은 콤마 구분 입력이 `Vec<Status>`로 파싱된다.
 - `[AUTO]` clap이 알 수 없는 플래그를 받으면 비-zero 종료 + stderr에 사용법 출력 (clap 기본).
+- `[AUTO]` `cargo run -- init --repo a/b`가 stdout에 `repo = "a/b"\n` 한 줄 emit + exit code 0 + stderr hint 한 줄.
+- `[AUTO]` `cargo run -- init --repo a/b --branch dev`가 stdout에 `repo = "a/b"\n` + `branch = "dev"\n` 두 줄 emit (이 순서).
+- `[AUTO]` `cargo run -- init --repo a/b --ignore "dist/" --ignore "*.tmp"`가 stdout에 `repo = "a/b"\n` + `ignore = ["dist/", "*.tmp"]\n` emit.
+- `[AUTO]` `cargo run -- init` (--repo 미명시) → exit code 1, stdout 출력 0, stderr `error_code: "CONFIG"` JSON 한 줄.
+- `[AUTO]` init stdout 출력이 `toml::from_str::<Config>` 파싱 통과 + repo/branch/ignore 모든 필드가 입력 인자와 일치 (round-trip).

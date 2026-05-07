@@ -101,6 +101,16 @@ variant 의미:
 - **RateLimitExceeded**: gh stderr `"API rate limit exceeded"` 또는 `"secondary rate limit"` 검출 → 즉시 종료, exit 3, stderr에 원문 메시지(reset 시각이 stderr에 노출되면 포함, 부재 시 빈 문자열). 부분 결과 출력 안 함 (재시도 가능).
 - **TreesTruncated**: `gh api repos/{owner}/{repo}/git/trees/{branch}?recursive=1` 응답 JSON `truncated: true` 검출 → exit 5, stderr에 안내. v0.1 큰 repo(7MB / 100k entry 초과) 미지원. 부분 결과 사용 금지(G-002).
 
+### init 에러 케이스 (Phase 2)
+
+`gitless-sync init`은 외부 호출이 없으므로 발생 가능 에러는 `Config` variant 단일.
+
+| 조건 | Variant | exit | stderr error_code | message |
+|---|---|---|---|---|
+| `--repo` 미명시 또는 빈 문자열 | `Config("repo not specified")` | 1 | `CONFIG` | `repo not specified` |
+
+기타 케이스(파일 권한 / 기존 파일 충돌 / `--force`)는 ADR 0004로 obsolete — 도구 파일 작성 0이라 발생 자체 불가능. shell redirect 측 에러는 도구 책임 밖.
+
 ## Acceptance Criteria
 단위 테스트는 모두 `MockGhClient` stub 응답 기반 (M2a~M2c, ADR 0002). v0.1 ureq baseline 시기에 박혀 있던 mockito 시나리오는 모두 stub 응답으로 재작성한다.
 
@@ -118,3 +128,4 @@ variant 의미:
 - `[AUTO]` stdout이 결과 JSON 한 덩어리만 포함하고 추가 텍스트 없음 (`serde_json::from_str` 가능).
 - `[AUTO]` gh 미설치 환경: `RealGhClient::new().api(&["api".to_string(), "...".to_string()])` 첫 호출이 `GitlessError::Config("gh CLI not found in PATH; install from https://cli.github.com/")` 반환 → 도구 exit code 1 + stderr `error_code: "CONFIG"`.
 - `[AUTO]` 5xx fallthrough: `MockGhClient` stub 응답 stderr `"gh: ... (HTTP 503)"` + exit 1 → `GitlessError::Http(...)` → 도구 exit code 1 + stderr `error_code: "HTTP"`.
+- `[AUTO]` PRD 검증 시나리오 17 (init repo 미명시): `cargo run -- init` (또는 `cargo run -- init --repo ""`) → 도구 exit code 1, stdout 출력 0, stderr JSON 한 줄에 `error_code: "CONFIG"` + `message`에 `"repo not specified"` substring. library 경로로는 `commands::init::run(&InitArgs { repo: "".into(), .. }, &mut Vec<u8>)` → `Err(GitlessError::Config(_))` 반환 + `err.exit_code() == 1` + `err.error_code() == "CONFIG"`.
