@@ -1,7 +1,7 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-07T02:30:00Z (M5b 완료 — ADR 0003 박제, rayon keep 확정.)
+- Last updated: 2026-05-07T03:00:00Z (M7 진입 — 빌드 게이트 검증 시작.)
 - Total tasks: 15 (M0, M1, M2a, M2b1, M2b2, M2c, M2d, M3, M4a, M4b, M5a, M5b, M6, M7, M8)
 - Completed: 13 / 15
 
@@ -215,7 +215,7 @@ M0 → M1 → M2a → M2b1 → M2b2 → M2c
   - `[AUTO]` `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --workspace`, `cargo deny check`, `cargo audit` 모두 통과.
   - `[AUTO]` `cargo tarpaulin --engine llvm --workspace --out Stdout` 라인 커버리지 ≥ 80%.
   - `[AUTO]` `cargo tree`로 `ureq`, `mockito` 의존성 부재 확인. (M5b에서 rayon 제거 결정 시 rayon도 부재.)
-- **Status**: `[ ]`
+- **Status**: `[~]`
 
 ### M8. Self dogfooding contract step `[AUTO]`
 - **Spec reference**: ADR 0002 § Consequences, tribunal P3/P4 sema gap risk (#12)
