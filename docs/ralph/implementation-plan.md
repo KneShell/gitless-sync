@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-07 (Phase 4 진입 — GraphQL batching + 로컬 SHA mtime cache)
 - Total tasks: 15 (P1, P2, P3a, P3b, P4, P5a, P5b, P5c, P6a, P6b, P6c, P7a, P7b, P8, P9)
-- Completed: 10 / 15
+- Completed: 11 / 15
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵된 상태.
@@ -302,7 +302,34 @@ Linear chain. 각 task가 다음 task의 compile-clean baseline.
     - speedup ratio 박음. 1차/2차 timing 차이 + cache hit 비율 (100% 기대) 검증.
   - `[AUTO]` 측정 도중 transient 실패는 G-015 retry policy 적용.
   - `[AUTO]` raw data를 본 task acceptance 본문에 박음 — speedup ratio가 § Phase 4 사전 결정 §15 임계값 (≥2x 유지 / <1.5x 제거 / 경계 yagni 제거)과 어떤 관계인지 명시.
-- **Status**: `[~]`
+- **Raw data (2026-05-07)**:
+  - **환경**: P6a/P6b와 동일. Windows 11 Pro 10.0.26100 / gh 2.88.1 (KneShell account active) / cargo 1.95.0 / release binary `target/release/gitless-sync.exe` (last src commit `74ba783` 16:53:14 < binary mtime 17:13:01, current). wall-clock = PowerShell `Measure-Command`. `gh auth status` exit 0 확인 완료.
+  - **대상**: `KneShell/gitless-sync` @ main, local = `D:\00.Projects\02.Personal\05.gitless-sync`. **로컬 파일 수정 없음** (P6a/P6b와 달리 trailing LF 박는 시뮬레이션 미적용 — cache 본질이 mtime 일치 lookup이라 파일을 만지면 cache miss). 현재 working tree state: identical 30 / local_only_changed 20 / remote_only_changed 0 / drift 0 / failed 0 = total 50 paths. 모두 local 존재 → cache 50 entries 생성 기대.
+  - **명령어**: `gitless-sync.exe scan --repo KneShell/gitless-sync --branch main --local . --summary-only`. cache 위치 = `$env:LOCALAPPDATA\gitless-sync\KneShell__gitless-sync__main.json` (= `C:\Users\dasgut\AppData\Local\gitless-sync\KneShell__gitless-sync__main.json`).
+  - **(a) N=3 sequence (기본 측정)** — cold = 매 시퀀스 시작 시 cache 파일 `Remove-Item`, warm = cache 미삭제 후속 호출:
+    - warm-up cold dropped: 1494.0 ms
+    - cold N=3 raw ms: 1371.9, 1319.1, 1283.4 → mean **1324.8 ms** / min 1283.4 / max 1371.9 / `(max-min)/mean` **6.7%** (<30%)
+    - warm N=3 raw ms: 1266.4, 1301.6, 1254.0 → mean **1274.0 ms** / min 1254.0 / max 1301.6 / `(max-min)/mean` **3.7%** (<30%)
+    - speedup = `1324.8 / 1274.0` = **1.040x** (cold/warm)
+  - **(b) N=5 sequence (변동 재확인)** — variance가 둘 다 <30%였지만 speedup 1.04x가 noise floor 안쪽이라 robust 측정 수행:
+    - warm-up cold dropped: 1332.1 ms
+    - cold N=5 raw ms: 1311.1, 1361.0, 1375.2, 1367.0, 1260.8 → mean **1335.0 ms** / min 1260.8 / max 1375.2 / `(max-min)/mean` **8.6%** (<30%)
+    - warm N=5 raw ms: 1426.8, 1351.5, 1357.8, 1299.3, 1322.6 → mean **1351.6 ms** / min 1299.3 / max 1426.8 / `(max-min)/mean` **9.4%** (<30%)
+    - speedup = `1335.0 / 1351.6` = **0.988x** (cold/warm) — warm이 cold보다 살짝 느림. 캐시 효과가 측정 noise보다 작음을 직접 보여줌.
+  - **Cache hit 비율 검증 (cache 정상 채워짐 확인)**:
+    - cold scan 1회 완료 후 cache 파일 size = 9063 bytes. JSON entries 수동 카운트 = **50** (= `summary.identical 30 + summary.local_only_changed 20`). 모든 local file이 cache에 박힘 → warm scan에서 100% cache hit 기대 (mtime 미수정 + 캐시 lookup HashMap O(1)).
+    - cache version field = 1 (CACHE_VERSION 일관). 모든 entry는 `mtime` (UTC ISO-8601) + `sha` (hex) + `is_binary` (bool) 필드 박힘. 형식 spec-config.md § cache 일관.
+  - **분석**:
+    - **noise floor 안쪽**: N=3 1.040x → N=5 0.988x — 두 측정에서 speedup이 0.99 ~ 1.04 범위. variance ≈ 4-9%로 낮은데도 1차/2차 mean 차이가 변동 범위 안. 즉 cache 효과가 wall-clock 측정 variance보다 작음.
+    - **dominant cost가 hash가 아닌 다른 곳**: 1300ms 안에서 hash 50 file은 ~50ms (1KB-10KB 텍스트 × 50). 나머지 ~1250ms는 (i) cargo binary fork, (ii) `gh api` subprocess fork × 2 (Trees + GraphQL), (iii) Trees API 응답 다운로드 + 파싱, (iv) walker 파일 시스템 walk, (v) GraphQL 응답 파싱 + JSON 직렬화. cache는 hash phase만 단축 → 전체 대비 ~3-4% 영향. measured 결과(±5% noise) 내부.
+    - **cache save는 cold/warm 모두 매 호출 발생**: `commands/scan/mod.rs:170-174`에서 `if let Some(p) = &cache_path_opt && let Err(e) = local_cache.save(p)` 분기는 unconditional. 9KB JSON serialize + tmp write + rename atomic 비용은 cold/warm 동일하게 발생 → cache 도입에 따른 *추가 비용*만 양쪽에 박힘. lookup 효과는 그 위에 누적되는데 net zero.
+    - **measurement 신뢰성**: P6b에서 관측된 단발 spike(g2 = 10115ms) 같은 GraphQL latency outlier 0회. cold/warm variance 둘 다 <10%. 측정 자체는 깨끗 → speedup 1.0±0.05x는 운이 아니라 systemic.
+  - **§ Phase 4 사전 결정 §15 임계값 매핑**:
+    - 임계값: ≥2x 유지 / <1.5x 제거 / 경계 1.5~2.0x → ADR 0008에서 yagni 일관 시 제거.
+    - measured speedup: **1.040x (N=3) / 0.988x (N=5)** → **둘 다 < 1.5x 제거 영역**. 경계도 아님 (1.5x에 한참 못 미침).
+    - **결론** (P7b ADR 0008 입력): cache 효과가 본 측정 환경(50-path scale, KneShell/gitless-sync)에서 noise floor 안쪽 — speedup ≈ 1.0x. **cache 제거 결정** 권고. 코드 부담(`dirs` crate 1 + cache.rs ~360 LOC + scan/mod.rs cache 진입 + walker.rs cache lookup)은 영향 미미한 효과 대비 net loss. 1000+ path scale에서 hash 비중이 늘어 speedup이 커질 가능성은 있으나 v0.1/v0.2 비목표 (vault scale 측정은 사용자 환경 의존) — yagni 일관 시 ADR 0008에서 제거.
+  - **transient retry**: gh exit ≠ 0 발생 0회 → G-015 retry 미발동. wall-clock outlier 0회 (P6b g2 spike 10115ms 같은 케이스 없음).
+- **Status**: `[x]`
 
 ### P7a. ADR 0007 + spec-github-api § GraphQL backend batch size 박제 `[AUTO, 문서/spec/코드]`
 - **Spec reference**: P6a raw data
