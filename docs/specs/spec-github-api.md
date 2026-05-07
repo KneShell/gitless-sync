@@ -10,7 +10,9 @@ GitHub Trees / Blobs / Commits API를 `gh api` subprocess로 호출 (ADR 0001 + 
 
 - ADR 0001: `gh` subprocess 단일 통로 + read-only 영구.
 - ADR 0002: v0.1 ureq baseline → gh subprocess 마이그레이션 완료 (2026-05-07). ureq + mockito 의존성 제거. 단일 baseline.
-- ADR 0003: rayon 8 concurrent 유지 결정 (M5a 측정 4.86x speedup).
+- ADR 0003: rayon 8 concurrent 유지 결정 (M5a 측정 4.86x speedup) — REST backend 단독 시점.
+- ADR 0005: rayon은 REST backend 한정. GraphQL backend는 alias batching 단독 (Phase 4).
+- ADR 0006: default backend `rest` → `graphql` 전환 (Phase 4). REST는 `--backend rest` explicit fallback으로 유지.
 
 ## 작업 범위
 
@@ -115,28 +117,173 @@ v0.1 ureq baseline 시그니처에서 `token` 인자 제거 + `client: &impl GhC
 
 매칭 신호는 좁은 stderr substring + exit_code 조합. **정규식 사용 금지** (M1 룰).
 
-### Backend 선택 (v0.1 stub + Phase 4 활성화)
+### Backend 선택
 
-- v0.1는 **REST backend만 활성**. GraphQL backend는 인터페이스만 박고 본체는 stub.
-- `--backend rest` (기본): 본 spec § fetch_tree / fetch_blob / fetch_last_commit_at + § 병렬 호출 정책 그대로 동작.
-- `--backend graphql`: `GitlessError::Config("GraphQL backend not implemented in v0.1; use --backend rest. Phase 4 ETA.")` 즉시 반환, exit code 1. (orchestrator `scan::run` 진입부에서 분기.)
-- forward-compatibility 의도: 호출자(LLM)가 v0.1부터 `--backend graphql`을 명시 가능. Phase 4에서 GraphQL backend 본체 채울 때 호출자 코드 변경 0.
-- Phase 4 활성화 시 본 섹션을 갱신: GraphQL endpoint (`/graphql`), alias batching 패턴, GraphQL 응답 → `Vec<RemoteFile>` / `DateTime<Utc>` 매핑.
+> **갱신 (ADR 0006, 2026-05-07)**: default backend `rest` → `graphql` 전환. v0.1 stub은 obsolete (P3a에서 본체 박힘). GraphQL backend 본체 정의는 본 spec § GraphQL backend.
+
+- `--backend graphql` (default): § GraphQL backend 정의대로 `fetch_last_commit_at_batch` 진입점. 인증·rate limit·재시도 모두 gh 위임 (ADR 0001 일관).
+- `--backend rest` (explicit fallback): 본 spec § fetch_tree / fetch_blob / fetch_last_commit_at + § 병렬 호출 정책 (REST 분기) 그대로 동작. v0.1/v0.2 자산 보존, GraphQL 운영 이슈(rate limit, alias batching 응답 정합성, partial errors 등) 발생 시 즉시 fallback (ADR 0006 § Decision).
+- `fetch_tree` / `fetch_blob`은 GraphQL backend에서도 REST를 그대로 사용 (Trees / Blobs API는 GraphQL 대체 우위 0). backend 분기는 commits API 호출에 한정.
+- 호출자(LLM) 인터페이스 변경 0 — `--backend graphql` 명시 불필요, 결과 ScanReport JSON identical.
+
+### GraphQL backend
+
+> **확정 (ADR 0006, 2026-05-07)**: default backend. Commits API의 N×round-trip을 alias batching 단일 request로 단축. 인증·rate limit은 `gh api graphql` subprocess가 처리 (ADR 0001 일관).
+
+#### 진입점 시그니처
+
+```rust
+pub(crate) fn fetch_last_commit_at_batch(
+    client: &impl GhClient,
+    repo: &str,
+    branch: &str,
+    paths: &[String],
+) -> Result<HashMap<String, DateTime<Utc>>, GitlessError>
+```
+
+- 입력: 차이 있는 파일 path 배열. 빈 배열 → `Ok(HashMap::new())` 즉시 반환 (외부 호출 0).
+- 반환: `path → committed DateTime<Utc>` 매핑. 일부 path 결과 누락 시 통째 fail (아래 § Partial errors 정책).
+
+#### Alias batching 패턴
+
+- 한 alias = `history(first: 1, path: ...)` = 1 node. GitHub GraphQL node 한도 500,000 기준 1 path = 1 node로 직선 환산.
+- batch size **default 200** alias/request. `roadmap.md` § Phase 4 GraphQL batching 권장 상한과 일관 — P6a 측정 + P7a ADR 0007에서 confirm/조정.
+- paths가 batch size 초과 시 `paths.chunks(GRAPHQL_BATCH_SIZE)`로 순차 호출. chunk 응답을 `HashMap`으로 합산 (REST rayon과 달리 request 단위 추가 병렬화 없음 — ADR 0005).
+
+#### Path → alias mangling
+
+GraphQL alias 식별자는 `[A-Za-z_][A-Za-z0-9_]*` 제한. path에는 `/` / `.` / 공백 / 한글 등이 포함될 수 있어 직접 매핑 불가.
+
+- mangling 규칙: `a` + 0부터 시작하는 sequential index — `a0`, `a1`, ..., `a199` (batch size 200 기준).
+- 응답 매핑: 한 batch 안에서 `Vec<&str>` (alias index → path) 역인덱스를 빌드. 응답 JSON `data.repository.ref.target.{alias}` 키를 `Vec` 인덱스로 다시 path로 환원.
+- chunk 별 alias namespace는 reset (`a0`부터 다시 시작). 한 batch 안에서만 unique 보장하면 충분.
+
+#### GraphQL query 빌더 (의사코드)
+
+한 alias entry (Commit 안에 평탄 배치):
+
+```graphql
+a{i}: history(first: 1, path: "{path_quoted}") {
+  nodes { committedDate }
+}
+```
+
+전체 query (한 batch = N alias):
+
+```graphql
+query {
+  repository(owner: "{owner}", name: "{name}") {
+    ref(qualifiedName: "refs/heads/{branch}") {
+      target {
+        ... on Commit {
+          a0: history(first: 1, path: "{path0_quoted}") { nodes { committedDate } }
+          a1: history(first: 1, path: "{path1_quoted}") { nodes { committedDate } }
+          ...
+          a{N-1}: history(first: 1, path: "{path_{N-1}_quoted}") { nodes { committedDate } }
+        }
+      }
+    }
+  }
+}
+```
+
+- `ref(qualifiedName: "refs/heads/{branch}").target` 분기는 한 batch에 1회. 그 안의 N alias가 모두 같은 Commit 위에서 평가됨 (`object(expression: "{branch}:{path}")`처럼 path별로 중복 분기하지 않음).
+- 호출 args 빌드 예 (`gh api graphql -f query=...`):
+  ```rust
+  vec![
+      "api".to_string(),
+      "graphql".to_string(),
+      "-f".to_string(),
+      format!("query={query_string}"),
+  ]
+  ```
+
+#### Path quote (GraphQL string escape)
+
+GraphQL string literal 내부의 `path_quoted`는 다음 escape:
+
+- `\` → `\\`
+- `"` → `\"`
+- `\n` → `\\n`
+- 기타 control character는 v0.1 비목표 (path에 control char 들어오면 graceful 실패 acceptable).
+
+`{branch}` / `{owner}` / `{name}` 인자는 도구 진입 시 검증된 값이라 추가 escape 불필요 (`-f query=...`에 raw 박음). path는 walker에서 `\` → `/` 정규화된 상대경로라 GraphQL 측 escape만 처리.
+
+#### Timestamp 필드 — `committedDate` 사용 (`authoredDate` 금지)
+
+REST `commits[].commit.committer.date`는 commit이 repository에 박힌 시점이다. GraphQL 측 등가 필드는 `committedDate`로 동일.
+
+`authoredDate`는 commit author date라 cherry-pick / rebase / squash 시 committer date와 달라진다. cross-backend 정합성(P9 dogfooding `--backend rest` ↔ `--backend graphql`)을 깨므로 사용 금지.
+
+#### 응답 파싱
+
+stdout JSON:
+
+```json
+{
+  "data": {
+    "repository": {
+      "ref": {
+        "target": {
+          "a0": { "nodes": [{ "committedDate": "2026-05-07T..." }] },
+          "a1": { "nodes": [] }
+        }
+      }
+    }
+  },
+  "errors": []
+}
+```
+
+- `data.repository.ref.target.{alias}.nodes[0].committedDate` → `DateTime<Utc>`.
+- `nodes`가 빈 배열이면 (해당 path commits 0개 — 신규 파일 케이스) → `GitlessError::Http("path '{path}': no commits found")` 또는 동등. v0.1 REST `fetch_last_commit_at`의 빈 commits 배열 매핑과 일관.
+- alias 응답이 누락(map에 키 자체 없음)되면 `Http("path '{path}': missing in response")` — 통째 fail 정책 일관.
+
+#### Partial errors 정책
+
+GraphQL 응답에는 `data`와 `errors[]`가 공존할 수 있다 — 일부 alias만 실패한 부분 결과 케이스.
+
+- `errors[]` 배열이 비어 있지 않으면 즉시 `errors[0].extensions.code` 매핑 후 통째 fail. 부분 결과 사용 안 함 (G-002 truncated 패턴 일관).
+- 매핑 표는 `spec-error-contracts.md` § GraphQL error mapping (P2 신설). `data` 부분 결과는 무시.
+
+#### batch size 변경 정책
+
+batch size 변경 시 본 § GraphQL backend + ADR 0007 동시 갱신 (P6a raw data → P7a ADR 박음). 단위 테스트의 chunk 분할 시나리오 (300 paths → 200+100 등)도 결정값에 정렬.
 
 ### 병렬 호출 정책 (Latency)
 
-> **확정 (ADR 0003, 2026-05-07).** M5a 측정(commit `5e95312`)에서 rayon 8c vs sequential 4.86x speedup 입증 → ADR 0003에서 rayon 유지 결정. 본 섹션은 baseline이 아닌 확정 정책.
+> **갱신 (ADR 0005, 2026-05-07)**: backend별 분기. REST는 ADR 0003대로 rayon 8c 유지, GraphQL은 alias batching 자체가 병렬 효과라 rayon 미사용.
+
+| Backend | 정책 | 근거 |
+|---|---|---|
+| REST | `paths.par_iter()` rayon 8 concurrent | ADR 0003 (4.86x speedup, M5a 측정) |
+| GraphQL | alias batching only, request 단위 순차 | ADR 0005 (한 request = 200 alias = 200 node 병렬) |
+
+`MAX_COMMITS_CONCURRENCY = 8` 상수는 **REST 분기에서만 active**. GraphQL 모듈에서는 참조 0 (G-011 본문 — REST backend 한정 활성).
+
+#### REST 분기 (ADR 0003 그대로)
 
 - `fetch_last_commit_at`은 차이 있는 파일 N개에 대해 직렬 호출 시 N × subprocess spawn + GitHub round-trip latency 누적 → 큰 vault에서 사용자 인내심 한계.
-- 해결안: rayon으로 병렬 호출, default **8 concurrent**. M5a 측정에서 13 path 기준 sequential 6.56s → rayon 8c 1.35s (4.86x speedup).
+- 해결안: rayon으로 병렬 호출, default **8 concurrent**. M5a 측정(commit `5e95312`)에서 13 path 기준 sequential 6.56s → rayon 8c 1.35s (4.86x speedup).
 - 패턴: `paths.par_iter().map(|p| github::fetch_last_commit_at(client, repo, branch, p)).collect::<Result<Vec<_>, _>>()` 를 `rayon::ThreadPoolBuilder::new().num_threads(8).build().unwrap().install(...)`로 thread pool 명시 제어.
 - 동시 요청 수 상한 = 8 (G-011, GitHub abuse detection 회피). 변경 시 G-011 + 본 섹션 + ADR 0003 동시 갱신.
 - burst 시 gh stderr `429` 또는 abuse detection 신호 → `GitlessError::Http(...)`로 매핑 후 즉시 종료. exponential backoff은 v0.1 비목표 (Phase 4).
-- `fetch_tree`(scan에서 1회) / `fetch_blob`(diff 명령에서만) 병렬화 대상 아님.
+
+#### GraphQL 분기 (ADR 0005)
+
+- request 단위 추가 병렬화 없음. paths를 `paths.chunks(GRAPHQL_BATCH_SIZE)`로 순차 호출.
+- 한 request 안의 200 alias는 GitHub 측이 병렬 평가 — 도구 측 thread pool 0.
+- secondary rate limit (점수 기반) 발생 시 batch size 하향 + ADR 0007 갱신 (rayon 재도입은 plan 외).
+
+#### 공통
+
+- `fetch_tree`(scan에서 1회) / `fetch_blob`(diff 명령에서만) 병렬화 대상 아님. backend 분기 없음 (GraphQL backend도 Trees / Blobs는 REST 사용 — § Backend 선택).
 
 ## Acceptance Criteria
 
-마이그레이션 task M2a~M2c가 본 spec을 충족한다. 단위 테스트는 모두 `MockGhClient` stub 기반.
+마이그레이션 task M2a~M2c가 본 spec § REST backend를 충족한다 (ADR 0002 완료). Phase 4 task P3a/P5a/P9가 본 spec § GraphQL backend를 충족한다. 단위 테스트는 모두 `MockGhClient` stub 기반.
+
+### REST backend
 
 - `[AUTO]` `fetch_tree`가 MockGhClient stub 정상 응답에서 `Vec<RemoteFile>` 반환 (blob entry만 필터, `tree`/`160000`/`120000`/`100755` skip).
 - `[AUTO]` `fetch_tree`가 MockGhClient stub 응답 `truncated: true` → `GitlessError::TreesTruncated` (PRD 검증 시나리오 12).
@@ -148,3 +295,17 @@ v0.1 ureq baseline 시그니처에서 `token` 인자 제거 + `client: &impl GhC
 - `[AUTO]` `fetch_last_commit_at`가 MockGhClient stub 응답에서 첫 commit의 date를 `DateTime<Utc>`로 파싱.
 - `[AUTO]` `fetch_last_commit_at`가 빈 commits 배열 응답 → `GitlessError::Http(...)` (예상 외 케이스).
 - `[AUTO]` `RealGhClient::new()` 호출 후 `gh` 미존재 환경에서 첫 `api()` 호출이 `GitlessError::Config("gh CLI not found in PATH; install from https://cli.github.com/")` 반환.
+
+### GraphQL backend (Phase 4)
+
+- `[AUTO]` `fetch_last_commit_at_batch`가 MockGhClient stub 정상 응답에서 `path → DateTime<Utc>` HashMap 반환. 모든 입력 path가 결과에 포함.
+- `[AUTO]` 빈 paths 입력 → `Ok(HashMap::new())` 즉시 반환 (`MockGhClient` 호출 0회).
+- `[AUTO]` `paths.len() > GRAPHQL_BATCH_SIZE` (예: batch 200 + 300 paths) → `ceil(N / batch)` 회 호출 (300 → 2회: 200+100), chunk 응답이 합산된 단일 HashMap 반환.
+- `[AUTO]` `errors[].extensions.code == "RATE_LIMITED"` → `GitlessError::RateLimitExceeded`.
+- `[AUTO]` `errors[].extensions.code == "UNAUTHENTICATED"` → `GitlessError::AuthFailed`.
+- `[AUTO]` `errors[].extensions.code == "NOT_FOUND"` → `GitlessError::Http(...)`.
+- `[AUTO]` `errors[].extensions.code == "INTERNAL_SERVER_ERROR"` 또는 fallthrough 코드 → `GitlessError::Http(stderr/errors[] 원문)`.
+- `[AUTO]` 응답에 `data` 부분 결과 + `errors[]` 비어 있지 않음 → 통째 fail (data 무시, errors 매핑 후 반환).
+- `[AUTO]` 200 paths batch alias mangling: `a0` ~ `a199` 안전 매핑 + 응답 → path 역매핑 정합 (한 path 누락 0).
+- `[AUTO]` path에 `"` / `\\` / `\n` 포함 시 GraphQL string escape 적용 (실제 호출 인자에 escape 형태 박힘).
+- `[AUTO]` `committedDate` 필드를 사용해 timestamp 추출 (`authoredDate` 사용 0). cross-backend P9 dogfooding `--backend rest` ↔ `--backend graphql` 결과 ScanReport 동일 검증.

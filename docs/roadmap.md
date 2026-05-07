@@ -22,11 +22,16 @@
 > - scan 결과(JSON)를 stdin 또는 파일로 받아 GitHub API로 실제 push 수행.
 > - AI가 scan → 사용자 승인 → push로 명시적 단계 분리.
 
-## Phase 4 — 성능 최적화
+## Phase 4 — 성능 최적화 (IN PROGRESS, 2026-05-07)
+
+> **2026-05-07 진입.** ADR 0005/0006/0009 박힘 + spec 갱신 (P1/P2 완료). ralph 자율 진행.
+>
+> - GraphQL batching 도입 (P3a/P3b/P5a) — `--backend graphql` default. REST는 `--backend rest` explicit fallback (ADR 0006).
+> - 로컬 SHA mtime 기반 cache 도입 (P4/P5b/P6c) — ADR 0009 internal cache 예외. 효과 < 1.5x 측정 시 P7b ADR 0008에서 제거.
+> - 자세한 task list: `docs/ralph/implementation-plan.md`.
 
 ### 조건부 (측정 후 결정)
-- 로컬 SHA mtime 기반 캐시. 큰 vault에서 매번 전체 해시 계산 비용이 문제일 때만 도입.
-- v0.1 성능 측정 결과를 보고 도입 여부 결정 (premature optimization 방지).
+- 로컬 SHA mtime 기반 캐시 → **Phase 4에서 도입, ADR 0008에서 confirm/제거 결정 (2026-05-07)**. P4 task로 본체 박힘 + P6c에서 cache hit speedup 측정 + P7b ADR 0008에서 `docs/ralph/implementation-plan.md` § Phase 4 사전 결정 §15 임계값 매핑 (≥ 2x 유지 / < 1.5x 제거 / 경계 yagni 제거 default).
 - Trees API sub-tree 재귀 fallback (truncated repo 지원, G-002 해소).
 
 ### 확정 (반드시 도달)
