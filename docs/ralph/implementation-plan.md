@@ -1,7 +1,7 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (task L — xtask self-dogfooding: workspace lints inherit + check_cycles/check_line_limits 2-file split + multi-root scan, 243 tests pass + tarpaulin 88.29% maintained)
+- Last updated: 2026-05-09 (task N in progress — F-I 분할 후 layer 게이트 회귀 검증)
 - Total tasks: 20
 - Completed: 16 / 20
 
@@ -105,7 +105,7 @@
   - spec: 없음 (research artifact, clean-context §4 누락 추가).
   - 검증 결과 (2026-05-08, 분할 전 baseline 박음): `docs/research/phase6-baseline.md` § File Split Metrics — Pre-Split Baseline 박음. file 18개 / total 4434 LOC / max 1092 (`commands/scan/mod.rs`) / LOC > 300 4 files (diff/mod.rs 472, scan/graphql.rs 564, scan/mod.rs 1092, shared/github.rs 748) / fan-out 67 use 문 (14 files non-zero, 4 files zero) / cycles 0 / cross-slice refs 0 / panic 위반 0 (task R/S/T 계승). Post-split metric은 task J 직후 본 sub-section 아래 누적 placeholder 박음. G-012 spec-only 면제 (코드 변경 0, docs/research만 수정) — fmt/clippy/test/tarpaulin baseline 유지로 자동 통과.
 
-- [ ] **N. F-I 분할 후 layer 게이트 pass 검증 (각 task 안에 step 명시)**
+- [~] **N. F-I 분할 후 layer 게이트 pass 검증 (각 task 안에 step 명시)**
   - acceptance: F~I 각 task 완료 시 `cargo xtask check-line-limits` + `cargo xtask check-cycles` 통과 검증을 acceptance에 명시. 각 task 완료 시 cycle 0건 + cross-slice ref 0건 + LOC 위반 0건 (면제 카테고리 외).
   - spec: `docs/specs/spec-architecture.md` § Slice 안 acyclic + § Cross-slice 직접 ref 금지.
 
