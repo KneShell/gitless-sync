@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-08 (task P — integration.rs 792 LOC 단일 → tests/common + 4 도메인 file split, 21 integration tests pass, baseline 240 tests pass + tarpaulin 88.32% 유지)
+- Last updated: 2026-05-09 (task L — xtask self-dogfooding: workspace lints inherit + check_cycles/check_line_limits 2-file split + multi-root scan, 243 tests pass + tarpaulin 88.29% maintained)
 - Total tasks: 20
-- Completed: 15 / 20
+- Completed: 16 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -95,9 +95,10 @@
 
 ### Phase 6.6 — Dogfooding + 회귀 가드
 
-- [~] **L. xtask self-dogfooding**
+- [x] **L. xtask self-dogfooding**
   - acceptance: `xtask/` crate에도 workspace lints 적용 (300줄 LOC + clippy 60/15/5 + panic deny). xtask 자체 코드가 게이트 통과. xtask Cargo.toml에 `[lints] workspace = true` 박음.
   - spec: `docs/specs/spec-architecture.md` § Enforcement.
+  - 검증 결과 (2026-05-09): `xtask/Cargo.toml`에 `[lints] workspace = true` 박음 (clippy 60/15/5 + panic deny inherit). `xtask/src/main.rs` 상단 `#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]` 박음 (test 면제). pedantic cascade fix 2건: (1) `check_cycles::detect_cycles`의 nested `fn visit` 함수를 top-level `visit_for_cycles`로 추출 (`items_after_statements` deny). (2) `.map(|s| s.to_string())` → `.map(ToString::to_string)` (`redundant_closure_for_method_calls` deny). 박힘 직후 xtask 2 file LOC 위반 (check_cycles.rs 530, check_line_limits.rs 315) 해소: 각각 `mod.rs` + `tests.rs` 2-way 폴더 split (`#[cfg(test)] mod tests;` 선언 + `tests.rs`가 module body, file-level inner attr 불필요 — main.rs cfg_attr가 crate 전체 propagate). check_cycles/mod.rs 263 LOC (production) + tests.rs 257 LOC. check_line_limits/mod.rs 132 LOC + tests.rs 218 LOC (run_multi 3 tests 추가). check_line_limits.rs `DEFAULT_SCAN_ROOT` 단일 → `DEFAULT_SCAN_ROOTS: &[&str] = &["crates/gitless-sync/src", "xtask/src"]` 다중 root + `run_multi(scan_roots: &[&Path], limit) -> io::Result<u8>` helper 박음 (xtask 자체 LOC도 게이트 대상). `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 243 tests pass (174 unit + 21 integration + 48 xtask, baseline 240 대비 +3: run_multi 3 tests) + tarpaulin 88.29% (≥80% gate, baseline 88.32% 대비 -0.03% — xtask main.rs 18/29 + check_cycles/mod.rs 121/150에 fetch_dot/run external `cargo modules` 호출 untested). `cargo xtask check-line-limits` 통과 (39 gitless-sync + 5 xtask 파일 all ≤300 LOC). `cargo xtask check-cycles` 통과 (34 modules, 0 cycles, 0 cross-slice refs).
 
 - [x] **M. 분할 전/후 baseline metric 박제**
   - acceptance: `docs/research/phase6-baseline.md` 박음. 분할 전 (현재) + 분할 후 (F-I 완료) 측정값: file 수, total LOC, max LOC, fan-out (file별 import count), cycle count, panic 위반 카운트.
