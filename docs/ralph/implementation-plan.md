@@ -50,7 +50,7 @@
   - spec: 없음 (research).
 
 - [ ] **F. 비-UTF-8 인코딩 변환 시도 박음 (hash 입력 (b))**
-  - acceptance: `normalize.rs`에 `try_decode_text` 함수 박음. 1차 UTF-8 디코드 시도 → 2차 다른 인코딩 detect → 3차 binary 취급 (`Status::Failed` + `failed_reason: "encoding"`). **hash 입력은 항상 원본 raw bytes** (clean-context (b) 정책). detect는 reason 마크 + JSON 출력 정보만. unit test (EUC-KR / Shift_JIS / Latin-1 fixture + identical raw bytes 검증).
+  - acceptance: `normalize.rs`에 `try_decode_text` 함수 박음. 1차 UTF-8 디코드 시도 → 2차 다른 인코딩 detect → 3차 binary 취급 (`Status::Failed` + `failed_reason: "encoding"`). **hash 입력은 항상 원본 raw bytes** (clean-context (b) 정책). detect는 reason 마크 + JSON 출력 정보만. unit test (EUC-KR / Shift_JIS / Latin-1 fixture + identical raw bytes 검증). tarpaulin 80% 유지 — encoding detect 분기 cover.
   - spec: `docs/specs/spec-domain-pitfalls.md` § Encoding (hash 입력 (b)) + `spec-hash-and-normalize.md`.
 
 - [ ] **F1. BOM 처리 정책 박음 (UTF-8 + UTF-16)**
@@ -67,9 +67,9 @@
   - acceptance: `github.rs::trees`에서 symlink entry mode 박음. walker가 local symlink 발견 시 `Status::Failed` + `failed_reason: "symlink"`. JSON 출력에 mode bit (`120000`) 박음.
   - spec: `docs/specs/spec-domain-pitfalls.md` § Symlink + `spec-classification.md`.
 
-- [ ] **G1. git LFS pointer detection**
-  - acceptance: `github.rs::blobs`에서 fetched blob의 첫 줄에 `version https://git-lfs.github.com/spec/v1` 시그니처 detect → `Status::Failed` + `failed_reason: "lfs_pointer"` + `lfs_pointer: {oid, size}` JSON 박음 (pointer text 파싱). unit test (LFS pointer fixture byte literal).
-  - spec: `docs/specs/spec-domain-pitfalls.md` § LFS pointer + `spec-error-contracts.md`.
+- [ ] **G1. git LFS pointer detection (.gitattributes filter=lfs 신호 기반)**
+  - acceptance: scan은 **blob fetch 안 함** (Phase 4 GraphQL batching 이득 유지) — `.gitattributes` 파싱 시점에 `filter=lfs` 매칭된 path는 자동 `Status::Failed` + `failed_reason: "lfs_pointer"` + `lfs_pointer: {oid: "?", size: 0}` (oid/size unknown). diff 명령은 blob fetch 박혀있어 첫 줄 시그니처 `version https://git-lfs.github.com/spec/v1` 검증 + oid/size 정확 파싱 (defence-in-depth). **K1.5 LfsPointer variant 의존**. unit test (LFS pointer fixture + filter=lfs `.gitattributes` fixture). tarpaulin 80% 유지 — 신규 코드 cover 책임.
+  - spec: `docs/specs/spec-domain-pitfalls.md` § LFS pointer + `spec-error-contracts.md` + `spec-hash-and-normalize.md` § 화이트리스트.
 
 - [ ] **R1. Windows long path / 예약 파일명 detect-only**
   - acceptance: walker에서 260자+ path 또는 예약 파일명 (CON/PRN/NUL/AUX/COM1-9/LPT1-9) detect → `Status::Failed` + `failed_reason: "long_path"`. unit test (mock filesystem fixture).
@@ -90,15 +90,15 @@
 ### Phase 5.7 — `.gitattributes` 정확 hash 재현 (큰 변경)
 
 - [ ] **K1. `.gitattributes` 파서 박음 (working tree 한정)**
-  - acceptance: `shared/gitattributes.rs` 박음. project root + 하위 디렉토리의 `.gitattributes` 파일 1회 로드 + glob pattern matching (gitignore-style). 우선순위: 가장 깊은 `.gitattributes` 우선 + line-level 마지막 매칭 winner. `.git/info/attributes` / global 미지원. unit test (multi-level fixture).
+  - acceptance: `shared/gitattributes.rs` 박음. project root + 하위 디렉토리의 `.gitattributes` 파일 1회 로드 + glob pattern matching (gitignore-style). 우선순위: 가장 깊은 `.gitattributes` 우선 + line-level 마지막 매칭 winner. `.git/info/attributes` / global 미지원. unit test (multi-level fixture). tarpaulin 80% 유지 — 신규 모듈 cover 책임.
   - spec: `spec-hash-and-normalize.md` § `.gitattributes` 파서 + `spec-config.md` § 위치 정책.
 
-- [ ] **K1.5. `.gitattributes` 지원 attribute 화이트리스트 박음**
-  - acceptance: `AttributeMatch` enum 박음 — `TextAuto / Binary / EolLf / EolCrlf / Unspecified / Unsupported { attribute_name }`. 화이트리스트 외 attribute (`working-tree-encoding`, `ident`, `filter`, macro attributes, `crlf` legacy) 매칭 시 `Unsupported` 박음. unit test (4 화이트리스트 + 5 unsupported fixture).
-  - spec: `docs/specs/spec-domain-pitfalls.md` § `.gitattributes` 화이트리스트 + `spec-hash-and-normalize.md` § 화이트리스트 강제.
+- [ ] **K1.5. `.gitattributes` 지원 attribute 화이트리스트 박음 (5 entry, advisor BLOCKING fix)**
+  - acceptance: `AttributeMatch` enum 박음 — `TextAuto / Binary / EolLf / EolCrlf / LfsPointer / Unspecified / Unsupported { attribute_name }`. **`filter=lfs`는 LfsPointer variant** (advisor BLOCKING fix — git-lfs 표준 마커). 화이트리스트 외 (`working-tree-encoding`, `ident`, `filter=*` (lfs 외), macro attributes, `crlf` legacy) 매칭 시 `Unsupported` 박음. unit test (5 화이트리스트 + 5 unsupported fixture). tarpaulin 80% 유지.
+  - spec: `docs/specs/spec-domain-pitfalls.md` § `.gitattributes` 화이트리스트 + `spec-hash-and-normalize.md` § 화이트리스트 강제 + § LFS pointer.
 
-- [ ] **K2. conditional LF normalize + lifetime 계약 박음**
-  - acceptance: `prepare_for_hash` 함수 시그니처 변경 — `gitattr: &Arc<GitAttributes>` 인자 추가. `text=auto` / `binary` / `eol=lf` / `eol=crlf` / `Unspecified` / `Unsupported` 6 분기 박음. `Unspecified` default = v0.1 정책 그대로. `Unsupported`는 caller가 `Status::Failed` 박음. 모든 caller 갱신. unit test (단일 vault scan 1회 파싱 + N번 호출 reparse 0회 검증).
+- [ ] **K2. conditional LF normalize + lifetime 계약 박음 (advisor flag 3 — 분기 helper 분리)**
+  - acceptance: `prepare_for_hash` 함수 시그니처 변경 — `gitattr: &Arc<GitAttributes>` 인자 추가. **7 분기** (text=auto / binary / eol=lf / eol=crlf / **LfsPointer** / Unspecified / Unsupported) 박음. `Unspecified` default = v0.1 정책. `LfsPointer`/`Unsupported`는 caller가 `Status::Failed` 박음. **분기 helper fn 분리 박음** — `apply_text_auto`, `apply_binary`, `apply_eol_lf`, `apply_eol_crlf`, `apply_unspecified` 5 helper. Phase 6 `cognitive_complexity = 15` deny 회피 (advisor 권고). 모든 caller 갱신. unit test (단일 vault scan 1회 파싱 + N번 호출 reparse 0회 검증). tarpaulin 80% 유지 — 7 분기 모두 cover.
   - spec: `spec-hash-and-normalize.md` § Normalize 규칙 + § Lifetime 계약.
 
 - [ ] **K3. binary attribute 정확 적용**
