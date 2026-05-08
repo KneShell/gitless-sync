@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-08 (task T — warn → deny 전환 in progress)
+- Last updated: 2026-05-08 (task T — warn → deny 전환 완료)
 - Total tasks: 20
-- Completed: 7 / 20
+- Completed: 8 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -54,9 +54,10 @@
   - spec: `docs/specs/spec-architecture.md` § Panic escape hatch 차단.
   - 검증 결과 (2026-05-08): production expect 2건 모두 `.map_err(|e| GitlessError::Config(format!(...)))?` 패턴으로 fix. (1) `commands/scan/mod.rs:70` ScanReport serialize 실패 → `Config("ScanReport JSON serialization failed: ...")`. (2) `commands/scan/mod.rs:415` rayon thread pool build 실패 → `Config("rayon thread pool build failed: ...")` (advisor 권고 + spec § Config "환경 문제" 정합). `#[allow(clippy::expect_used)]` 2건 모두 제거. `run_with_client` doc comment의 `# Panics` 블록 제거 + `# Errors`로 흡수. clippy `-D warnings` 통과 (production 0 warning) + 233 tests pass (167 unit + 21 integration + 45 xtask) + tarpaulin 87.77% (≥80% gate, +0.03%).
 
-- [~] **T. unwrap/expect/panic deny 전환**
+- [x] **T. unwrap/expect/panic deny 전환**
   - acceptance: workspace lint `unwrap_used`/`expect_used`/`panic` warn → deny. `cargo clippy -D warnings` 통과. 188+ tests pass.
   - spec: `docs/specs/spec-architecture.md` § Enforcement 단계.
+  - 검증 결과 (2026-05-08): workspace `Cargo.toml` `[workspace.lints.clippy]`의 `unwrap_used`/`expect_used`/`panic` 모두 warn → deny 박음. `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 233 tests pass (167 unit + 21 integration + 45 xtask) + tarpaulin 87.77% (≥80% gate). baseline 위반 0건 (task S에서 production expect 2건 fix 완료) → deny 전환에 추가 fix 0건. xtask는 `[lints] workspace = true` 미박힘(task L 영역) — workspace deny는 `gitless-sync` crate에만 영향. Phase 6.3 panic 검출 trilogy (R warn 박음 → S 위반 fix → T deny 박음) 완결, 향후 신규 production 위반은 빌드 fail로 즉시 차단.
 
 ### Phase 6.4 — File 분할 (LOC + Layer 결합)
 
