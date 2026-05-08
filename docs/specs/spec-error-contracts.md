@@ -15,6 +15,20 @@ read-only CLI라도 호출자(특히 AI)가 안정적으로 다룰 수 있도록
 
 ## 작업 범위
 
+### Module Layout (Q, 2026-05-08)
+
+`shared/error/` 폴더 구조 (단일 파일 → 도메인 sub-module 분리, spec-architecture.md § 구조적 분리):
+
+| 파일 | 책임 |
+|---|---|
+| `shared/error/mod.rs` | re-export hub. `pub mod core; pub mod network;` + `pub use core::{GitlessError, StderrPayload}; pub use network::{GraphqlError, GraphqlErrorExtensions, map_graphql_error};` |
+| `shared/error/core.rs` | `GitlessError` enum 정의 + `exit_code()` / `error_code()` / `to_stderr_payload()` + `StderrPayload` |
+| `shared/error/network.rs` | GraphQL 응답 매핑 — `GraphqlError`, `GraphqlErrorExtensions`, `map_graphql_error`, `format_graphql_errors` |
+
+호출자 import는 `use crate::shared::error::{GitlessError, GraphqlError, map_graphql_error};` 형태로 호환 유지 (sub-module 위치 변경에도 path 동일). REST-side gh stderr substring 매칭은 본 모듈이 아닌 call site 인접 `shared/github/error_map.rs`에 위치 — gh 종료 코드 + stderr 스냅샷이 GitHub API 호출 모듈의 자연스러운 동반자라.
+
+mod.rs를 re-export 전용으로 박은 이유: sub-module이 parent의 type을 import하면 cargo modules 그래프에서 양방향 edge가 만들어져 cycle 게이트(`cargo xtask check-cycles`) deny. github/mod.rs(2026-05-08, task G) 박힌 동일 패턴 — sub-module 간 sibling import만 허용 + parent는 re-export hub.
+
 ### Custom Error Types (이미 박힘)
 ```rust
 pub enum GitlessError {

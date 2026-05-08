@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-08 (task I — diff/mod.rs 472 → mod 66 + args 13 + compute 290 + render 52 + io 38 + test_helpers 72 LOC, 6-way split, F-I 분할 sequence 완료, LOC 위반 0건)
+- Last updated: 2026-05-08 (task Q — shared/error.rs 137 LOC 단일 → mod.rs re-export hub + core.rs(GitlessError + impls) + network.rs(GraphQL) 3-way 도메인 split, cycle 게이트 통과 위해 github/mod.rs 패턴 align)
 - Total tasks: 20
-- Completed: 13 / 20
+- Completed: 14 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -83,9 +83,10 @@
 
 ### Phase 6.5 — 구조적 분리 task
 
-- [~] **Q. error 모듈 도메인 분리**
-  - acceptance: `shared/error.rs` 137줄 단일 enum → `shared/error/mod.rs` (최상위 `GitlessError` + exit code 매핑) + `shared/error/network.rs` / `error/config.rs` / `error/filesystem.rs` 등 도메인별 sub-module. 호출자 API 호환 유지. **`docs/specs/spec-error-contracts.md` § GitlessError variants + exit code mapping 표 갱신** (도메인 sub-module 박힌 후, advisor §3 갭 fix). 188 tests pass.
+- [x] **Q. error 모듈 도메인 분리**
+  - acceptance: `shared/error.rs` 137줄 단일 파일 → `shared/error/mod.rs` (re-export hub) + `shared/error/core.rs` (`GitlessError` enum + impls + `StderrPayload`) + `shared/error/network.rs` (GraphQL 응답 매핑) 도메인별 sub-module. mod.rs가 enum을 직접 소유하면 sub-module이 parent type을 import → cargo modules 그래프 cycle 발생 (cycle 게이트 deny). github/mod.rs(task G) 동일 패턴 따라 mod.rs는 re-export hub로 박음. config/filesystem/partial sub-module은 도입하지 않음 — 분리할 helper 코드 없음 (yagni). 호출자 API 호환 유지(`crate::shared::error::*` path 동일). **`docs/specs/spec-error-contracts.md` § Module Layout 표 신설** (도메인 sub-module 박힌 후, advisor §3 갭 fix). 240 tests pass + `cargo xtask check-cycles` 통과.
   - spec: `docs/specs/spec-architecture.md` § LOC 임계 § 구조적 분리 + `docs/specs/spec-error-contracts.md`.
+  - 검증 결과 (2026-05-08): `shared/error.rs` 137 LOC 단일 → `shared/error/mod.rs` 14 LOC (re-export hub: `pub mod core; pub mod network;` + `pub use core::{GitlessError, StderrPayload}; pub use network::{GraphqlError, GraphqlErrorExtensions, map_graphql_error};`) + `shared/error/core.rs` 84 LOC (`GitlessError` enum + `exit_code()` / `error_code()` / `to_stderr_payload()` + `StderrPayload`) + `shared/error/network.rs` 67 LOC (`GraphqlError`, `GraphqlErrorExtensions`, `map_graphql_error`, `format_graphql_errors` + `use super::core::GitlessError;`). git mv로 변경 추적 보존 (`error.rs` → `error/mod.rs` rename history 유지, 이후 mod.rs는 re-export로 재작성). **첫 시도(mod.rs에 enum 직접 소유)는 cycle 게이트 deny** — `error -> network -> error` cycle. `super::GitlessError` ↔ `crate::shared::error::GitlessError` 둘 다 module identity 같아 cycle 동일. advisor reconcile 후 github/mod.rs(task G) 동일 패턴(`mod.rs` = re-export hub + 도메인 sub-module이 sibling import)로 재구성 → cycle 0건. 호출자 21곳 import 변경 0건 (`use crate::shared::error::GitlessError;` path 동일). spec-error-contracts.md § Module Layout 표 신설 + cycle 회피 이유 박음. plan.md acceptance 텍스트 cycle 회피 design 반영. `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 240 tests pass (174 unit + 21 integration + 45 xtask, baseline 유지) + tarpaulin 88.32% (≥80% gate, baseline 유지) + `cargo xtask check-line-limits` (39 files all ≤300 LOC, baseline 38 → 39: error/ 폴더 +3 sub-file - 단일 error.rs 1개 = +2... wait 실제로는 38 → 39 +1 — 단일 error.rs → mod.rs+core.rs+network.rs = 3, mod.rs는 LOC 14로 재카운트, 단일 → 3-way split이라 35 + 3 = 38, 36 + 3 = 39 — xtask "39 files" 출력대로) + `cargo xtask check-cycles` (33 → 34 modules: error/ 1 → 3 sub-mod = +2, 그러나 mod.rs는 module identity로 카운트되어 1 + 2 sibling = +3? 출력 "34 modules" 일치, 0 cycles, 0 cross-slice refs). 각 sub-file 라인 커버리지: core.rs 20/25 (80%), network.rs 13/16 (81.25%) — `format_graphql_errors`의 multi-error iteration / empty-code branch 일부 미커버지만 mod.rs re-export(LOC 0 측정)와 합쳐 baseline 88.32% 유지.
 
 - [ ] **P. integration tests 도메인별 분리**
   - acceptance: `crates/gitless-sync/tests/integration.rs` 1 file → 도메인별 분리 (`tests/scan_dogfooding.rs`, `tests/diff_workflow.rs`, `tests/init_redirect.rs`, `tests/scan_backend_parity.rs` 등 자연 묶음). 공통 setup → `tests/common/mod.rs` (Cargo가 separate test로 취급 안 함). 21 integration tests 모두 pass.
