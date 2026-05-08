@@ -150,14 +150,14 @@ fn collect_rust_files_missing_root_returns_io_error() {
 }
 
 #[test]
-fn run_returns_zero_with_violation_in_warn_stage() {
+fn run_returns_one_with_violation_in_deny_stage() {
     let dir = tempdir().unwrap();
     let root = dir.path();
     let big = "fn x() {}\n".repeat(350);
     fs::write(root.join("big.rs"), big).unwrap();
 
     let exit = run(root, 300).unwrap();
-    assert_eq!(exit, 0);
+    assert_eq!(exit, 1);
 }
 
 #[test]
@@ -185,6 +185,24 @@ fn run_returns_zero_when_doc_heavy_file_exempt() {
 }
 
 #[test]
+fn run_returns_one_when_violation_and_exemption_coexist() {
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+
+    let big_code = "fn x() {}\n".repeat(350);
+    fs::write(root.join("big.rs"), big_code).unwrap();
+
+    let mut docs = String::new();
+    for _ in 0..400 {
+        docs.push_str("/// doc line\n");
+    }
+    fs::write(root.join("docs.rs"), docs).unwrap();
+
+    let exit = run(root, 300).unwrap();
+    assert_eq!(exit, 1);
+}
+
+#[test]
 fn run_propagates_io_error_for_missing_root() {
     let dir = tempdir().unwrap();
     let missing = dir.path().join("does-not-exist");
@@ -193,7 +211,7 @@ fn run_propagates_io_error_for_missing_root() {
 }
 
 #[test]
-fn run_multi_visits_each_root_and_returns_zero_in_warn_stage() {
+fn run_multi_visits_each_root_and_returns_one_in_deny_stage() {
     let dir_a = tempdir().unwrap();
     let dir_b = tempdir().unwrap();
     fs::write(dir_a.path().join("a.rs"), "fn a() {}\n").unwrap();
@@ -202,7 +220,7 @@ fn run_multi_visits_each_root_and_returns_zero_in_warn_stage() {
 
     let roots: Vec<&Path> = vec![dir_a.path(), dir_b.path()];
     let exit = run_multi(&roots, 300).unwrap();
-    assert_eq!(exit, 0);
+    assert_eq!(exit, 1);
 }
 
 #[test]

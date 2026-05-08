@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (task O — `.github/workflows/ci.yml` windows-latest 4 gates 박음 + machete baseline 0 도달 (`anyhow` 제거))
+- Last updated: 2026-05-09 (task J — LOC + cycle 게이트 deny 전환, `cargo xtask check-line-limits` warn → deny, baseline 0 위반 confirmed)
 - Total tasks: 20
-- Completed: 18 / 20
+- Completed: 19 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -117,10 +117,11 @@
 
 ### Phase 6.7 — Step 2/3 deny 전환 + 부속 리서치
 
-- [~] **J. baseline 위반 0건 도달 후 LOC + cycle 게이트 deny 전환**
+- [x] **J. baseline 위반 0건 도달 후 LOC + cycle 게이트 deny 전환**
   - acceptance: F-I 분할 + Q error 분리 + P tests 분리 후 LOC 위반 0건 (300 면제 카테고리 외) + cycle 위반 0건. xtask check-* 명령이 위반 시 exit 1로 박음 (deny). CI 게이트 deny 전환.
   - 검증: `cargo xtask check-line-limits` exit 0 + `cargo xtask check-cycles` exit 0.
   - spec: `docs/specs/spec-architecture.md` § Enforcement.
+  - 검증 결과 (2026-05-09): `xtask/src/check_line_limits/mod.rs::run` warn(`Ok(0)` 무조건) → deny(`Ok(u8::from(violations > 0))`)로 전환. 면제(`exemptions > 0`)는 violations 카운트에 미포함 — `is_doc_heavy()` 통과한 file은 EXEMPT 분기에서 `exemptions += 1`만, deny 게이트는 발동 안 함 (advisor 권고 discriminator 검증). main.rs help 텍스트 "warn stage" → "deny stage" sync. tests sync: `run_returns_zero_with_violation_in_warn_stage` → `run_returns_one_with_violation_in_deny_stage` (rename + expect 1), `run_multi_visits_each_root_and_returns_zero_in_warn_stage` → `run_multi_visits_each_root_and_returns_one_in_deny_stage` (rename + expect 1). 새 `run_returns_one_when_violation_and_exemption_coexist` test 추가 (violations>0 AND exemptions>0 분기 커버, 1 line uncovered 보강). check-cycles는 task E 시점부터 이미 deny (`report` exit 1 on cycles or cross-slice refs) — 본 task의 코드 변경 0건. CI workflow `.github/workflows/ci.yml`은 task O에서 두 명령 모두 separate step으로 박혀있어 추가 workflow 편집 0 (xtask exit 1만으로 CI deny 자동 발동). baseline 회귀 검증: `cargo xtask check-line-limits` exit 0 (39+5 files all ≤300 LOC) + `cargo xtask check-cycles` exit 0 (34 modules / 0 cycles / 0 cross-slice refs). project-ops.md 게이트 박힘 시점 표 sync — cargo-modules 4열 "task J에서 deny" → "deny active (cycles + cross-slice refs, baseline 0 위반)" + check-line-limits row 신설 ("D (warn) → J (deny)" + "deny active (300 LOC, baseline 0 위반, doc-heavy 면제)"). 사용자 취향 박제 § Phase 6 Step 2 "deny 전환" 완결 — 향후 신규 LOC 300+ 또는 cycle/cross-slice ref 위반은 빌드 fail로 즉시 차단. `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 (clippy `bool_to_int_with_if` 1건 캐스케이드 fix: `if violations > 0 { 1 } else { 0 }` → `u8::from(violations > 0)`) + 244 tests pass (174 unit + 21 integration + 49 xtask, baseline 243 대비 +1: violation+exemption 공존 분기 신규 test) + tarpaulin 88.31% (≥80% gate, baseline 88.29% 대비 +0.02% — `check_line_limits/mod.rs` 64/67 +1.49%).
 
 - [ ] **K. 외부 Rust 프로젝트 LOC 통계 측정 (부속 리서치)**
   - acceptance: ripgrep / cargo / tokio 등 mid-size Rust 프로젝트 LOC 분포 측정 (`tokei` 또는 `scc`). `docs/research/rust-loc-stats.md` 박음. 우리 300 임계 사후 검증 (외부 통계와 비교).

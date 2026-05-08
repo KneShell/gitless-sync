@@ -102,15 +102,15 @@ pub(crate) fn run(scan_root: &Path, limit: usize) -> std::io::Result<u8> {
     println!();
     if violations == 0 && exemptions == 0 {
         println!("All {} files within {limit} LOC.", files.len());
+    } else if violations == 0 {
+        println!("All files within {limit} LOC ({exemptions} exempt).");
     } else if exemptions == 0 {
-        println!("{violations} files exceed {limit} LOC (warn stage — not blocking).");
+        println!("{violations} files exceed {limit} LOC (deny).");
     } else {
-        println!(
-            "{violations} files exceed {limit} LOC, {exemptions} exempt (warn stage — not blocking)."
-        );
+        println!("{violations} files exceed {limit} LOC, {exemptions} exempt (deny).");
     }
 
-    Ok(0)
+    Ok(u8::from(violations > 0))
 }
 
 pub(crate) fn run_multi(scan_roots: &[&Path], limit: usize) -> std::io::Result<u8> {
