@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-08 (Phase 6 진입 — vague 4건 + clean-context 5건 + panic 검출 박힘)
 - Total tasks: 20
-- Completed: 1 / 20
+- Completed: 2 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -22,7 +22,7 @@
 
 ### Phase 6.2 — xtask + 외부 도구 박음
 
-- [~] **B. xtask crate workspace 멤버 박음**
+- [x] **B. xtask crate workspace 멤버 박음**
   - acceptance: `xtask/` 폴더 + `xtask/Cargo.toml` + `xtask/src/main.rs` 박음. workspace `members`에 추가. `cargo xtask` alias `.cargo/config.toml`에 박음. `cargo xtask --help` 통과.
   - spec: 없음 (boilerplate).
 
