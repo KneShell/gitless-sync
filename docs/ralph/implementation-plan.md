@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (task K — 외부 Rust 프로젝트 LOC 통계 측정 in progress)
+- Last updated: 2026-05-09 (task K — 외부 Rust 프로젝트 LOC 통계 측정 + `docs/research/rust-loc-stats.md` 박음, 4 프로젝트 19–43% > 300 LOC 분포 사후 sanity check)
 - Total tasks: 20
-- Completed: 19 / 20
+- Completed: 20 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -123,9 +123,10 @@
   - spec: `docs/specs/spec-architecture.md` § Enforcement.
   - 검증 결과 (2026-05-09): `xtask/src/check_line_limits/mod.rs::run` warn(`Ok(0)` 무조건) → deny(`Ok(u8::from(violations > 0))`)로 전환. 면제(`exemptions > 0`)는 violations 카운트에 미포함 — `is_doc_heavy()` 통과한 file은 EXEMPT 분기에서 `exemptions += 1`만, deny 게이트는 발동 안 함 (advisor 권고 discriminator 검증). main.rs help 텍스트 "warn stage" → "deny stage" sync. tests sync: `run_returns_zero_with_violation_in_warn_stage` → `run_returns_one_with_violation_in_deny_stage` (rename + expect 1), `run_multi_visits_each_root_and_returns_zero_in_warn_stage` → `run_multi_visits_each_root_and_returns_one_in_deny_stage` (rename + expect 1). 새 `run_returns_one_when_violation_and_exemption_coexist` test 추가 (violations>0 AND exemptions>0 분기 커버, 1 line uncovered 보강). check-cycles는 task E 시점부터 이미 deny (`report` exit 1 on cycles or cross-slice refs) — 본 task의 코드 변경 0건. CI workflow `.github/workflows/ci.yml`은 task O에서 두 명령 모두 separate step으로 박혀있어 추가 workflow 편집 0 (xtask exit 1만으로 CI deny 자동 발동). baseline 회귀 검증: `cargo xtask check-line-limits` exit 0 (39+5 files all ≤300 LOC) + `cargo xtask check-cycles` exit 0 (34 modules / 0 cycles / 0 cross-slice refs). project-ops.md 게이트 박힘 시점 표 sync — cargo-modules 4열 "task J에서 deny" → "deny active (cycles + cross-slice refs, baseline 0 위반)" + check-line-limits row 신설 ("D (warn) → J (deny)" + "deny active (300 LOC, baseline 0 위반, doc-heavy 면제)"). 사용자 취향 박제 § Phase 6 Step 2 "deny 전환" 완결 — 향후 신규 LOC 300+ 또는 cycle/cross-slice ref 위반은 빌드 fail로 즉시 차단. `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 (clippy `bool_to_int_with_if` 1건 캐스케이드 fix: `if violations > 0 { 1 } else { 0 }` → `u8::from(violations > 0)`) + 244 tests pass (174 unit + 21 integration + 49 xtask, baseline 243 대비 +1: violation+exemption 공존 분기 신규 test) + tarpaulin 88.31% (≥80% gate, baseline 88.29% 대비 +0.02% — `check_line_limits/mod.rs` 64/67 +1.49%).
 
-- [~] **K. 외부 Rust 프로젝트 LOC 통계 측정 (부속 리서치)**
+- [x] **K. 외부 Rust 프로젝트 LOC 통계 측정 (부속 리서치)**
   - acceptance: ripgrep / cargo / tokio 등 mid-size Rust 프로젝트 LOC 분포 측정 (`tokei` 또는 `scc`). `docs/research/rust-loc-stats.md` 박음. 우리 300 임계 사후 검증 (외부 통계와 비교).
   - spec: 없음 (research artifact, 흥미 위주).
+  - 검증 결과 (2026-05-09): `docs/research/rust-loc-stats.md` 박음. 4 프로젝트 (ripgrep / cargo / tokio + size peer bat) shallow clone 후 PowerShell `[System.IO.File]::ReadAllLines.Length` (xtask `content.lines().count()` 일치 셈법)로 `*.rs` 파일별 LOC 측정. exclude `target/` `vendor/` `.git/`. 결과: ripgrep 100 file 43% > 300, cargo 1356 file 19.1% > 300, tokio 777 file 22.78% > 300, bat 67 file 25.37% > 300. 4 프로젝트 모두 0–100 LOC bin이 최대(29–69%), median 30–178 모두 임계 아래. 본 프로젝트 post-split 39 file 0% > 300 (enforcement). 사후 sanity check: 300 임계는 성숙한 Rust 생태계 분포 대비 엄격한 편이지만, 자연 분포 sub-set 안에 있음 (median + p50 모두 임계 아래) — 합리적 위치 확인. 임계는 외부 stats가 아닌 인지부하 + 구조적 선택에서 도출, 본 문서는 "기괴하지 않다"의 사후 점검. tokei/scc 미설치 — install 의존성 회피 + xtask 셈법 일치 위해 PowerShell 직접 측정 채택. clone 위치는 `$env:TEMP\rust-loc-stats\` (본 프로젝트 트리 외부 격리, 측정 후 33.3MB 정리). G-012 spec-only 면제 (코드 변경 0, `docs/research/` 1 file 신규) — fmt/clippy/test/tarpaulin baseline 유지로 자동 통과.
 
 ## 의존 순서
 
