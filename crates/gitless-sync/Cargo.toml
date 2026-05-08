@@ -19,7 +19,6 @@ sha1 = "0.10"
 walkdir = "2"
 ignore = "0.4"
 thiserror = "2"
-anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 toml = "0.8"
 base64 = "0.22"

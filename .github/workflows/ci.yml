@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    name: Code Quality Gates
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install stable toolchain (1.95.0)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.95.0
+          components: clippy, rustfmt
+
+      - name: Install nightly toolchain (for cargo-public-api)
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-modules
+        run: cargo install cargo-modules --locked
+
+      - name: Install cargo-machete
+        run: cargo install cargo-machete --locked
+
+      - name: Install cargo-public-api
+        run: cargo install cargo-public-api --locked
+
+      - name: cargo xtask check-line-limits
+        run: cargo xtask check-line-limits
+
+      - name: cargo xtask check-cycles
+        run: cargo xtask check-cycles
+
+      - name: cargo machete
+        run: cargo machete
+
+      - name: cargo public-api diff
+        if: github.event_name == 'pull_request'
+        run: cargo public-api -p gitless-sync diff "origin/${{ github.base_ref }}..HEAD"

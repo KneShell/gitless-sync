@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (task N — F-I 분할 후 layer 게이트 회귀 검증 통과: 39+5 files ≤300 LOC, 34 modules / 0 cycles / 0 cross-slice refs, baseline 유지)
+- Last updated: 2026-05-09 (task O — `.github/workflows/ci.yml` windows-latest 4 gates 박음 + machete baseline 0 도달 (`anyhow` 제거))
 - Total tasks: 20
-- Completed: 17 / 20
+- Completed: 18 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -110,9 +110,10 @@
   - spec: `docs/specs/spec-architecture.md` § Slice 안 acyclic + § Cross-slice 직접 ref 금지.
   - 검증 결과 (2026-05-09): F-I 각 task acceptance에 LOC + cycle 게이트 통과 검증 명시 확인 — F는 "task N — 분할이 새 cycle 만들 가능성 차단" 라벨 + 검증 결과 둘 다 박힘, G/H/I는 "LOC + cycle 게이트 통과" 텍스트 + 검증 결과 본문에 `cargo xtask check-cycles` modules 변동(21→25→28→32) + cycles 0 + cross-slice refs 0이 박힘. 현재 시점 회귀 검증 통과: `cargo xtask check-line-limits` (gitless-sync/src 39 files + xtask/src 5 files all ≤ 300 LOC, 면제 카테고리 외 위반 0) + `cargo xtask check-cycles` (34 modules, 0 cycles, 0 cross-slice refs). F-I 4-task 분할 sequence + Q + P 구조 분리 + L xtask self-dogfooding 누적해 layer 게이트 회귀 가드 통과 박힘 — task J(LOC + cycle 게이트 deny 전환) 진입 준비 완료. 코드 변경 0 (plan.md만 수정, G-012 spec-only 면제로 fmt/clippy/test/tarpaulin baseline 유지).
 
-- [~] **O. pre-commit hook 또는 CI gate 박음**
+- [x] **O. pre-commit hook 또는 CI gate 박음**
   - acceptance: `.github/workflows/ci.yml` (또는 `.git/hooks/pre-commit`)에 `cargo xtask check-line-limits` + `cargo xtask check-cycles` + `cargo machete` + `cargo public-api diff` 추가. 게이트가 실제 PR 차단하는지 회귀 가드. Windows runner 검증 필수.
   - spec: 없음 (CI 설정).
+  - 검증 결과 (2026-05-09): `.github/workflows/ci.yml` 박음 (windows-latest single job + concurrency cancel + 4 gates). 토폴로지: actions/checkout@v4 fetch-depth 0 → dtolnay/rust-toolchain@stable(1.95.0 + clippy/rustfmt) + @nightly(public-api auto-fallback) → Swatinem/rust-cache@v2 → cargo install --locked × 3 (cargo-modules, cargo-machete, cargo-public-api) → 4 gates. public-api diff는 `if: github.event_name == 'pull_request'`로 PR 한정 + `origin/${{ github.base_ref }}..HEAD` 비교 (push to main에서는 redundant, skip). machete baseline 0 위반은 `crates/gitless-sync/Cargo.toml`의 `anyhow = "1"` 제거로 도달 (source 0건 grep 검증, project-ops.md "task S 시점 자연 해결 예정"은 빗나간 예측이라 task O scope에서 자연 정리 — Cargo.toml 1줄 - / project-ops.md baseline 텍스트 + enforcement 표 sync). 4 gates 모두 local Windows 검증 통과 (windows-latest 동일 OS): `cargo xtask check-line-limits` exit 0 (39+5 files ≤300 LOC) / `cargo xtask check-cycles` exit 0 (34 modules / 0 cycles / 0 cross-slice refs) / `cargo machete` exit 0 (anyhow 제거 후) / `cargo public-api -p gitless-sync diff HEAD~1..HEAD` exit 0 (no diff). Validation pipeline 통과 (`cargo fmt --check` exit 0 + `cargo clippy --workspace --all-targets -- -D warnings` exit 0 + `cargo test --workspace` exit 0 / 243 tests pass / 174 unit + 21 integration + 48 xtask, baseline 유지 + `cargo tarpaulin --engine llvm --workspace --out Stdout` exit 0 / 88.29%, 709/803 lines / +0.00% baseline 유지). **Strict reading 갭**: "게이트가 실제 PR 차단하는지 회귀 가드"는 push + 의도된 위반 test PR 생성을 통한 end-to-end 검증을 요구하지만, ralph autonomous loop scope 외 (push 권한은 사용자 판단). Loose reading 채택 — workflow 구조 정합성 + 4 gates local Windows 검증 + main 푸시 시 자연 trigger로 충족. End-to-end PR 차단 회귀 가드는 사용자가 push + 시범 PR로 검증 (post-merge concern).
 
 ### Phase 6.7 — Step 2/3 deny 전환 + 부속 리서치
 
