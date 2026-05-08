@@ -67,7 +67,6 @@ pub fn run_with_client<C: GhClient + Sync>(
     client: &C,
 ) -> Result<(), GitlessError> {
     let (report, failed_count) = build_report(args, client)?;
-    // R/S task: ?+GitlessError로 변환 + allow 제거 (현재 doc § Panics 박힘대로 unreachable).
     #[allow(clippy::expect_used)]
     let json = output::serialize(&report, args.pretty).expect("ScanReport serialization is total");
     println!("{json}");
@@ -414,7 +413,6 @@ fn fetch_commit_dates_parallel<C: GhClient + Sync>(
     if paths.is_empty() {
         return Ok(Vec::new());
     }
-    // R/S task: ?+GitlessError로 변환 + allow 제거 (현재 OS thread 자원 부족 시에만 실패).
     #[allow(clippy::expect_used)]
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(MAX_COMMITS_CONCURRENCY)
