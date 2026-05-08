@@ -95,7 +95,7 @@
 
 ### Phase 6.6 — Dogfooding + 회귀 가드
 
-- [ ] **L. xtask self-dogfooding**
+- [~] **L. xtask self-dogfooding**
   - acceptance: `xtask/` crate에도 workspace lints 적용 (300줄 LOC + clippy 60/15/5 + panic deny). xtask 자체 코드가 게이트 통과. xtask Cargo.toml에 `[lints] workspace = true` 박음.
   - spec: `docs/specs/spec-architecture.md` § Enforcement.
 
