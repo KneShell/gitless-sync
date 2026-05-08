@@ -50,7 +50,9 @@
 
 **Phase 6 완료 (2026-05-09)** — Code Quality Strengthening 20 task ralph 자율 진행 종료, **244 tests pass (174 lib + 21 integration + 49 xtask) + tarpaulin 88.31%** (710/804 lines). 18 files / max 1092 LOC → 39+5 files (xtask 5 포함) / max 300 LOC. workspace lint deny active: clippy 60/15/5 + `unwrap_used`/`expect_used`/`panic`. 외부 도구 `cargo-modules` + `cargo-public-api` + `cargo-machete` 박음. CI gate (`.github/workflows/ci.yml`, Windows runner) + xtask self-dogfooding 통과. cycle 0건 + cross-slice ref 0건 + panic 위반 0건. 사람 개입 1회 (advisor hard gate fix). 결과 자료: `docs/research/phase6-baseline.md` + `docs/research/rust-loc-stats.md`. 코드 변경 58 files (5685+ / 3479-).
 
-**다음 세션 진입점 후보**: Phase 5 (도메인 함정 — NFD/case/encoding/submodule/symlink) / vault scale dogfooding (1000+ path cache 효과 재검토 트리거).
+**Phase 5 vague 결론 박힘 (2026-05-09)** — 8 함정 (NFD/case/encoding/submodule/symlink/empty/permission/.gitattributes) 모두 ralph 자율 진행 박음. 한 phase 통째 (task 22+). 우선순위 입력 = vault 운영 데이터 (Phase 5 첫 task로 vault scan 재실행 + drift 근원 분석). 검증 Windows 1차 + 실용 근사 (raw bytes injection / mock). 처리 정책: NFD/case/.gitattributes/빈 파일 = 정확 hash 재현, encoding = 변환 시도 후 detect-only, submodule/symlink/실행 권한 = detect-only. **`.gitattributes` 정확 재현은 큰 변경** (v0.1 항상 LF normalize → conditional). 완료 기준 = implement + vault dogfooding 통과. 영향 spec: `spec-hash-and-normalize.md` (큰 구조 변경) + `spec-classification.md` + `spec-error-contracts.md` + `spec-output-schema.md`. 신규 spec: `docs/specs/spec-domain-pitfalls.md`.
+
+**다음 세션 진입점 후보**: Phase 5 ralph 자율 진행 (A~V task, vault 분석 첫 task) / vault scale dogfooding (1000+ path cache 효과 재검토 트리거, Phase 5 완료 후).
 
 ## Project Overview
 git이 없는 로컬 디렉토리를 GitHub repo와 단방향으로 비교해, 드리프트를 정량적으로 보고하는 read-only AI 친화 CLI. iCloud 동기화 디렉토리처럼 git 사용 자체가 불가능한 환경에서 "평행우주 드리프트"를 막기 위한 도구. 도구는 사실(4분류 JSON)만 제공하고 결정은 호출자(사람 또는 AI)에게 맡긴다.
