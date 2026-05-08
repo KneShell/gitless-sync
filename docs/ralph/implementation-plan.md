@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (task N in progress — F-I 분할 후 layer 게이트 회귀 검증)
+- Last updated: 2026-05-09 (task N — F-I 분할 후 layer 게이트 회귀 검증 통과: 39+5 files ≤300 LOC, 34 modules / 0 cycles / 0 cross-slice refs, baseline 유지)
 - Total tasks: 20
-- Completed: 16 / 20
+- Completed: 17 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -105,9 +105,10 @@
   - spec: 없음 (research artifact, clean-context §4 누락 추가).
   - 검증 결과 (2026-05-08, 분할 전 baseline 박음): `docs/research/phase6-baseline.md` § File Split Metrics — Pre-Split Baseline 박음. file 18개 / total 4434 LOC / max 1092 (`commands/scan/mod.rs`) / LOC > 300 4 files (diff/mod.rs 472, scan/graphql.rs 564, scan/mod.rs 1092, shared/github.rs 748) / fan-out 67 use 문 (14 files non-zero, 4 files zero) / cycles 0 / cross-slice refs 0 / panic 위반 0 (task R/S/T 계승). Post-split metric은 task J 직후 본 sub-section 아래 누적 placeholder 박음. G-012 spec-only 면제 (코드 변경 0, docs/research만 수정) — fmt/clippy/test/tarpaulin baseline 유지로 자동 통과.
 
-- [~] **N. F-I 분할 후 layer 게이트 pass 검증 (각 task 안에 step 명시)**
+- [x] **N. F-I 분할 후 layer 게이트 pass 검증 (각 task 안에 step 명시)**
   - acceptance: F~I 각 task 완료 시 `cargo xtask check-line-limits` + `cargo xtask check-cycles` 통과 검증을 acceptance에 명시. 각 task 완료 시 cycle 0건 + cross-slice ref 0건 + LOC 위반 0건 (면제 카테고리 외).
   - spec: `docs/specs/spec-architecture.md` § Slice 안 acyclic + § Cross-slice 직접 ref 금지.
+  - 검증 결과 (2026-05-09): F-I 각 task acceptance에 LOC + cycle 게이트 통과 검증 명시 확인 — F는 "task N — 분할이 새 cycle 만들 가능성 차단" 라벨 + 검증 결과 둘 다 박힘, G/H/I는 "LOC + cycle 게이트 통과" 텍스트 + 검증 결과 본문에 `cargo xtask check-cycles` modules 변동(21→25→28→32) + cycles 0 + cross-slice refs 0이 박힘. 현재 시점 회귀 검증 통과: `cargo xtask check-line-limits` (gitless-sync/src 39 files + xtask/src 5 files all ≤ 300 LOC, 면제 카테고리 외 위반 0) + `cargo xtask check-cycles` (34 modules, 0 cycles, 0 cross-slice refs). F-I 4-task 분할 sequence + Q + P 구조 분리 + L xtask self-dogfooding 누적해 layer 게이트 회귀 가드 통과 박힘 — task J(LOC + cycle 게이트 deny 전환) 진입 준비 완료. 코드 변경 0 (plan.md만 수정, G-012 spec-only 면제로 fmt/clippy/test/tarpaulin baseline 유지).
 
 - [ ] **O. pre-commit hook 또는 CI gate 박음**
   - acceptance: `.github/workflows/ci.yml` (또는 `.git/hooks/pre-commit`)에 `cargo xtask check-line-limits` + `cargo xtask check-cycles` + `cargo machete` + `cargo public-api diff` 추가. 게이트가 실제 PR 차단하는지 회귀 가드. Windows runner 검증 필수.
