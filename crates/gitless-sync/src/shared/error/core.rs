@@ -1,6 +1,11 @@
-use std::fmt::Write as _;
+//! `GitlessError` enum + exit code / error code / stderr payload mapping.
+//!
+//! All variants are defined here so `exit_code()` / `error_code()` /
+//! `to_stderr_payload()` decisions sit next to the data they describe.
+//! Domain-specific helpers (GraphQL response mapping, gh subprocess stderr
+//! matching) live next door — see `network.rs` and `shared/github/error_map.rs`.
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -77,61 +82,4 @@ impl GitlessError {
             context,
         }
     }
-}
-
-/// One element of GraphQL response `errors[]` array (per `spec-error-contracts.md`
-/// § GraphQL error mapping).
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct GraphqlError {
-    #[serde(default)]
-    pub message: String,
-    #[serde(default)]
-    pub extensions: GraphqlErrorExtensions,
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct GraphqlErrorExtensions {
-    #[serde(default)]
-    pub code: String,
-}
-
-/// Map a non-empty GraphQL `errors[]` list to a [`GitlessError`].
-///
-/// Per `spec-error-contracts.md` § GraphQL error mapping, classification keys
-/// off `errors[0].extensions.code` (exact match, not substring). Unknown
-/// codes — `NOT_FOUND`, `INTERNAL_SERVER_ERROR`, etc. — fall through to
-/// `Http` with the original messages preserved so the operator still sees
-/// the GitHub-side reason.
-///
-/// # Panics
-/// Never. The caller is expected to guard against an empty slice; if one
-/// slips through, the function still returns an `Http` variant with a
-/// diagnostic message rather than panicking.
-#[must_use]
-pub fn map_graphql_error(errors: &[GraphqlError]) -> GitlessError {
-    let Some(first) = errors.first() else {
-        return GitlessError::Http("graphql: empty errors list".to_string());
-    };
-    match first.extensions.code.as_str() {
-        "RATE_LIMITED" => GitlessError::RateLimitExceeded {
-            reset_at: String::new(),
-        },
-        "UNAUTHENTICATED" => GitlessError::AuthFailed,
-        _ => GitlessError::Http(format_graphql_errors(errors)),
-    }
-}
-
-fn format_graphql_errors(errors: &[GraphqlError]) -> String {
-    let mut out = String::new();
-    for (i, err) in errors.iter().enumerate() {
-        if i > 0 {
-            out.push_str("; ");
-        }
-        if err.extensions.code.is_empty() {
-            out.push_str(&err.message);
-        } else {
-            let _ = write!(out, "[{}] {}", err.extensions.code, err.message);
-        }
-    }
-    out
 }
