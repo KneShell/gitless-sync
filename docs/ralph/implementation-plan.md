@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-08 (task F — scan/mod.rs 1093 → 288 LOC orchestrator/domain/IO 분리)
+- Last updated: 2026-05-08 (task G — shared/github.rs 748 → mod 10 + trees 265 + blobs 193 + commits 286 + error_map 57 LOC 도메인 분리)
 - Total tasks: 20
-- Completed: 10 / 20
+- Completed: 11 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -66,9 +66,10 @@
   - spec: `docs/specs/spec-architecture.md` § Slice-internal directional discipline + § LOC 임계.
   - 검증 결과 (2026-05-08): scan/mod.rs 1093 → 288 LOC. orchestrator(mod.rs: run_with_client + build_report + 9 tests) + domain(`pipeline.rs` 286 LOC: GitHubContext + assemble_entries + build_pre_entries + extract_commit_paths + finalize_entries + Pre* + 2 tests) + IO(`commits.rs` 211 LOC: MAX_COMMITS_CONCURRENCY + fetch_commit_map + fetch_commit_dates_parallel + 6 tests, `hash_local.rs` 64 LOC: try_hash_local + 4 tests) + helper(`status_filter.rs` 246 LOC: parse_status_filter + parse_status_token + 13 tests, `args.rs` 26 LOC: Backend + ScanArgs, `test_helpers.rs` 95 LOC: shared test fixtures) 분리. `pipeline.rs`에서 `commit_paths` 추출을 `extract_commit_paths` helper로 분리, `commits::fetch_commit_map`이 PreEntry 모르도록 signature 단순화 → cycle 차단. cross-slice ref 0건 + cycles 0건 (`cargo xtask check-cycles` 21 modules). LOC 게이트 4 → 3 위반 (남은 3은 task G/H/I 영역). `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 233 tests pass (167 unit + 21 integration + 45 xtask, baseline 유지) + tarpaulin 88.02% (≥80% gate, +0.25% baseline 87.77% 대비). main.rs / integration tests의 `commands::scan::{Backend, ScanArgs, build_report, run_with_client}` 호환성 유지 (`pub use args::{Backend, ScanArgs}` re-export).
 
-- [~] **G. shared/github*.rs 748줄 분할**
+- [x] **G. shared/github*.rs 748줄 분할**
   - acceptance: A에서 이전한 후, `shared/github.rs` (또는 `shared/github/mod.rs` 폴더)을 sub-module 분리 (rest/graphql/common 또는 trees/blobs/commits 도메인별). LOC + cycle 게이트 통과. 188 tests pass.
   - spec: 동일.
+  - 검증 결과 (2026-05-08): `shared/github.rs` 748 → 도메인별 4 sub-module + re-export mod.rs로 분할. `shared/github/mod.rs` 10 LOC (re-export only) + `trees.rs` 265 LOC (`fetch_tree` + `RemoteFile` + `TreeResponse`/`TreeEntry` + 10 tests) + `blobs.rs` 193 LOC (`fetch_blob` + `BlobResponse` + 9 tests) + `commits.rs` 286 LOC (`fetch_last_commit_at` + `CommitItem`/`CommitInner`/`CommitActor` + `ArgsCapture` + 9 tests) + `error_map.rs` 57 LOC (`map_gh_error` + 4 tests). 호출자 코드 변경 0 (mod.rs `pub use trees::RemoteFile` + `pub(crate) use ...::fetch_*`로 기존 import path 유지). `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 233 tests pass (167 unit + 21 integration + 45 xtask, baseline 유지) + tarpaulin 88.02% (≥80% gate, baseline 유지). LOC 게이트 4 → 2 위반 (남은 2: `commands/diff/mod.rs` 472, `commands/scan/graphql.rs` 564 — task H/I 영역). cycles 0 + cross-slice refs 0 (`cargo xtask check-cycles` 25 modules — 21 → 25, 4 sub-module 추가). 각 sub-file 라인 커버리지 100% (blobs 17/17, commits 22/22, error_map 6/6, trees 27/27).
 
 - [ ] **H. scan/graphql.rs 565줄 분할**
   - acceptance: GraphQL alias batching logic + response parsing 분리 (예: `graphql/batch.rs` + `graphql/parse.rs` + `graphql/mod.rs`). LOC + cycle 게이트 통과. 188 tests pass.
