@@ -49,15 +49,15 @@ rustup toolchain install nightly  # cargo-public-api 전용. 본 프로젝트 �
 - `cargo modules dependencies -p gitless-sync --lib --no-fns --no-types --no-traits --no-sysroot` — graphviz dot 출력. `cargo xtask check-cycles`가 이 출력을 파싱해 module-level uses 그래프에서 cycle 검출 + cross-slice ref 위반 검출 (`commands/scan` ↔ `commands/diff` ↔ `commands/init` 간 import 금지). 위반 1건 이상이면 exit 1.
   - **WHY 직접 파싱**: cargo-modules `--acyclic` flag는 type-method edge(예: `enum GitlessError` ↔ `fn exit_code`)를 cycle로 잡는 false positive가 있어 모듈 단위 분석에 부적합.
 - `cargo public-api -p gitless-sync` — 워크스페이스 manifest는 미지원, `-p`로 패키지 지정 필수. 실행 시 nightly로 자동 fallback (rustup default는 stable 그대로). diff는 `cargo public-api diff <ref>`. 분할 회귀 가드 — 의도치 않은 public 노출 검출.
-- `cargo machete` — unused dependency 검출. Exit 0 = clean, exit 1 = 위반 발견. 현 baseline: gitless-sync에서 `anyhow` 1건 unused (panic fix task S 시점 자연 해결 예정 — task O CI gate 박을 시 task S 이후 활성화). 정 false positive 시 `[package.metadata.cargo-machete] ignored = [...]`로 박음.
+- `cargo machete` — unused dependency 검출. Exit 0 = clean, exit 1 = 위반 발견. **현 baseline**: 위반 0건 (task O 시점 `anyhow` 제거로 정리, 2026-05-09). 정 false positive 시 `[package.metadata.cargo-machete] ignored = [...]`로 박음.
 
 ### 게이트 박힘 시점
 
 | 도구 | xtask wrap | 박힘 task | enforcement |
 |---|---|---|---|
 | cargo-modules | `cargo xtask check-cycles` | E | task J에서 deny |
-| cargo-public-api | (직접 실행, CI 비교) | task O CI gate | API diff CI 표시 |
-| cargo-machete | (직접 실행, CI gate) | task O CI gate | task S 이후 deny |
+| cargo-public-api | (직접 실행, CI 비교) | task O CI gate | PR 이벤트에서 `diff origin/<base>..HEAD` 표시 (deny 아님) |
+| cargo-machete | (직접 실행, CI gate) | task O CI gate | CI gate active (exit 1 deny, baseline 0 위반) |
 
 상세 권장 cli/exit 정책은 task E/L/O 시점 spec/plan 갱신 동반.
 
