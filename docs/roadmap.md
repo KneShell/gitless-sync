@@ -36,7 +36,19 @@
 - **1000+ path scale에서 mtime cache 재도입 검토** — 50 path scale에선 hash 비중 작아 cache 효과 noise floor 안. vault scale (수백~수천 files)에서 hash 비중 증가 시 speedup 가능성 (ADR 0008 § Future work).
 - **Trees API sub-tree 재귀 fallback** (truncated repo 지원, G-002 해소).
 
-## Phase 6 — Code Quality Strengthening (IN PROGRESS, 2026-05-08)
+## Phase 6 — Code Quality Strengthening (COMPLETED, 2026-05-09)
+
+> **2026-05-09 완료.** 20 task ralph 자율 진행 종료, **244 tests pass (174 lib + 21 integration + 49 xtask) + tarpaulin 88.31%** (710/804 lines). 사람 개입 1회 (advisor hard gate fix).
+>
+> 결과:
+> - Step 1 (clippy 60/15/5 deny) + Step 1.5 (panic 검출 trilogy R/S/T 단계적 deny) + Step 2 (LOC 300 deny) + Step 3 (cycle + cross-slice deny) + Step 4 (cargo-modules/public-api/machete) 다 active.
+> - **18 files / max 1092 LOC → 39+5 files (xtask 5 포함) / max 300 LOC.**
+> - cycle 0건 + cross-slice ref 0건 (xtask check-cycles deny active).
+> - panic 위반 0건 (workspace lint deny + production allow 0건).
+> - integration tests 도메인별 4 file 분리 (Rust ch11-03 best practice).
+> - error 모듈 도메인별 sub-module 분리 (mod/core/network 3-way).
+> - CI gate (`.github/workflows/ci.yml`, Windows runner) + xtask self-dogfooding 통과.
+> - 결과 자료: `docs/research/phase6-baseline.md` + `docs/research/rust-loc-stats.md`. 아키텍처 룰 spec: `docs/specs/spec-architecture.md`. 코드 변경: 58 files (5685+ / 3479-).
 
 > 사용자 stance: SonarLint 패턴의 quality gate 강화. 현재 hard gate(test ≥80% / fmt / clippy / deny / audit)에 **코드 구조·복잡도 게이트** 추가.
 >

@@ -48,7 +48,9 @@
 
 **Phase 6 vague 결론 박힘 (2026-05-08)** — vague 4건 + clean-context 외부 시각 5건 + 추가 panic 검출 결정. Step 2/3 PROPOSED → CONFIRMED. `docs/roadmap.md § Phase 6` slim + `docs/ralph/implementation-plan.md` 20 task (A~T) + `docs/specs/spec-architecture.md` 박음. workspace lint에 `unwrap_used`/`expect_used`/`panic` warn 단계 추가. clean-context 보강으로 D·E task 격하 (Tarjan SCC + manifest 빼고 `cargo-modules` CLI), Step 2 결론 enforcement 무조건문 재작성, error/integration tests 구조적 분리 task 박힘, 박제 expiration 정책(Phase 진입마다 재검토) 도입.
 
-**다음 세션 진입점 후보**: Phase 6 ralph 자율 진행 (A~T task, 단계적 deny 전환 포함) / Phase 5 (도메인 함정 — NFD/case/encoding/submodule/symlink) / vault scale dogfooding (1000+ path cache 효과 재검토 트리거).
+**Phase 6 완료 (2026-05-09)** — Code Quality Strengthening 20 task ralph 자율 진행 종료, **244 tests pass (174 lib + 21 integration + 49 xtask) + tarpaulin 88.31%** (710/804 lines). 18 files / max 1092 LOC → 39+5 files (xtask 5 포함) / max 300 LOC. workspace lint deny active: clippy 60/15/5 + `unwrap_used`/`expect_used`/`panic`. 외부 도구 `cargo-modules` + `cargo-public-api` + `cargo-machete` 박음. CI gate (`.github/workflows/ci.yml`, Windows runner) + xtask self-dogfooding 통과. cycle 0건 + cross-slice ref 0건 + panic 위반 0건. 사람 개입 1회 (advisor hard gate fix). 결과 자료: `docs/research/phase6-baseline.md` + `docs/research/rust-loc-stats.md`. 코드 변경 58 files (5685+ / 3479-).
+
+**다음 세션 진입점 후보**: Phase 5 (도메인 함정 — NFD/case/encoding/submodule/symlink) / vault scale dogfooding (1000+ path cache 효과 재검토 트리거).
 
 ## Project Overview
 git이 없는 로컬 디렉토리를 GitHub repo와 단방향으로 비교해, 드리프트를 정량적으로 보고하는 read-only AI 친화 CLI. iCloud 동기화 디렉토리처럼 git 사용 자체가 불가능한 환경에서 "평행우주 드리프트"를 막기 위한 도구. 도구는 사실(4분류 JSON)만 제공하고 결정은 호출자(사람 또는 AI)에게 맡긴다.
