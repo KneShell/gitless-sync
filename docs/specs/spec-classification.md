@@ -51,6 +51,28 @@ match (local_sha, remote_sha) {
 - `local_mtime == remote_last_commit_at` 동률은 무조건 `Drift`.
 - 로컬 mtime은 touch / 복사 / iCloud 메타로 갱신되어 단조성 없음. 시간 비교는 휴리스틱일 뿐.
 
+### Path 정규화 (Phase 5)
+
+비교 key 박는 path는 다음 정규화 거침:
+
+- **NFC 정규화**: 모든 path bytes를 Unicode NFC로 정규화 후 비교 key 박음. macOS HFS+/APFS NFD 저장(default `core.precomposeunicode = true`로 NFD → NFC 자동 변환) + GitHub Trees API path bytes 그대로 반환 — 우리 NFC 정규화로 양쪽 align.
+- **case-sensitive 비교**: Unix-style. `README.md` ≠ `Readme.md` (다른 path key). Windows NTFS는 case-insensitive로 동일 file 취급하지만 도구는 case-sensitive 그대로 박음 — drift로 표면화하는 게 정합.
+- **edge case**:
+  - macOS `core.precomposeunicode = false` + NFC/NFD 동일 path 두 개 (예: `가.txt` NFC + `가.txt` NFD) → NFC 정규화 후 두 path 같은 key 충돌 → `Status::Failed` + `failed_reason: "nfd_collision"`.
+  - Windows NTFS local-side에서 같은 case-folded name 두 file 박힌 case (`Foo.txt` + `foo.txt`) → `Status::Failed` + `failed_reason: "case_collision"`.
+
+자세한 처리 정책은 `docs/specs/spec-domain-pitfalls.md` § Path 정규화 참조.
+
+### `.gitignore` 무시 정책 (Phase 5)
+
+scan 범위는 다음 ignore 룰의 합집합 외 path:
+
+- `.gitignore` (project root + 하위 디렉토리)
+- `--ignore` CLI 인자 (gitignore-style pattern)
+- 도구 내장 (`.git/`, `target/`, `node_modules/`)
+
+ignored path는 비교 대상 자체에서 제외 — `summary` 카운트에도 박지 않음. spec은 `spec-ignore-policy.md`.
+
 ## Acceptance Criteria
 - `[AUTO]` PRD 검증 시나리오 1: 양쪽 SHA 동일 → `Identical`.
 - `[AUTO]` PRD 검증 시나리오 2: 로컬 변경(원격 last_commit < 로컬 mtime) → `LocalOnlyChanged`.

@@ -27,6 +27,19 @@ ignore = ["dist/", "*.tmp"]
 ### 비밀 정보 정책
 토큰 같은 비밀 정보는 도구 코드·repo에 절대 포함하지 않음. `gitless-sync.toml`에 토큰 필드 정의하지 않음 (commit 위험). 인증은 외부 `gh` CLI에 위임 (`gh auth login`) — 본 도구는 토큰 문자열을 받지도 출력하지도 않는다.
 
+### `.gitattributes` 위치 정책 (Phase 5)
+
+도구가 자동 로드하는 `.gitattributes` 위치 — **working tree만**:
+- project root `.gitattributes`
+- 하위 디렉토리 `.gitattributes` (가장 깊은 게 우선)
+
+**미지원** (Phase 5 영구 비목표):
+- `.git/info/attributes` — local git config, working tree 외부.
+- global `~/.gitconfig` 또는 `~/.config/git/attributes` — user-level, working tree 외부.
+- macro attributes 정의 (예: `[attr]binary -text -diff -merge`) — pattern 매칭만 박음.
+
+근거: read-only 도구 본성 — `.git/` 폴더 자체를 안 읽는다 (gitless 환경). working tree만 보는 게 정합. 미지원 위치 박힌 attribute는 Phase 5 화이트리스트(text/binary/eol=lf|crlf) 외라 자동 무시 + `failed_reason: "gitattributes_unsupported"` 마크 가능 (spec-domain-pitfalls.md § `.gitattributes` 화이트리스트).
+
 ### Cache (Phase 4) — 제거됨 (ADR 0008, 2026-05-07)
 
 Phase 4 P4에서 도입했던 mtime 기반 SHA cache는 P6c 측정에서 speedup ≈ 1.0x (noise floor 안쪽)로 § Phase 4 사전 결정 §15 임계값 < 1.5x 제거 영역에 떨어졌다. ADR 0008로 본 도구는 cache를 보유하지 않는다. cache 위치/형식/lifecycle 정의도 함께 obsolete.

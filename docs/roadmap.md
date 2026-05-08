@@ -127,7 +127,9 @@ vague 4건 결론 박은 후 메모리 차단된 fresh session으로 5개 각도
 
 ## Phase 5 — 도메인 함정 정리 (CONFIRMED, 2026-05-09)
 
-> **2026-05-09 vague 결론 박힘.** 8 함정 모두 ralph 자율 진행 (한 phase 통째). 우선순위 입력은 vault 운영 데이터 (Phase 5 첫 task). 검증 환경 Windows 1차 + 실용 근사 (raw bytes injection / mock 응답). 완료 기준 = implement 완료 + vault dogfooding 통과. 상세 spec: `docs/specs/spec-domain-pitfalls.md`. task list: `docs/ralph/implementation-plan.md`.
+> **2026-05-09 vague 결론 박힘 + clean-context 외부 시각 보강.** 8 함정 모두 ralph 자율 진행 (한 phase 통째). 우선순위 입력은 vault 운영 데이터 (Phase 5 첫 task). 검증 환경 Windows 1차 + 실용 근사 (raw bytes injection + NTFS 실파일 fixture 둘 다 가능 — fact check §4 확정). 완료 기준 = implement 완료 + vault dogfooding 통과. 상세 spec: `docs/specs/spec-domain-pitfalls.md`. task list: `docs/ralph/implementation-plan.md` (35+ task A~Z+).
+>
+> **clean-context 보강 박힘 (2026-05-09)**: 5 각도 비판 + fact check 6건 + task 11건 추가. encoding 변환 hash 입력 = (b) 원본 raw bytes 정책. `.gitattributes` 화이트리스트 (text/binary/eol=lf|crlf만). v0.1 vs v0.2 회귀 정의 정책 박음. `prepare_for_hash` lifetime = `Arc<GitAttrs>` 권고. 추가 함정: BOM / git LFS pointer / Windows long path / `.gitignore` 정책 / NTFS case local-side detection.
 
 ### 8 함정 처리 정책 매핑
 
