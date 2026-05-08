@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-08 (task M — 분할 전 baseline 박음, post-split 측정은 task J 직후)
+- Last updated: 2026-05-08 (task F — scan/mod.rs 1093 → 288 LOC orchestrator/domain/IO 분리)
 - Total tasks: 20
-- Completed: 9 / 20
+- Completed: 10 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -61,9 +61,10 @@
 
 ### Phase 6.4 — File 분할 (LOC + Layer 결합)
 
-- [~] **F. scan/mod.rs 1093줄 분할**
+- [x] **F. scan/mod.rs 1093줄 분할**
   - acceptance: orchestrator(`mod.rs`)에 진입점만 남기고 logic을 domain/IO sub-module로 분리 (예: `scan/orchestrator.rs` 또는 mod.rs 그대로 + helper file 추가). 분할 직후 LOC 게이트 + cycle 게이트 + cross-slice 게이트 동시 통과 (task N — 분할이 새 cycle 만들 가능성 차단). 188 tests pass.
   - spec: `docs/specs/spec-architecture.md` § Slice-internal directional discipline + § LOC 임계.
+  - 검증 결과 (2026-05-08): scan/mod.rs 1093 → 288 LOC. orchestrator(mod.rs: run_with_client + build_report + 9 tests) + domain(`pipeline.rs` 286 LOC: GitHubContext + assemble_entries + build_pre_entries + extract_commit_paths + finalize_entries + Pre* + 2 tests) + IO(`commits.rs` 211 LOC: MAX_COMMITS_CONCURRENCY + fetch_commit_map + fetch_commit_dates_parallel + 6 tests, `hash_local.rs` 64 LOC: try_hash_local + 4 tests) + helper(`status_filter.rs` 246 LOC: parse_status_filter + parse_status_token + 13 tests, `args.rs` 26 LOC: Backend + ScanArgs, `test_helpers.rs` 95 LOC: shared test fixtures) 분리. `pipeline.rs`에서 `commit_paths` 추출을 `extract_commit_paths` helper로 분리, `commits::fetch_commit_map`이 PreEntry 모르도록 signature 단순화 → cycle 차단. cross-slice ref 0건 + cycles 0건 (`cargo xtask check-cycles` 21 modules). LOC 게이트 4 → 3 위반 (남은 3은 task G/H/I 영역). `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 233 tests pass (167 unit + 21 integration + 45 xtask, baseline 유지) + tarpaulin 88.02% (≥80% gate, +0.25% baseline 87.77% 대비). main.rs / integration tests의 `commands::scan::{Backend, ScanArgs, build_report, run_with_client}` 호환성 유지 (`pub use args::{Backend, ScanArgs}` re-export).
 
 - [ ] **G. shared/github*.rs 748줄 분할**
   - acceptance: A에서 이전한 후, `shared/github.rs` (또는 `shared/github/mod.rs` 폴더)을 sub-module 분리 (rest/graphql/common 또는 trees/blobs/commits 도메인별). LOC + cycle 게이트 통과. 188 tests pass.
