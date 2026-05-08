@@ -11,8 +11,8 @@
 //!
 //! Error classification follows `spec-error-contracts.md` § GraphQL error
 //! mapping: gh subprocess exit ≠ 0 routes through the same REST stderr
-//! substring table (via [`super::github::map_gh_error`]); exit == 0 with a
-//! non-empty `errors[]` array routes through
+//! substring table (via [`crate::shared::github::map_gh_error`]); exit == 0
+//! with a non-empty `errors[]` array routes through
 //! [`crate::shared::error::map_graphql_error`] keyed off
 //! `errors[0].extensions.code`.
 
@@ -24,8 +24,7 @@ use serde::Deserialize;
 
 use crate::shared::error::{GitlessError, GraphqlError, map_graphql_error};
 use crate::shared::gh::GhClient;
-
-use super::github::map_gh_error;
+use crate::shared::github::map_gh_error;
 
 /// Number of alias entries packed into a single `gh api graphql` request.
 ///

@@ -173,7 +173,7 @@ pub(crate) fn fetch_last_commit_at(
 /// follows the spec's explicit priority list (auth → secondary rate → primary
 /// rate → fallthrough Http). Unknown stderrs fall through to `Http(stderr)`
 /// with the original message preserved.
-pub(super) fn map_gh_error(stderr: &str) -> GitlessError {
+pub(crate) fn map_gh_error(stderr: &str) -> GitlessError {
     if stderr.contains("Bad credentials") {
         GitlessError::AuthFailed
     } else if stderr.contains("secondary rate limit") || stderr.contains("API rate limit exceeded")

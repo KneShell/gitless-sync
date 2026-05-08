@@ -4,7 +4,7 @@
 //! returns the captured stdout/stderr/exit-code transparently. Tests inject
 //! [`MockGhClient`], which serves canned responses keyed by exact argv match.
 //! Mapping of stderr substrings + exit code to [`GitlessError`] variants
-//! happens in the callers (e.g. `commands::scan::github::fetch_*`) per
+//! happens in the callers (e.g. `shared::github::fetch_*`) per
 //! `docs/specs/spec-error-contracts.md` § gh 종료 코드 매핑.
 
 use std::process::Command;

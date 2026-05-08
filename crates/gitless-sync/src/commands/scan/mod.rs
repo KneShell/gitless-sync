@@ -1,5 +1,4 @@
 pub mod compare;
-pub mod github;
 pub mod graphql;
 pub mod output;
 pub mod walker;
@@ -14,12 +13,12 @@ use rayon::prelude::*;
 use crate::shared::config;
 use crate::shared::error::GitlessError;
 use crate::shared::gh::GhClient;
+use crate::shared::github::{self, RemoteFile};
 use crate::shared::hash::blob_hash;
 use crate::shared::ignore::IgnoreMatcher;
 use crate::shared::normalize::prepare_for_hash;
 
 use self::compare::{FileEntry, Status, classify};
-use self::github::RemoteFile;
 use self::output::{SCHEMA_VERSION, ScanReport, Summary};
 use self::walker::LocalFile;
 
