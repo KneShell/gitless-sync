@@ -76,7 +76,7 @@
   - spec: 동일.
   - 검증 결과 (2026-05-08): scan/graphql.rs 565 → 4-way split + test_helpers. `graphql/mod.rs` 39 LOC (module doc + GRAPHQL_BATCH_SIZE const + 3 sub-mod 선언 + re-export) + `batch.rs` 268 LOC (`fetch_last_commit_at_batch` entry + 8 tests, query/response 위임) + `parse.rs` 265 LOC (`parse_chunk` + Response types + 11 tests including envelope-shape coverage missing/empty/invalid_date/invalid_json) + `query.rs` 106 LOC (`split_repo` + `escape_graphql_string` + `build_query` + 6 tests) + `test_helpers.rs` 46 LOC (`ok_resp`/`err_resp`/`graphql_args`/`ok_response_for` shared fixtures, `#[cfg(test)] mod test_helpers`로 mod.rs 박음). advisor 권고대로 4-way split 채택 (3-way batch.rs 382/310 LOC 위반 → query 분리 후 268 LOC) + parse tests는 `parse_chunk` 직접 호출(byte slice)로 MockGhClient 의존 제거. 호출자 코드 변경 0 (commits.rs `super::graphql::fetch_last_commit_at_batch` + doc reference `graphql::GRAPHQL_BATCH_SIZE` 모두 mod.rs re-export로 호환). `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 241 tests pass (175 unit + 21 integration + 45 xtask, +8 unit: parse envelope 5 + parse happy direct 1 + query split_repo 2) + tarpaulin 88.44% (≥80% gate, baseline 유지). LOC 게이트 4 → 1 위반 (남은 1: `commands/diff/mod.rs` 472 — task I 영역). cycles 0 + cross-slice refs 0 (`cargo xtask check-cycles` 28 modules, 25 → 28: graphql sub-mod batch/parse/query 3개 추가 - 단일 graphql.rs 1개 + 1 graphql/mod.rs = +3, test_helpers는 `#[cfg(test)]`로 production graph 제외). batch/parse/query 라인 커버리지 100% (17/17 + 26/26 + 29/29).
 
-- [ ] **I. diff/mod.rs 472줄 분할**
+- [~] **I. diff/mod.rs 472줄 분할**
   - acceptance: orchestrator + domain + IO 분리 (예: `diff/compare.rs` domain + `diff/output.rs` 등). LOC + cycle 게이트 통과. 188 tests pass.
   - spec: 동일.
 
