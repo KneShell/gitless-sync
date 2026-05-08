@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-08 (Phase 6 진입 — vague 4건 + clean-context 5건 + panic 검출 박힘)
+- Last updated: 2026-05-08 (task R — phase6 panic baseline 박음)
 - Total tasks: 20
-- Completed: 5 / 20
+- Completed: 6 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -43,9 +43,10 @@
 
 ### Phase 6.3 — panic 검출 lint 단계적 도입
 
-- [~] **R. workspace lint warn 박음 + tests 면제 + baseline 측정**
+- [x] **R. workspace lint warn 박음 + tests 면제 + baseline 측정**
   - acceptance: workspace `Cargo.toml`에 박힘 (`unwrap_used`/`expect_used`/`panic` = warn, 2026-05-08). lib.rs / main.rs 상단 `#![cfg_attr(test, allow(...))]` + tests/integration.rs 상단 `#![allow(...)]` 박힘 (2026-05-08, hard gate fix). `cargo clippy --workspace --all-targets -- -D warnings` 실행 후 production 코드 위반 카운트 측정 → `docs/research/phase6-baseline.md`에 박음. **현 baseline**: production expect 2건 임시 `#[allow(clippy::expect_used)]` 박혀있음 (`commands/scan/mod.rs:70`, `mod.rs:415`) — task S에서 진짜 fix + allow 제거.
   - spec: `docs/specs/spec-architecture.md` § Panic escape hatch 차단.
+  - 검증 결과 (2026-05-08): clippy `-D warnings` 통과 + 233 tests pass (167 unit + 21 integration + 45 xtask) + tarpaulin 87.74% (≥80% gate). `docs/research/phase6-baseline.md` 박음 — production expect 2건 (`commands/scan/mod.rs:70` ScanReport serialize + `mod.rs:419` rayon pool build, 둘 다 `#[allow(clippy::expect_used)]` 임시 박혀 silent suppress 상태) enumeration. test 면제는 lib.rs:6 + main.rs:1 (cfg_attr) + integration.rs:1 (file-level) 3곳. 누락된 production violation 0건 검증.
 
 - [ ] **S. unwrap/expect/panic 위반 fix**
   - acceptance: production 코드의 `.unwrap()` / `.expect()` / `panic!()` 모두 `?` + `anyhow::Context` 또는 `Result` 변환으로 대체. **임시 박힌 `#[allow(clippy::expect_used)]` 2건 (`commands/scan/mod.rs:70`, `mod.rs:415`) 제거 + 진짜 fix.** baseline 위반 0건 도달.
