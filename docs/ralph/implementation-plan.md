@@ -71,7 +71,7 @@
   - spec: 동일.
   - 검증 결과 (2026-05-08): `shared/github.rs` 748 → 도메인별 4 sub-module + re-export mod.rs로 분할. `shared/github/mod.rs` 10 LOC (re-export only) + `trees.rs` 265 LOC (`fetch_tree` + `RemoteFile` + `TreeResponse`/`TreeEntry` + 10 tests) + `blobs.rs` 193 LOC (`fetch_blob` + `BlobResponse` + 9 tests) + `commits.rs` 286 LOC (`fetch_last_commit_at` + `CommitItem`/`CommitInner`/`CommitActor` + `ArgsCapture` + 9 tests) + `error_map.rs` 57 LOC (`map_gh_error` + 4 tests). 호출자 코드 변경 0 (mod.rs `pub use trees::RemoteFile` + `pub(crate) use ...::fetch_*`로 기존 import path 유지). `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 233 tests pass (167 unit + 21 integration + 45 xtask, baseline 유지) + tarpaulin 88.02% (≥80% gate, baseline 유지). LOC 게이트 4 → 2 위반 (남은 2: `commands/diff/mod.rs` 472, `commands/scan/graphql.rs` 564 — task H/I 영역). cycles 0 + cross-slice refs 0 (`cargo xtask check-cycles` 25 modules — 21 → 25, 4 sub-module 추가). 각 sub-file 라인 커버리지 100% (blobs 17/17, commits 22/22, error_map 6/6, trees 27/27).
 
-- [ ] **H. scan/graphql.rs 565줄 분할**
+- [~] **H. scan/graphql.rs 565줄 분할**
   - acceptance: GraphQL alias batching logic + response parsing 분리 (예: `graphql/batch.rs` + `graphql/parse.rs` + `graphql/mod.rs`). LOC + cycle 게이트 통과. 188 tests pass.
   - spec: 동일.
 
