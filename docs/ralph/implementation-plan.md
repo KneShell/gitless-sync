@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-08 (Phase 6 진입 — vague 4건 + clean-context 5건 + panic 검출 박힘)
 - Total tasks: 20
-- Completed: 4 / 20
+- Completed: 5 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -36,9 +36,10 @@
   - spec: `docs/specs/spec-architecture.md` § LOC 임계.
   - 검증 결과 (2026-05-08): `xtask/src/check_line_limits.rs` 박음 + `main.rs`에 dispatch wired. doc-heavy 임계 50% (1/2 정수 비교). `cargo xtask check-line-limits` hand-test 통과 — 4 files exceed 300 LOC (diff/mod.rs 472, scan/graphql.rs 564, scan/mod.rs 1094, shared/github.rs 748). exit 0 (warn stage). 14 unit tests for check_line_limits + 5 main dispatch tests = 191 tests pass (167 unit + 21 integration + 24 xtask). tarpaulin 89.97%.
 
-- [~] **E. xtask check-cycles 박음 (cycle 검출)**
-  - acceptance: `cargo xtask check-cycles`가 `cargo-modules generate graph --uses` 출력 파싱하여 cycle 1건 이상이면 exit 1. cycle 0건 시 OK 출력. cross-slice ref 검증도 동시 (slice 간 import 금지).
+- [x] **E. xtask check-cycles 박음 (cycle 검출)**
+  - acceptance: `cargo xtask check-cycles`가 `cargo modules dependencies --lib --no-fns --no-types --no-traits --no-sysroot` DOT 출력을 파싱해 module-level uses 그래프에서 cycle 1건 이상이면 exit 1. cycle 0건 시 OK 출력. cross-slice ref 검증도 동시 (slice 간 import 금지). cargo-modules `--acyclic`은 type-method edge(`enum ↔ method`) false positive로 직접 사용 안 함.
   - spec: `docs/specs/spec-architecture.md` § Slice 안 acyclic + § Cross-slice 직접 ref 금지.
+  - 검증 결과 (2026-05-08): `xtask/src/check_cycles.rs` 박음 (DOT parser + DFS white/gray/black cycle detect + slice prefix cross-slice check). `cargo xtask check-cycles` hand-test 통과 — 16 modules / 0 cycles / 0 cross-slice refs. xtask 19 unit tests + 5 main dispatch tests = 45 tests pass (167 unit + 21 integration + 45 xtask). tarpaulin 87.74% (≥80% gate). spec-architecture.md + project-ops.md cargo-modules 표기 갱신 (cascade closure).
 
 ### Phase 6.3 — panic 검출 lint 단계적 도입
 
