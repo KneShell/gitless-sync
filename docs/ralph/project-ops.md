@@ -11,7 +11,7 @@
 - `cargo test <name>` — 특정 테스트만
 
 ## Lint / Validate
-- `cargo clippy --all-targets -- -D warnings` — clippy 워크스페이스 (warning을 error로)
+- `cargo clippy --workspace --all-targets -- -D warnings` — clippy 워크스페이스 (warning을 error로)
 - `cargo fmt --check` — 포맷 검사 (수정 없이 위반만 보고)
 - `cargo fmt` — 자동 포맷 적용
 - `cargo deny check` — 의존성 정책 (라이선스, 보안, 중복 등)
@@ -24,7 +24,7 @@
 
 ## Full Validation Pipeline
 1. `cargo fmt --check`
-2. `cargo clippy --all-targets -- -D warnings`
+2. `cargo clippy --workspace --all-targets -- -D warnings`
 3. `cargo test --workspace`
 4. `cargo tarpaulin --engine llvm --workspace --out Stdout` (≥ 80%)
 5. `cargo deny check` (의존성 변경 시)

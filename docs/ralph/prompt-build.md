@@ -26,7 +26,7 @@ Read in this order, fully:
 ## 3. Validation (Backpressure)
 Run in order. Do NOT proceed to step 4 until all pass.
 1. `cargo fmt --check` — if fails, run `cargo fmt` and re-check.
-2. `cargo clippy --all-targets -- -D warnings` — fix all warnings.
+2. `cargo clippy --workspace --all-targets -- -D warnings` — fix all warnings.
 3. `cargo test --workspace` — all tests must pass.
 4. `cargo tarpaulin --engine llvm --workspace --out Stdout` — coverage ≥ 80%. (G-012 적용 — spec-only task / `todo!()` 잔존 task는 baseline 유지로 자동 통과.)
 
