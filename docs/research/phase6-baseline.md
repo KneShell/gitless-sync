@@ -3,15 +3,17 @@
 > Snapshot at task R commit time (2026-05-08). 분할 전 측정. Phase 6 진행 중 task M에서 LOC/fan-out/cycle 등 추가 metric을 본 파일에 누적, J 직후 분할 후 측정으로 갱신.
 >
 > **Update (2026-05-08, task S 완료)**: production `expect` 2건 모두 `Config` map_err로 fix → baseline 위반 0건 도달. § Baseline Violation Count + § 위반 위치 표 갱신. task T (warn → deny 전환) 즉시 진행 가능.
+>
+> **Update (2026-05-08, task T 완료)**: workspace lint `unwrap_used`/`expect_used`/`panic` warn → **deny** 전환. `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 233 tests pass + tarpaulin 87.77%. 향후 production 위반은 `-D warnings` 의존 없이 빌드 fail로 박힘.
 
 ## Panic Escape Hatch — `unwrap_used` / `expect_used` / `panic`
 
 ### Measurement Setup
 
-- workspace `Cargo.toml` `[workspace.lints.clippy]`:
-  - `unwrap_used = "warn"`
-  - `expect_used = "warn"`
-  - `panic = "warn"`
+- workspace `Cargo.toml` `[workspace.lints.clippy]` (task T 이후):
+  - `unwrap_used = "deny"` (warn 시점 baseline 측정 후 task T에서 deny 전환)
+  - `expect_used = "deny"` (동일)
+  - `panic = "deny"` (동일)
 - Test 면제 게이트 (file 상단):
   - `crates/gitless-sync/src/lib.rs:6` — `#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]`
   - `crates/gitless-sync/src/main.rs:1` — `#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]`
@@ -63,7 +65,7 @@ crates/gitless-sync/src/shared/ignore.rs            — #[cfg(test)] @ 68
 ### 다음 단계
 
 - **task S**: ✅ 완료 (2026-05-08). production `expect` 2건 → `Config` map_err로 fix + `#[allow]` 제거. baseline 위반 0건 도달.
-- **task T**: workspace lint warn → deny 전환 (`unwrap_used = "deny"` etc.). `cargo clippy -D warnings` 통과 게이트 활성화 가능.
+- **task T**: ✅ 완료 (2026-05-08). workspace lint warn → deny 전환 박음. `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 233 tests pass + tarpaulin 87.77%. Phase 6.3 panic 검출 trilogy (R → S → T) 완결.
 
 ## (placeholder) 분할 metrics — task M에서 박음
 
