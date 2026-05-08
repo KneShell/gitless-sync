@@ -36,7 +36,7 @@
   - spec: `docs/specs/spec-architecture.md` § LOC 임계.
   - 검증 결과 (2026-05-08): `xtask/src/check_line_limits.rs` 박음 + `main.rs`에 dispatch wired. doc-heavy 임계 50% (1/2 정수 비교). `cargo xtask check-line-limits` hand-test 통과 — 4 files exceed 300 LOC (diff/mod.rs 472, scan/graphql.rs 564, scan/mod.rs 1094, shared/github.rs 748). exit 0 (warn stage). 14 unit tests for check_line_limits + 5 main dispatch tests = 191 tests pass (167 unit + 21 integration + 24 xtask). tarpaulin 89.97%.
 
-- [ ] **E. xtask check-cycles 박음 (cycle 검출)**
+- [~] **E. xtask check-cycles 박음 (cycle 검출)**
   - acceptance: `cargo xtask check-cycles`가 `cargo-modules generate graph --uses` 출력 파싱하여 cycle 1건 이상이면 exit 1. cycle 0건 시 OK 출력. cross-slice ref 검증도 동시 (slice 간 import 금지).
   - spec: `docs/specs/spec-architecture.md` § Slice 안 acyclic + § Cross-slice 직접 ref 금지.
 
