@@ -117,7 +117,7 @@
 
 ### Phase 6.7 — Step 2/3 deny 전환 + 부속 리서치
 
-- [ ] **J. baseline 위반 0건 도달 후 LOC + cycle 게이트 deny 전환**
+- [~] **J. baseline 위반 0건 도달 후 LOC + cycle 게이트 deny 전환**
   - acceptance: F-I 분할 + Q error 분리 + P tests 분리 후 LOC 위반 0건 (300 면제 카테고리 외) + cycle 위반 0건. xtask check-* 명령이 위반 시 exit 1로 박음 (deny). CI 게이트 deny 전환.
   - 검증: `cargo xtask check-line-limits` exit 0 + `cargo xtask check-cycles` exit 0.
   - spec: `docs/specs/spec-architecture.md` § Enforcement.
