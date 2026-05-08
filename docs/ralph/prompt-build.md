@@ -7,6 +7,7 @@ Read in this order, fully:
 0c. `docs/ralph/project-ops.md` — exact validation commands.
 0d. `docs/ralph/implementation-plan.md` — task list with statuses.
 0e. The relevant `docs/specs/spec-*.md` referenced by the task you're about to do.
+0f. Explore existing code using parallel subagents — don't assume not implemented.
 
 ## 1. Task Selection
 - **[!] auto-recovery (iteration 시작 시 먼저 수행)**: `implementation-plan.md`에서 `[!]` 마크된 task의 BLOCKED 사유 점검. 사유가 `G-015` (외부 명령 transient 실패)면 자동 `[!]`→`[ ]` reset 후 일반 task selection 진행. 영구 사유(`G-001`~`G-014`, `G-016`+)는 그대로 [!] 유지(다음 iteration도 skip). Reset 시 commit message에 `chore: auto-reset transient blocked task M{N}` 박음.

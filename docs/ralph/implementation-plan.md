@@ -41,12 +41,12 @@
 ### Phase 6.3 — panic 검출 lint 단계적 도입
 
 - [ ] **R. workspace lint warn 박음 + tests 면제 + baseline 측정**
-  - acceptance: workspace `Cargo.toml`에 이미 박힘 (`unwrap_used`/`expect_used`/`panic` = warn, 2026-05-08). tests 코드(`tests/*.rs` + `#[cfg(test)] mod tests`)에 `#[cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]` 박음. `cargo clippy` 실행 후 production 코드 위반 카운트 측정 → `docs/research/phase6-baseline.md`에 박음.
+  - acceptance: workspace `Cargo.toml`에 박힘 (`unwrap_used`/`expect_used`/`panic` = warn, 2026-05-08). lib.rs / main.rs 상단 `#![cfg_attr(test, allow(...))]` + tests/integration.rs 상단 `#![allow(...)]` 박힘 (2026-05-08, hard gate fix). `cargo clippy --workspace --all-targets -- -D warnings` 실행 후 production 코드 위반 카운트 측정 → `docs/research/phase6-baseline.md`에 박음. **현 baseline**: production expect 2건 임시 `#[allow(clippy::expect_used)]` 박혀있음 (`commands/scan/mod.rs:70`, `mod.rs:415`) — task S에서 진짜 fix + allow 제거.
   - spec: `docs/specs/spec-architecture.md` § Panic escape hatch 차단.
 
 - [ ] **S. unwrap/expect/panic 위반 fix**
-  - acceptance: production 코드의 `.unwrap()` / `.expect()` / `panic!()` 모두 `?` + `anyhow::Context` 또는 `Result` 변환으로 대체. baseline 위반 0건 도달.
-  - 검증: `cargo clippy` 시 production 코드에서 0 warning.
+  - acceptance: production 코드의 `.unwrap()` / `.expect()` / `panic!()` 모두 `?` + `anyhow::Context` 또는 `Result` 변환으로 대체. **임시 박힌 `#[allow(clippy::expect_used)]` 2건 (`commands/scan/mod.rs:70`, `mod.rs:415`) 제거 + 진짜 fix.** baseline 위반 0건 도달.
+  - 검증: `cargo clippy --workspace --all-targets -- -D warnings` 시 production 코드에서 0 warning + `#[allow(clippy::*_used)]` 0건.
   - spec: `docs/specs/spec-architecture.md` § Panic escape hatch 차단.
 
 - [ ] **T. unwrap/expect/panic deny 전환**
@@ -74,8 +74,8 @@
 ### Phase 6.5 — 구조적 분리 task
 
 - [ ] **Q. error 모듈 도메인 분리**
-  - acceptance: `shared/error.rs` 137줄 단일 enum → `shared/error/mod.rs` (최상위 `GitlessError` + exit code 매핑) + `shared/error/network.rs` / `error/config.rs` / `error/filesystem.rs` 등 도메인별 sub-module. 호출자 API 호환 유지. 188 tests pass.
-  - spec: `docs/specs/spec-architecture.md` § LOC 임계 § 구조적 분리.
+  - acceptance: `shared/error.rs` 137줄 단일 enum → `shared/error/mod.rs` (최상위 `GitlessError` + exit code 매핑) + `shared/error/network.rs` / `error/config.rs` / `error/filesystem.rs` 등 도메인별 sub-module. 호출자 API 호환 유지. **`docs/specs/spec-error-contracts.md` § GitlessError variants + exit code mapping 표 갱신** (도메인 sub-module 박힌 후, advisor §3 갭 fix). 188 tests pass.
+  - spec: `docs/specs/spec-architecture.md` § LOC 임계 § 구조적 분리 + `docs/specs/spec-error-contracts.md`.
 
 - [ ] **P. integration tests 도메인별 분리**
   - acceptance: `crates/gitless-sync/tests/integration.rs` 1 file → 도메인별 분리 (`tests/scan_dogfooding.rs`, `tests/diff_workflow.rs`, `tests/init_redirect.rs`, `tests/scan_backend_parity.rs` 등 자연 묶음). 공통 setup → `tests/common/mod.rs` (Cargo가 separate test로 취급 안 함). 21 integration tests 모두 pass.
