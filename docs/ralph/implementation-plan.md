@@ -26,7 +26,7 @@
   - acceptance: `xtask/` 폴더 + `xtask/Cargo.toml` + `xtask/src/main.rs` 박음. workspace `members`에 추가. `cargo xtask` alias `.cargo/config.toml`에 박음. `cargo xtask --help` 통과.
   - spec: 없음 (boilerplate).
 
-- [ ] **C. cargo-modules + cargo-public-api + cargo-machete 도구 검증**
+- [~] **C. cargo-modules + cargo-public-api + cargo-machete 도구 검증**
   - acceptance: 각 도구 `cargo install` 후 1회 dry-run 출력 확인. `docs/ralph/project-ops.md`에 설치 가이드 + 명령어 박음. CI 워크플로 사용한다면 `.github/workflows/` 갱신 (옵션).
   - spec: `docs/specs/spec-architecture.md` § 외부 도구.
 
