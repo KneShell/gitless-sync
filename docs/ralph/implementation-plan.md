@@ -1,7 +1,7 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-08 (task T — warn → deny 전환 완료)
+- Last updated: 2026-05-08 (task M — 분할 전 baseline 측정 진행 중)
 - Total tasks: 20
 - Completed: 8 / 20
 
@@ -93,7 +93,7 @@
   - acceptance: `xtask/` crate에도 workspace lints 적용 (300줄 LOC + clippy 60/15/5 + panic deny). xtask 자체 코드가 게이트 통과. xtask Cargo.toml에 `[lints] workspace = true` 박음.
   - spec: `docs/specs/spec-architecture.md` § Enforcement.
 
-- [ ] **M. 분할 전/후 baseline metric 박제**
+- [~] **M. 분할 전/후 baseline metric 박제**
   - acceptance: `docs/research/phase6-baseline.md` 박음. 분할 전 (현재) + 분할 후 (F-I 완료) 측정값: file 수, total LOC, max LOC, fan-out (file별 import count), cycle count, panic 위반 카운트.
   - spec: 없음 (research artifact, clean-context §4 누락 추가).
 
