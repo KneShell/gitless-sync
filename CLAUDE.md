@@ -44,9 +44,11 @@
 
 **Phase 4 완료 (2026-05-07)** — GraphQL batching + cache 도입/제거 15 task ralph 자율 진행 종료, **188 tests pass (167 unit + 21 integration), tarpaulin 90.09%**. 사람 개입 0건 (cargo PATH ralph.ps1 자체 주입). P6b 측정: 13 path scale에서 REST 2484ms vs GraphQL cluster 1437ms = **1.73x speedup** (typical), 1000 path scale 추정 **~38x**. P9 dogfooding cross-backend 정합성 통과 (REST/GraphQL 결과 ScanReport 동일).
 
-**Phase 6 Step 1 완료 (2026-05-07)** — clippy 60/15/5 영구 박음 (`Cargo.toml [workspace.lints.clippy]` + workspace root `clippy.toml`). baseline 위반 1건(`commands/scan/mod.rs::assemble_entries` 7 args)을 `GitHubContext<'_, C: GhClient + Sync>` struct로 fix (args 7 → 4). 188 tests pass. Step 2(파일/모듈 ≤ 300줄, `cargo xtask` 검토) / Step 3(layer 의존 검증, `cargo-modules`) / event 기반 통신은 PROPOSED — 다음 세션 모호점 vague 후 plan 작성 + Phase 6 통째 ralph 자율 진행 예정.
+**Phase 6 Step 1 완료 (2026-05-07)** — clippy 60/15/5 영구 박음 (`Cargo.toml [workspace.lints.clippy]` + workspace root `clippy.toml`). baseline 위반 1건(`commands/scan/mod.rs::assemble_entries` 7 args)을 `GitHubContext<'_, C: GhClient + Sync>` struct로 fix (args 7 → 4). 188 tests pass.
 
-**다음 세션 진입점 후보**: Phase 6 Step 2~3 plan + ralph / Phase 5(도메인 함정 — NFD/case/encoding/submodule/symlink) / vault scale dogfooding (1000+ path cache 효과 재검토 트리거).
+**Phase 6 vague 결론 박힘 (2026-05-08)** — vague 4건 + clean-context 외부 시각 5건 + 추가 panic 검출 결정. Step 2/3 PROPOSED → CONFIRMED. `docs/roadmap.md § Phase 6` slim + `docs/ralph/implementation-plan.md` 20 task (A~T) + `docs/specs/spec-architecture.md` 박음. workspace lint에 `unwrap_used`/`expect_used`/`panic` warn 단계 추가. clean-context 보강으로 D·E task 격하 (Tarjan SCC + manifest 빼고 `cargo-modules` CLI), Step 2 결론 enforcement 무조건문 재작성, error/integration tests 구조적 분리 task 박힘, 박제 expiration 정책(Phase 진입마다 재검토) 도입.
+
+**다음 세션 진입점 후보**: Phase 6 ralph 자율 진행 (A~T task, 단계적 deny 전환 포함) / Phase 5 (도메인 함정 — NFD/case/encoding/submodule/symlink) / vault scale dogfooding (1000+ path cache 효과 재검토 트리거).
 
 ## Project Overview
 git이 없는 로컬 디렉토리를 GitHub repo와 단방향으로 비교해, 드리프트를 정량적으로 보고하는 read-only AI 친화 CLI. iCloud 동기화 디렉토리처럼 git 사용 자체가 불가능한 환경에서 "평행우주 드리프트"를 막기 위한 도구. 도구는 사실(4분류 JSON)만 제공하고 결정은 호출자(사람 또는 AI)에게 맡긴다.
@@ -116,12 +118,19 @@ crates/gitless-sync/src/
 - **`local_sha`/`remote_sha`는 git 표준 blob SHA가 아닌 자체 정의 해시.** 정의는 `docs/specs/spec-hash-and-normalize.md` 참조. GitHub UI나 `git hash-object`로 얻는 SHA와 다를 수 있다.
 - **`gh -F` 인자는 commits API GET 요청을 POST로 자동 전환** (gh `--method` 기본 동작). `fetch_last_commit_at`은 `-X GET` prepend 필수. 검증: G-017, fix in M2d (commit `082748a`).
 
-### 사용자 취향 결정 (검증·토론 대상 X)
+### 사용자 취향 결정 (검증·토론 대상 X, Phase 진입마다 재검토)
+
+> **박제 expiration 정책** (2026-05-08, clean-context §5-1 self-correcting): 모든 박제 항목 Phase 진입마다 재검토. transitive constraint 누적 차단.
+
 - Vertical slice 아키텍처 (명령어 단위 자체 모듈, `shared/`는 진짜 공통만)
 - Unit test coverage ≥ 80% (tarpaulin 라인) — 작은 CLI라도 의식적 채택.
 - init은 도구가 파일 작성 안 함, stdout TOML + redirect 패턴 (ADR 0004).
 - default backend는 GraphQL (ADR 0006). REST는 explicit fallback 유지.
 - GraphQL backend는 rayon 미사용 (ADR 0005, alias batching 자체가 병렬).
+- **파일 ≤ 300줄** (인지부하 임계, 2026-05-08 박제, tests 포함). 면제: doc comment heavy 모듈. 구조적 분리 대상: error 정의 모듈 (도메인별 sub-module), integration tests (도메인별 file).
+- **Layer 정의** (2026-05-08): vertical slice + cross-slice 직접 ref 금지 + slice 안 acyclic + slice-internal directional discipline (orchestrator → domain → IO, naming convention + `pub(crate)`/`pub(super)` 가시성).
+- **panic escape hatch 차단** (2026-05-08): production 코드 `unwrap_used`/`expect_used`/`panic` 단계적 deny (warn → fix → deny). tests는 `#[cfg_attr(test, allow(...))]` 자연 면제.
+- **Event 기반 layer 통신 영구 제외** (2026-05-08): 도메인에 cross-feature 런타임 통신 0. 참조 방향성 보호는 Layer 정의로 강제.
 
 ### 메모리 환경
 이 프로젝트는 obsidian vault(`C:\Users\admin\iCloudDrive\iCloud~md~obsidian`)와 별개의 auto memory 폴더를 사용한다. vault에 쌓인 사용자 컨텍스트(프로필·재무·자기성찰 등)는 여기서 자동 로드되지 않는다. 정상 동작이며, 글로벌 `~/.claude/CLAUDE.md`(Monday 페르소나 + Universal Rules)만 양쪽에서 공통이다.

@@ -17,6 +17,9 @@ pedantic = { level = "warn", priority = -1 }
 too_many_lines = "deny"
 cognitive_complexity = "deny"
 too_many_arguments = "deny"
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
 
 [profile.release]
 panic = "abort"
