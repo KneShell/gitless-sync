@@ -83,7 +83,7 @@
 
 ### Phase 6.5 — 구조적 분리 task
 
-- [ ] **Q. error 모듈 도메인 분리**
+- [~] **Q. error 모듈 도메인 분리**
   - acceptance: `shared/error.rs` 137줄 단일 enum → `shared/error/mod.rs` (최상위 `GitlessError` + exit code 매핑) + `shared/error/network.rs` / `error/config.rs` / `error/filesystem.rs` 등 도메인별 sub-module. 호출자 API 호환 유지. **`docs/specs/spec-error-contracts.md` § GitlessError variants + exit code mapping 표 갱신** (도메인 sub-module 박힌 후, advisor §3 갭 fix). 188 tests pass.
   - spec: `docs/specs/spec-architecture.md` § LOC 임계 § 구조적 분리 + `docs/specs/spec-error-contracts.md`.
 
