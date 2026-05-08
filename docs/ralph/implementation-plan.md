@@ -31,7 +31,7 @@
   - spec: `docs/specs/spec-architecture.md` § 외부 도구.
   - 검증 결과 (2026-05-08): cargo-modules 0.26.0 + cargo-public-api 0.51.0 + cargo-machete 0.9.2 설치 + dry-run 통과. cargo-public-api는 nightly toolchain 필요 (별도 설치, 본 프로젝트 빌드는 stable 1.95.0 그대로). cargo-machete 현 baseline `anyhow` 1건 unused (task S 이후 자연 해결 예정). `.github/workflows/` 부재 — task O 시점 박힘.
 
-- [ ] **D. xtask check-line-limits 박음 (LOC 게이트)**
+- [~] **D. xtask check-line-limits 박음 (LOC 게이트)**
   - acceptance: `cargo xtask check-line-limits`가 `crates/gitless-sync/src/**/*.rs` LOC 측정. 300줄 초과 file 경고 출력 (warn 단계, 빌드 깨뜨리지 않음). doc comment heavy 면제 룰 박음 (`///` 비중 ≥ X% 시 면제). tests 포함 카운트.
   - spec: `docs/specs/spec-architecture.md` § LOC 임계.
 
