@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-08 (Phase 6 진입 — vague 4건 + clean-context 5건 + panic 검출 박힘)
 - Total tasks: 20
-- Completed: 0 / 20
+- Completed: 1 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -15,7 +15,7 @@
 
 ### Phase 6.1 — 선행 cascade fix
 
-- [~] **A. github.rs → shared 이전**
+- [x] **A. github.rs → shared 이전**
   - acceptance: `commands/scan/github.rs` 본체를 `shared/github*.rs` (또는 `shared/github/mod.rs` 폴더)로 이전. `commands/diff/mod.rs`의 `commands::scan::github` import → `shared::github::...`로 갱신. cross-slice ref 위반 1건 0 도달.
   - 검증: `cargo build` + 188 tests pass.
   - spec: `docs/specs/spec-architecture.md` § Cross-slice 직접 ref 금지.

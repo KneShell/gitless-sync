@@ -4,10 +4,10 @@ use std::path::Path;
 
 use similar::TextDiff;
 
-use crate::commands::scan::github;
 use crate::shared::config;
 use crate::shared::error::GitlessError;
 use crate::shared::gh::GhClient;
+use crate::shared::github;
 use crate::shared::normalize::{is_binary, normalize_text};
 
 #[derive(Debug)]
