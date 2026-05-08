@@ -56,18 +56,17 @@ pub struct ScanArgs {
 /// # Errors
 /// Returns any [`GitlessError`] raised by config loading, GitHub API calls,
 /// or local IO. Returns [`GitlessError::PartialFailure`] when one or more
-/// files could not be hashed.
-///
-/// # Panics
-/// Panics if `output::serialize` fails — the report is composed of
-/// `Serialize` types with no fallible impls, so this is treated as total.
+/// files could not be hashed. JSON serialization failure on the assembled
+/// `ScanReport` is mapped to [`GitlessError::Config`] — in practice the
+/// report's `Serialize` impls are total, so this path is unreachable for
+/// the current schema.
 pub fn run_with_client<C: GhClient + Sync>(
     args: &ScanArgs,
     client: &C,
 ) -> Result<(), GitlessError> {
     let (report, failed_count) = build_report(args, client)?;
-    #[allow(clippy::expect_used)]
-    let json = output::serialize(&report, args.pretty).expect("ScanReport serialization is total");
+    let json = output::serialize(&report, args.pretty)
+        .map_err(|e| GitlessError::Config(format!("ScanReport JSON serialization failed: {e}")))?;
     println!("{json}");
     if failed_count > 0 {
         return Err(GitlessError::PartialFailure { failed_count });
@@ -412,11 +411,10 @@ fn fetch_commit_dates_parallel<C: GhClient + Sync>(
     if paths.is_empty() {
         return Ok(Vec::new());
     }
-    #[allow(clippy::expect_used)]
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(MAX_COMMITS_CONCURRENCY)
         .build()
-        .expect("rayon thread pool build");
+        .map_err(|e| GitlessError::Config(format!("rayon thread pool build failed: {e}")))?;
     pool.install(|| {
         paths
             .par_iter()

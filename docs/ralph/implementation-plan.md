@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-08 (task S — unwrap/expect/panic 위반 fix in progress)
+- Last updated: 2026-05-08 (task S — production expect 2건 fix 완료)
 - Total tasks: 20
-- Completed: 6 / 20
+- Completed: 7 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -48,10 +48,11 @@
   - spec: `docs/specs/spec-architecture.md` § Panic escape hatch 차단.
   - 검증 결과 (2026-05-08): clippy `-D warnings` 통과 + 233 tests pass (167 unit + 21 integration + 45 xtask) + tarpaulin 87.74% (≥80% gate). `docs/research/phase6-baseline.md` 박음 — production expect 2건 (`commands/scan/mod.rs:70` ScanReport serialize + `mod.rs:419` rayon pool build, 둘 다 `#[allow(clippy::expect_used)]` 임시 박혀 silent suppress 상태) enumeration. test 면제는 lib.rs:6 + main.rs:1 (cfg_attr) + integration.rs:1 (file-level) 3곳. 누락된 production violation 0건 검증.
 
-- [~] **S. unwrap/expect/panic 위반 fix**
+- [x] **S. unwrap/expect/panic 위반 fix**
   - acceptance: production 코드의 `.unwrap()` / `.expect()` / `panic!()` 모두 `?` + `anyhow::Context` 또는 `Result` 변환으로 대체. **임시 박힌 `#[allow(clippy::expect_used)]` 2건 (`commands/scan/mod.rs:70`, `mod.rs:415`) 제거 + 진짜 fix.** baseline 위반 0건 도달.
   - 검증: `cargo clippy --workspace --all-targets -- -D warnings` 시 production 코드에서 0 warning + `#[allow(clippy::*_used)]` 0건.
   - spec: `docs/specs/spec-architecture.md` § Panic escape hatch 차단.
+  - 검증 결과 (2026-05-08): production expect 2건 모두 `.map_err(|e| GitlessError::Config(format!(...)))?` 패턴으로 fix. (1) `commands/scan/mod.rs:70` ScanReport serialize 실패 → `Config("ScanReport JSON serialization failed: ...")`. (2) `commands/scan/mod.rs:415` rayon thread pool build 실패 → `Config("rayon thread pool build failed: ...")` (advisor 권고 + spec § Config "환경 문제" 정합). `#[allow(clippy::expect_used)]` 2건 모두 제거. `run_with_client` doc comment의 `# Panics` 블록 제거 + `# Errors`로 흡수. clippy `-D warnings` 통과 (production 0 warning) + 233 tests pass (167 unit + 21 integration + 45 xtask) + tarpaulin 87.77% (≥80% gate, +0.03%).
 
 - [ ] **T. unwrap/expect/panic deny 전환**
   - acceptance: workspace lint `unwrap_used`/`expect_used`/`panic` warn → deny. `cargo clippy -D warnings` 통과. 188+ tests pass.
