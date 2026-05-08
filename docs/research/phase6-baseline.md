@@ -1,6 +1,8 @@
 # Phase 6 Baseline Metrics
 
 > Snapshot at task R commit time (2026-05-08). 분할 전 측정. Phase 6 진행 중 task M에서 LOC/fan-out/cycle 등 추가 metric을 본 파일에 누적, J 직후 분할 후 측정으로 갱신.
+>
+> **Update (2026-05-08, task S 완료)**: production `expect` 2건 모두 `Config` map_err로 fix → baseline 위반 0건 도달. § Baseline Violation Count + § 위반 위치 표 갱신. task T (warn → deny 전환) 즉시 진행 가능.
 
 ## Panic Escape Hatch — `unwrap_used` / `expect_used` / `panic`
 
@@ -25,28 +27,31 @@
 | lint | production 위반 (suppressed) | tests/binary tests | 합계 |
 |---|---|---|---|
 | `clippy::unwrap_used` | 0 | (file-level allow로 면제) | 0 |
-| `clippy::expect_used` | **2** (`#[allow]` 임시 박힘) | (file-level allow로 면제) | 2 |
+| `clippy::expect_used` | **0** (task S에서 fix 완료) | (file-level allow로 면제) | 0 |
 | `clippy::panic` | 0 | (file-level allow로 면제) | 0 |
 
-**Total production 위반: 2건** (전부 `expect_used`, 임시 `#[allow(clippy::expect_used)]` attr로 suppressed).
+**Total production 위반: 0건** (task S 완료, 2026-05-08 — task T warn→deny 전환 게이트 통과).
 
-### 위반 위치 (production only, task S 처리 대상)
+### 위반 위치 (production only, task S 처리 결과)
 
-| # | 위치 | 호출 | 사유 |
+| # | 위치 | 처리 전 | 처리 후 (task S) |
 |---|---|---|---|
-| 1 | `crates/gitless-sync/src/commands/scan/mod.rs:70` | `output::serialize(&report, args.pretty).expect("ScanReport serialization is total")` | `Serialize` 타입은 fallible impl 없음 — 호출자 입장에선 total. 그러나 `expect`는 panic 경로 — task S에서 `?` + `anyhow::Context` 또는 `unreachable!()` 대체 검토. |
-| 2 | `crates/gitless-sync/src/commands/scan/mod.rs:419` | `rayon::ThreadPoolBuilder::new().num_threads(MAX_COMMITS_CONCURRENCY).build().expect("rayon thread pool build")` | rayon thread pool build 실패는 OS 자원 고갈 등 hard environmental issue — task S에서 `GitlessError::Config` 또는 새 variant 검토. |
+| 1 | `crates/gitless-sync/src/commands/scan/mod.rs:70` | `output::serialize(&report, args.pretty).expect("ScanReport serialization is total")` + `#[allow(clippy::expect_used)]` | `output::serialize(&report, args.pretty).map_err(\|e\| GitlessError::Config(format!("ScanReport JSON serialization failed: {e}")))?` (allow 제거). 호출자 view에서 doc `# Panics` 블록 제거 + `# Errors`로 흡수. |
+| 2 | `crates/gitless-sync/src/commands/scan/mod.rs:415` | `rayon::ThreadPoolBuilder::new().num_threads(MAX_COMMITS_CONCURRENCY).build().expect("rayon thread pool build")` + `#[allow(clippy::expect_used)]` | `.build().map_err(\|e\| GitlessError::Config(format!("rayon thread pool build failed: {e}")))?` (allow 제거). spec § Config "환경 문제" 정합 — gh CLI 미설치 매핑과 동일 카테고리. |
 
-위 2건은 `#[allow(clippy::expect_used)]` 임시 attribute가 같은 줄 위에 박혀 있어 clippy가 silently 통과. task S에서 진짜 fix + allow 제거 + task T에서 warn → deny 전환.
+**선택 근거** (advisor §1 reconcile + spec-architecture.md § Panic escape hatch):
+- Row 1 (serialize)은 spec table이 `unreachable!()` 또는 `Err(...)` 둘 다 안전한 alternative로 박음. `Config` map_err는 Row 2와 일관 + 미래 schema 변경 시 silent panic 차단.
+- Row 2 (rayon)는 baseline 표가 명시적으로 `Config` 권고. exit 1 (Config) = "기타" 환경 실패 매핑 일관.
+- 두 Row 모두 `Io(io::Error::other(...))` 합성 대안은 기각 — `Io` spec은 "로컬 디렉토리 walk / 파일 read 시 IO 실패"로 도메인 좁고, 두 케이스 모두 IO 아닌 in-memory/system 자원 실패.
 
 ### Test 면제 검증
 
-production code (`#[cfg(test)] mod tests` 외부) grep으로 unwrap/expect/panic 후보 line 추출 후 test mod start line과 비교. 모든 후보가 `#[cfg(test)] mod tests { ... }` 블록 내부 또는 위 2건의 production allow 안에 위치 — 면제 누수 0건.
+production code (`#[cfg(test)] mod tests` 외부) grep으로 unwrap/expect/panic 후보 line 추출 후 test mod start line과 비교. 모든 후보가 `#[cfg(test)] mod tests { ... }` 블록 내부에 위치 — 면제 누수 0건. (task S에서 production allow 2건 모두 제거됨.)
 
 ```
 crates/gitless-sync/src/commands/diff/mod.rs        — #[cfg(test)] @ 141 (이후 모두 test)
 crates/gitless-sync/src/commands/init/mod.rs        — #[cfg(test)] @ 59
-crates/gitless-sync/src/commands/scan/mod.rs        — #[cfg(test)] @ 434 (70/419는 < 434, production)
+crates/gitless-sync/src/commands/scan/mod.rs        — #[cfg(test)] @ 434 (이후 모두 test, production allow 0건)
 crates/gitless-sync/src/commands/scan/walker.rs     — #[cfg(test)] @ 85
 crates/gitless-sync/src/commands/scan/graphql.rs    — #[cfg(test)] @ 203
 crates/gitless-sync/src/shared/github.rs            — #[cfg(test)] @ 225
@@ -57,8 +62,8 @@ crates/gitless-sync/src/shared/ignore.rs            — #[cfg(test)] @ 68
 
 ### 다음 단계
 
-- **task S**: 위 2건 production `expect` 진짜 fix + `#[allow]` 제거. baseline 위반 0건 도달.
-- **task T**: workspace lint warn → deny 전환 (`unwrap_used = "deny"` etc.). `cargo clippy -D warnings` 통과.
+- **task S**: ✅ 완료 (2026-05-08). production `expect` 2건 → `Config` map_err로 fix + `#[allow]` 제거. baseline 위반 0건 도달.
+- **task T**: workspace lint warn → deny 전환 (`unwrap_used = "deny"` etc.). `cargo clippy -D warnings` 통과 게이트 활성화 가능.
 
 ## (placeholder) 분할 metrics — task M에서 박음
 
