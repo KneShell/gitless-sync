@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 //! End-to-end integration tests for `gitless-sync` (M4a + M4b).
 //!
 //! M4a covers PRD scenarios 1-4 (4-state classification) and 9 (.gitignore +

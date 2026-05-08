@@ -111,6 +111,7 @@ vague 4건 결론 박은 후 메모리 차단된 fresh session으로 5개 각도
 - §2 면제 카테고리 5종 — doc 면제 + error/tests 구조적 분리 + mod.rs re-export 자연 통과 + xtask self-apply.
 - §5-1 박제 expiration — Phase 진입마다 재검토 (transitive constraint 누적 차단).
 - §5-2 cargo-* 외부 도구 채택 — public-api / machete / modules.
+- §5-3 (mention) — LOC 300 + `cognitive_complexity` 15 부분 중복 비판. 박제 expiration 정책에 따라 Phase 7 진입 시 재검토 (proxy 두 개 동시 deny가 정당한지). 현 시점은 둘 다 유지.
 
 ## Phase 5 — 도메인 함정 정리
 
