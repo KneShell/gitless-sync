@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-08 (task P — integration.rs 792 LOC 단일 → tests/common + 4 도메인 file split [in progress])
+- Last updated: 2026-05-08 (task P — integration.rs 792 LOC 단일 → tests/common + 4 도메인 file split, 21 integration tests pass, baseline 240 tests pass + tarpaulin 88.32% 유지)
 - Total tasks: 20
-- Completed: 14 / 20
+- Completed: 15 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -88,9 +88,10 @@
   - spec: `docs/specs/spec-architecture.md` § LOC 임계 § 구조적 분리 + `docs/specs/spec-error-contracts.md`.
   - 검증 결과 (2026-05-08): `shared/error.rs` 137 LOC 단일 → `shared/error/mod.rs` 14 LOC (re-export hub: `pub mod core; pub mod network;` + `pub use core::{GitlessError, StderrPayload}; pub use network::{GraphqlError, GraphqlErrorExtensions, map_graphql_error};`) + `shared/error/core.rs` 84 LOC (`GitlessError` enum + `exit_code()` / `error_code()` / `to_stderr_payload()` + `StderrPayload`) + `shared/error/network.rs` 67 LOC (`GraphqlError`, `GraphqlErrorExtensions`, `map_graphql_error`, `format_graphql_errors` + `use super::core::GitlessError;`). git mv로 변경 추적 보존 (`error.rs` → `error/mod.rs` rename history 유지, 이후 mod.rs는 re-export로 재작성). **첫 시도(mod.rs에 enum 직접 소유)는 cycle 게이트 deny** — `error -> network -> error` cycle. `super::GitlessError` ↔ `crate::shared::error::GitlessError` 둘 다 module identity 같아 cycle 동일. advisor reconcile 후 github/mod.rs(task G) 동일 패턴(`mod.rs` = re-export hub + 도메인 sub-module이 sibling import)로 재구성 → cycle 0건. 호출자 21곳 import 변경 0건 (`use crate::shared::error::GitlessError;` path 동일). spec-error-contracts.md § Module Layout 표 신설 + cycle 회피 이유 박음. plan.md acceptance 텍스트 cycle 회피 design 반영. `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 240 tests pass (174 unit + 21 integration + 45 xtask, baseline 유지) + tarpaulin 88.32% (≥80% gate, baseline 유지) + `cargo xtask check-line-limits` (39 files all ≤300 LOC, baseline 38 → 39: error/ 폴더 +3 sub-file - 단일 error.rs 1개 = +2... wait 실제로는 38 → 39 +1 — 단일 error.rs → mod.rs+core.rs+network.rs = 3, mod.rs는 LOC 14로 재카운트, 단일 → 3-way split이라 35 + 3 = 38, 36 + 3 = 39 — xtask "39 files" 출력대로) + `cargo xtask check-cycles` (33 → 34 modules: error/ 1 → 3 sub-mod = +2, 그러나 mod.rs는 module identity로 카운트되어 1 + 2 sibling = +3? 출력 "34 modules" 일치, 0 cycles, 0 cross-slice refs). 각 sub-file 라인 커버리지: core.rs 20/25 (80%), network.rs 13/16 (81.25%) — `format_graphql_errors`의 multi-error iteration / empty-code branch 일부 미커버지만 mod.rs re-export(LOC 0 측정)와 합쳐 baseline 88.32% 유지.
 
-- [~] **P. integration tests 도메인별 분리**
+- [x] **P. integration tests 도메인별 분리**
   - acceptance: `crates/gitless-sync/tests/integration.rs` 1 file → 도메인별 분리 (`tests/scan_dogfooding.rs`, `tests/diff_workflow.rs`, `tests/init_redirect.rs`, `tests/scan_backend_parity.rs` 등 자연 묶음). 공통 setup → `tests/common/mod.rs` (Cargo가 separate test로 취급 안 함). 21 integration tests 모두 pass.
   - spec: Rust 공식 ch11-03 + `docs/specs/spec-architecture.md` § 구조적 분리.
+  - 검증 결과 (2026-05-08): `tests/integration.rs` 792 LOC 단일 → `tests/common/mod.rs` 178 LOC (re-export hub: TestGhClient + 12 helpers, file-level `#![allow(dead_code)]` + `#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]`) + 4 도메인 file: `scan_dogfooding.rs` 174 LOC (scenarios 1, 2, 3, 4, 9, 13, 14 — happy path 4분류 + gitignore + summary-only + status filter, 7 tests) + `scan_errors.rs` 142 LOC (scenarios 10, 11×2, 12, 15 — auth/rate/truncated/Windows partial failure, 5 tests) + `init_redirect.rs` 124 LOC (scenarios 16, 17, 18, 19 — init stdout TOML + redirect hint + scan round-trip, 4 tests) + `scan_backend_parity.rs` 175 LOC (scenarios 20, 21×3, 24 — GraphQL backend + cross-backend parity, 5 tests). advisor 권고대로 4 file + common 분할 (filters scenarios 13/14를 dogfooding과 결합 — 50 LOC scan_filters 단독 분리 회피). 각 file `mod common;` 선언으로 helpers 임포트, `#![allow(clippy::unwrap_used, ...)]` 헤더 박음 (workspace lint deny 우회). scenario_15는 `#[cfg(windows)]` 유지. `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 240 tests pass (174 unit + 21 integration: 4+5+7+5 + 45 xtask, baseline 유지) + tarpaulin 88.32% (≥80% gate, baseline 유지) + `cargo xtask check-line-limits` (39 files all ≤300 LOC) + `cargo xtask check-cycles` (34 modules — 1 → 5 integration test files = +4, 0 cycles, 0 cross-slice refs). 호출자 코드 변경 0 (integration tests는 외부 lib API만 사용, public API 변동 없음).
 
 ### Phase 6.6 — Dogfooding + 회귀 가드
 
