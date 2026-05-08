@@ -147,6 +147,24 @@ GraphQL 응답 형식 (errors 동반 케이스):
 - `files[]`에 해당 항목 `status: "failed"`로 포함 (별도 `failed[]` 배열은 두지 않음 — 단일 배열 + `Status::Failed`).
 - exit code 4.
 
+### Per-file Pitfall Reasons (Phase 5)
+
+`Status::Failed` 항목은 `failed_reason` 필드(spec-output-schema.md § 1.1)로 함정 종류 박음. fatal error(`GitlessError`) 아님 — per-file partial failure 카운트 박힘.
+
+| reason | 상황 | 처리 정책 |
+|---|---|---|
+| `hash_io` | 로컬 파일 read / 권한 실패 | v0.1 기존 동작 |
+| `encoding` | UTF-8 + 2차 detect 모두 실패 | spec-domain-pitfalls.md § Encoding |
+| `submodule` | Trees mode `160000` entry | spec-domain-pitfalls.md § Submodule |
+| `symlink` | Trees mode `120000` entry 또는 local symlink | spec-domain-pitfalls.md § Symlink |
+| `lfs_pointer` | LFS pointer text 시그니처 detect | spec-domain-pitfalls.md § LFS pointer |
+| `long_path` | Windows 260자+ path 또는 예약 파일명 (CON/PRN/NUL/AUX 등) | spec-domain-pitfalls.md § Windows long path |
+| `nfd_collision` | macOS NFD/NFC 동일 path 두 개 박힘 (precomposeunicode false 환경) | spec-domain-pitfalls.md § NFD edge |
+| `case_collision` | Windows local에서 case-sensitive 충돌 (`Foo.txt` + `foo.txt`) | spec-domain-pitfalls.md § Case |
+| `gitattributes_unsupported` | `.gitattributes`에 화이트리스트 외 attribute 박힘 (예: `working-tree-encoding`, `ident`, `filter`) | spec-domain-pitfalls.md § `.gitattributes` 화이트리스트 |
+
+`failed_reason` 부재(`null`) 시 v0.1 baseline `hash_io` 동작과 일관 — 호출자 backward-compat.
+
 ### 인증 실패 / Rate Limit / Trees Truncated 동작
 매핑 source는 위 § gh 종료 코드 + stderr → GitlessError 매핑 표. 기존 v0.1 ureq HTTP status 직접 관찰은 ADR 0002로 obsolete.
 
