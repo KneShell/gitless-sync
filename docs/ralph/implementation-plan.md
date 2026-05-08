@@ -43,7 +43,7 @@
 
 ### Phase 6.3 — panic 검출 lint 단계적 도입
 
-- [ ] **R. workspace lint warn 박음 + tests 면제 + baseline 측정**
+- [~] **R. workspace lint warn 박음 + tests 면제 + baseline 측정**
   - acceptance: workspace `Cargo.toml`에 박힘 (`unwrap_used`/`expect_used`/`panic` = warn, 2026-05-08). lib.rs / main.rs 상단 `#![cfg_attr(test, allow(...))]` + tests/integration.rs 상단 `#![allow(...)]` 박힘 (2026-05-08, hard gate fix). `cargo clippy --workspace --all-targets -- -D warnings` 실행 후 production 코드 위반 카운트 측정 → `docs/research/phase6-baseline.md`에 박음. **현 baseline**: production expect 2건 임시 `#[allow(clippy::expect_used)]` 박혀있음 (`commands/scan/mod.rs:70`, `mod.rs:415`) — task S에서 진짜 fix + allow 제거.
   - spec: `docs/specs/spec-architecture.md` § Panic escape hatch 차단.
 
