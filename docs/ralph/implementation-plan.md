@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-08 (task H — scan/graphql.rs 565 → mod 39 + batch 268 + parse 265 + query 106 + test_helpers 46 LOC, query/parse/batch 4-way split)
+- Last updated: 2026-05-08 (task I — diff/mod.rs 472 → mod 66 + args 13 + compute 290 + render 52 + io 38 + test_helpers 72 LOC, 6-way split, F-I 분할 sequence 완료, LOC 위반 0건)
 - Total tasks: 20
-- Completed: 12 / 20
+- Completed: 13 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -76,9 +76,10 @@
   - spec: 동일.
   - 검증 결과 (2026-05-08): scan/graphql.rs 565 → 4-way split + test_helpers. `graphql/mod.rs` 39 LOC (module doc + GRAPHQL_BATCH_SIZE const + 3 sub-mod 선언 + re-export) + `batch.rs` 268 LOC (`fetch_last_commit_at_batch` entry + 8 tests, query/response 위임) + `parse.rs` 265 LOC (`parse_chunk` + Response types + 11 tests including envelope-shape coverage missing/empty/invalid_date/invalid_json) + `query.rs` 106 LOC (`split_repo` + `escape_graphql_string` + `build_query` + 6 tests) + `test_helpers.rs` 46 LOC (`ok_resp`/`err_resp`/`graphql_args`/`ok_response_for` shared fixtures, `#[cfg(test)] mod test_helpers`로 mod.rs 박음). advisor 권고대로 4-way split 채택 (3-way batch.rs 382/310 LOC 위반 → query 분리 후 268 LOC) + parse tests는 `parse_chunk` 직접 호출(byte slice)로 MockGhClient 의존 제거. 호출자 코드 변경 0 (commits.rs `super::graphql::fetch_last_commit_at_batch` + doc reference `graphql::GRAPHQL_BATCH_SIZE` 모두 mod.rs re-export로 호환). `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 241 tests pass (175 unit + 21 integration + 45 xtask, +8 unit: parse envelope 5 + parse happy direct 1 + query split_repo 2) + tarpaulin 88.44% (≥80% gate, baseline 유지). LOC 게이트 4 → 1 위반 (남은 1: `commands/diff/mod.rs` 472 — task I 영역). cycles 0 + cross-slice refs 0 (`cargo xtask check-cycles` 28 modules, 25 → 28: graphql sub-mod batch/parse/query 3개 추가 - 단일 graphql.rs 1개 + 1 graphql/mod.rs = +3, test_helpers는 `#[cfg(test)]`로 production graph 제외). batch/parse/query 라인 커버리지 100% (17/17 + 26/26 + 29/29).
 
-- [~] **I. diff/mod.rs 472줄 분할**
+- [x] **I. diff/mod.rs 472줄 분할**
   - acceptance: orchestrator + domain + IO 분리 (예: `diff/compare.rs` domain + `diff/output.rs` 등). LOC + cycle 게이트 통과. 188 tests pass.
   - spec: 동일.
+  - 검증 결과 (2026-05-08): diff/mod.rs 472 → 6-way split. orchestrator(`mod.rs` 66 LOC: run_with_client + 1 test) + args(`args.rs` 13 LOC: DiffArgs — `mod.rs ↔ compute.rs` cycle 차단용) + compute(`compute.rs` 290 LOC: compute_diff + 11 tests, render와 single-direction edge) + render(`render.rs` 52 LOC: DiffOutcome 소유 + one_sided + both_sides — leaf 모듈) + io(`io.rs` 38 LOC: read_local_optional + 2 tests) + test_helpers(`test_helpers.rs` 72 LOC, `#[cfg(test)] mod`로 production graph 제외). DiffOutcome 위치는 render.rs로 이동(advisor 권고: render 사용처 owner) → `compute → render → compute` cycle 차단. DiffArgs 위치는 별도 args.rs로 분리(scan/args.rs 패턴) → `mod.rs ↔ compute` cycle 차단. compute.rs LOC 게이트 위해 advisor 권고대로 redundant `compute_diff_remote_only_returns_remote_content_and_label` 제거 (`local_only` test와 symmetric, render::one_sided 동일 함수 호출 — 한 쪽 커버 충분). 호출자 코드 변경 0 (main.rs `commands::diff::run_with_client` + `commands::diff::DiffArgs` 모두 mod.rs `pub use args::DiffArgs` re-export로 호환). `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 240 tests pass (174 unit + 21 integration + 45 xtask, baseline 241 대비 -1: 위 redundant test 제거 1건만) + tarpaulin 88.32% (≥80% gate, baseline 88.45% 대비 -0.13% — 절대 라인 covered 동일, ratio 변동 1 test removal). LOC 게이트 4 → 0 위반 (37 files all ≤ 300, F/G/H/I 4-task split sequence 완결). cycles 0 + cross-slice refs 0 (`cargo xtask check-cycles` 32 modules — 28 → 32, diff slice +4: args/compute/io/render). 각 sub-file 라인 커버리지: render.rs 22/22 (100%), mod.rs 6/6 (100%), compute.rs 22/23 (95.65%), io.rs 4/5 (80%) — args.rs/test_helpers.rs는 데이터·`#[cfg(test)]`로 자연 면제.
 
 ### Phase 6.5 — 구조적 분리 task
 
