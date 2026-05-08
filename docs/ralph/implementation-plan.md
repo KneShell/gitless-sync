@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-08 (task M — 분할 전 baseline 측정 진행 중)
+- Last updated: 2026-05-08 (task M — 분할 전 baseline 박음, post-split 측정은 task J 직후)
 - Total tasks: 20
-- Completed: 8 / 20
+- Completed: 9 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -93,9 +93,10 @@
   - acceptance: `xtask/` crate에도 workspace lints 적용 (300줄 LOC + clippy 60/15/5 + panic deny). xtask 자체 코드가 게이트 통과. xtask Cargo.toml에 `[lints] workspace = true` 박음.
   - spec: `docs/specs/spec-architecture.md` § Enforcement.
 
-- [~] **M. 분할 전/후 baseline metric 박제**
+- [x] **M. 분할 전/후 baseline metric 박제**
   - acceptance: `docs/research/phase6-baseline.md` 박음. 분할 전 (현재) + 분할 후 (F-I 완료) 측정값: file 수, total LOC, max LOC, fan-out (file별 import count), cycle count, panic 위반 카운트.
   - spec: 없음 (research artifact, clean-context §4 누락 추가).
+  - 검증 결과 (2026-05-08, 분할 전 baseline 박음): `docs/research/phase6-baseline.md` § File Split Metrics — Pre-Split Baseline 박음. file 18개 / total 4434 LOC / max 1092 (`commands/scan/mod.rs`) / LOC > 300 4 files (diff/mod.rs 472, scan/graphql.rs 564, scan/mod.rs 1092, shared/github.rs 748) / fan-out 67 use 문 (14 files non-zero, 4 files zero) / cycles 0 / cross-slice refs 0 / panic 위반 0 (task R/S/T 계승). Post-split metric은 task J 직후 본 sub-section 아래 누적 placeholder 박음. G-012 spec-only 면제 (코드 변경 0, docs/research만 수정) — fmt/clippy/test/tarpaulin baseline 유지로 자동 통과.
 
 - [ ] **N. F-I 분할 후 layer 게이트 pass 검증 (각 task 안에 step 명시)**
   - acceptance: F~I 각 task 완료 시 `cargo xtask check-line-limits` + `cargo xtask check-cycles` 통과 검증을 acceptance에 명시. 각 task 완료 시 cycle 0건 + cross-slice ref 0건 + LOC 위반 0건 (면제 카테고리 외).

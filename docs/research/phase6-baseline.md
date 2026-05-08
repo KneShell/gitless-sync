@@ -67,6 +67,73 @@ crates/gitless-sync/src/shared/ignore.rs            — #[cfg(test)] @ 68
 - **task S**: ✅ 완료 (2026-05-08). production `expect` 2건 → `Config` map_err로 fix + `#[allow]` 제거. baseline 위반 0건 도달.
 - **task T**: ✅ 완료 (2026-05-08). workspace lint warn → deny 전환 박음. `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 233 tests pass + tarpaulin 87.77%. Phase 6.3 panic 검출 trilogy (R → S → T) 완결.
 
-## (placeholder) 분할 metrics — task M에서 박음
+## File Split Metrics — Pre-Split Baseline (2026-05-08, task M)
 
-- file 수, total LOC, max LOC, fan-out (file별 import count), cycle count: F-I 분할 직전/직후 비교를 위해 task M이 본 파일에 누적.
+> Phase 6.4 (F-I 4 task) 진행 직전 snapshot. 분할 후 metrics는 task J 직후 본 sub-section 아래 동일 형식으로 누적 (post-split).
+
+### 측정 환경
+
+- scan root: `crates/gitless-sync/src` (xtask + workspace lint 적용 범위, xtask crate는 별도)
+- LOC 측정: `cargo xtask check-line-limits` (Rust `content.lines().count()`) + PowerShell `(Get-Content $f).Count` cross-check 일치
+- Fan-out 측정: `^use ` 정규식 — top-level use 문 카운트 (test mod 내부 use는 들여쓰기로 자연 제외)
+- Cycle / cross-slice 측정: `cargo xtask check-cycles` (cargo-modules DOT 출력 파싱)
+- Panic 위반 측정: 본 문서 § Panic Escape Hatch (task R/S/T 결과 계승)
+
+### File Count + LOC + Fan-out
+
+- Total `.rs` files (production scan root): **18**
+- Total LOC: **4434**
+- Max LOC: **1092** (`commands/scan/mod.rs`)
+- LOC > 300 (분할 대상): **4 files** (diff/mod.rs, scan/graphql.rs, scan/mod.rs, shared/github.rs)
+
+| Path | LOC | > 300? | top-level `use` 문 |
+|---|---:|:---:|---:|
+| `commands/diff/mod.rs` | 472 | ✓ | 9 |
+| `commands/init/mod.rs` | 206 | | 2 |
+| `commands/mod.rs` | 3 | | 0 |
+| `commands/scan/compare.rs` | 128 | | 2 |
+| `commands/scan/graphql.rs` | 564 | ✓ | 7 |
+| `commands/scan/mod.rs` | 1092 | ✓ | 15 |
+| `commands/scan/output.rs` | 41 | | 3 |
+| `commands/scan/walker.rs` | 236 | | 5 |
+| `lib.rs` | 9 | | 0 |
+| `main.rs` | 122 | | 5 |
+| `shared/config.rs` | 102 | | 4 |
+| `shared/error.rs` | 137 | | 3 |
+| `shared/gh.rs` | 240 | | 2 |
+| `shared/github.rs` | 748 | ✓ | 6 |
+| `shared/hash.rs` | 58 | | 1 |
+| `shared/ignore.rs` | 168 | | 3 |
+| `shared/mod.rs` | 7 | | 0 |
+| `shared/normalize.rs` | 101 | | 0 |
+
+Top-level `use` 합계: **67** (across 14 files; `commands/mod.rs` / `lib.rs` / `shared/mod.rs` / `shared/normalize.rs` 4 files = 0 use).
+
+### Cycle + Cross-Slice Reference
+
+- Modules tracked: **16** (cargo-modules `--lib --no-fns --no-types --no-traits --no-sysroot` DOT 출력 기준)
+- Cycles: **0**
+- Cross-slice refs (`commands/scan` ↔ `commands/diff` ↔ `commands/init`): **0**
+
+검증 명령: `cargo xtask check-cycles` exit 0.
+
+### Panic Violation Carryover
+
+본 문서 § Panic Escape Hatch — `unwrap_used` / `expect_used` / `panic`:
+
+- Production `unwrap_used`: **0**
+- Production `expect_used`: **0** (task S에서 fix 완료)
+- Production `panic`: **0**
+- Total production 위반: **0건** (task T deny 전환 완료, `cargo clippy --workspace --all-targets -- -D warnings` 통과)
+
+### Post-Split Comparison (placeholder — task J 직후 박음)
+
+F-I 4 task + Q error 분리 + P tests 분리 완료 후 동일 표를 본 section 아래 누적. 비교 항목:
+
+- File 수 (분할로 증가 예상)
+- Total LOC (분할로 약간 증가 예상 — sub-module mod statement + use line 추가분)
+- Max LOC (300 이하 도달 목표)
+- LOC > 300 file 수 (목표 0)
+- Fan-out 분포 (sub-module 분리로 각 file fan-out 감소 예상, 대신 file 수 자체 증가)
+- Cycle / cross-slice (변화 없이 0 유지 — task N에서 step별 검증)
+- Panic 위반 (변화 없이 0 유지 — workspace lint deny 박혀 빌드가 차단)
