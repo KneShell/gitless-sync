@@ -15,7 +15,7 @@
 
 ### Phase 6.1 — 선행 cascade fix
 
-- [ ] **A. github.rs → shared 이전**
+- [~] **A. github.rs → shared 이전**
   - acceptance: `commands/scan/github.rs` 본체를 `shared/github*.rs` (또는 `shared/github/mod.rs` 폴더)로 이전. `commands/diff/mod.rs`의 `commands::scan::github` import → `shared::github::...`로 갱신. cross-slice ref 위반 1건 0 도달.
   - 검증: `cargo build` + 188 tests pass.
   - spec: `docs/specs/spec-architecture.md` § Cross-slice 직접 ref 금지.
