@@ -1,158 +1,170 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (task K — 외부 Rust 프로젝트 LOC 통계 측정 + `docs/research/rust-loc-stats.md` 박음, 4 프로젝트 19–43% > 300 LOC 분포 사후 sanity check)
-- Total tasks: 20
-- Completed: 20 / 20
+- Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 정리, vague 결론 박힘)
+- Total tasks: 22
+- Completed: 0 / 22
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
 - ralph build mode는 첫 미완료 task (`[ ]`)부터 의존성 순서로 처리.
-- 각 task의 acceptance criteria는 `docs/specs/spec-architecture.md`와 정확히 매핑. spec 변경 없이 plan만 수정하지 말 것.
+- 각 task의 acceptance criteria는 spec 파일과 정확히 매핑. spec 변경 없이 plan만 수정하지 말 것.
 - task 시작 시 `[~]`로 변경 + commit, 완료 시 `[x]`로 변경 + 본 작업 commit (`prompt-build.md` 룰).
+- Phase 6 hard gate 모두 deny active 유지 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 0 + panic 검출). 위반 시 task `[!]` BLOCKED.
 
-## Tasks (Phase 6 — Code Quality Strengthening)
+## Tasks (Phase 5 — 도메인 함정 정리)
 
-### Phase 6.1 — 선행 cascade fix
+### Phase 5.1 — vault 운영 데이터 분석 (우선순위 입력)
 
-- [x] **A. github.rs → shared 이전**
-  - acceptance: `commands/scan/github.rs` 본체를 `shared/github*.rs` (또는 `shared/github/mod.rs` 폴더)로 이전. `commands/diff/mod.rs`의 `commands::scan::github` import → `shared::github::...`로 갱신. cross-slice ref 위반 1건 0 도달.
-  - 검증: `cargo build` + 188 tests pass.
-  - spec: `docs/specs/spec-architecture.md` § Cross-slice 직접 ref 금지.
+- [ ] **A. vault scan 재실행 + drift 근원 분석**
+  - acceptance: KneShell/gitless-sync 또는 사용자 vault repo (356+ files)에 대해 `cargo run -- scan` 재실행. 결과 drift/failed/local_only_changed/remote_only_changed 분류. 각 drift entry에 대해 8 함정 (NFD/case/encoding/submodule/symlink/empty/permission/.gitattributes) 중 어느 것이 원인인지 분석. `docs/research/phase5-vault-baseline.md` 박음.
+  - spec: 없음 (research artifact).
 
-### Phase 6.2 — xtask + 외부 도구 박음
+- [ ] **B. 우선순위 박음 — vault 데이터 기반**
+  - acceptance: vault 분석 결과로 8 함정 우선순위 박음 (가장 자주 발생하는 함정 → 가장 적은 함정). spec-domain-pitfalls.md § "v0.1 baseline 영향"에 박음.
+  - spec: `docs/specs/spec-domain-pitfalls.md`.
 
-- [x] **B. xtask crate workspace 멤버 박음**
-  - acceptance: `xtask/` 폴더 + `xtask/Cargo.toml` + `xtask/src/main.rs` 박음. workspace `members`에 추가. `cargo xtask` alias `.cargo/config.toml`에 박음. `cargo xtask --help` 통과.
-  - spec: 없음 (boilerplate).
+### Phase 5.2 — path 정규화 함정 (NFD / case)
 
-- [x] **C. cargo-modules + cargo-public-api + cargo-machete 도구 검증**
-  - acceptance: 각 도구 `cargo install` 후 1회 dry-run 출력 확인. `docs/ralph/project-ops.md`에 설치 가이드 + 명령어 박음. CI 워크플로 사용한다면 `.github/workflows/` 갱신 (옵션).
-  - spec: `docs/specs/spec-architecture.md` § 외부 도구.
-  - 검증 결과 (2026-05-08): cargo-modules 0.26.0 + cargo-public-api 0.51.0 + cargo-machete 0.9.2 설치 + dry-run 통과. cargo-public-api는 nightly toolchain 필요 (별도 설치, 본 프로젝트 빌드는 stable 1.95.0 그대로). cargo-machete 현 baseline `anyhow` 1건 unused (task S 이후 자연 해결 예정). `.github/workflows/` 부재 — task O 시점 박힘.
+- [ ] **C. NFD → NFC path 정규화**
+  - acceptance: walker.rs에서 local file path를 NFC로 정규화 (`unicode-normalization` crate). remote tree path도 NFC 정규화. 비교 key는 NFC. 함수 시그니처 변경 없음. unit test (raw bytes injection으로 NFD 가짜 fixture 박음).
+  - spec: `docs/specs/spec-domain-pitfalls.md` § Path 정규화 + `spec-classification.md`.
 
-- [x] **D. xtask check-line-limits 박음 (LOC 게이트)**
-  - acceptance: `cargo xtask check-line-limits`가 `crates/gitless-sync/src/**/*.rs` LOC 측정. 300줄 초과 file 경고 출력 (warn 단계, 빌드 깨뜨리지 않음). doc comment heavy 면제 룰 박음 (`///` 비중 ≥ X% 시 면제). tests 포함 카운트.
-  - spec: `docs/specs/spec-architecture.md` § LOC 임계.
-  - 검증 결과 (2026-05-08): `xtask/src/check_line_limits.rs` 박음 + `main.rs`에 dispatch wired. doc-heavy 임계 50% (1/2 정수 비교). `cargo xtask check-line-limits` hand-test 통과 — 4 files exceed 300 LOC (diff/mod.rs 472, scan/graphql.rs 564, scan/mod.rs 1094, shared/github.rs 748). exit 0 (warn stage). 14 unit tests for check_line_limits + 5 main dispatch tests = 191 tests pass (167 unit + 21 integration + 24 xtask). tarpaulin 89.97%.
+- [ ] **D. 대소문자 충돌 처리 정책 박음**
+  - acceptance: 같은 path key가 두 case (`README.md` vs `Readme.md`)로 박힐 때 처리. 정책: case-sensitive 비교 (Unix-style). Windows 환경에서는 OS가 case-insensitive로 처리하니 도구는 case-sensitive 그대로 박음. integration test fixture 박음.
+  - spec: `docs/specs/spec-domain-pitfalls.md` § Path 정규화 + `spec-classification.md`.
 
-- [x] **E. xtask check-cycles 박음 (cycle 검출)**
-  - acceptance: `cargo xtask check-cycles`가 `cargo modules dependencies --lib --no-fns --no-types --no-traits --no-sysroot` DOT 출력을 파싱해 module-level uses 그래프에서 cycle 1건 이상이면 exit 1. cycle 0건 시 OK 출력. cross-slice ref 검증도 동시 (slice 간 import 금지). cargo-modules `--acyclic`은 type-method edge(`enum ↔ method`) false positive로 직접 사용 안 함.
-  - spec: `docs/specs/spec-architecture.md` § Slice 안 acyclic + § Cross-slice 직접 ref 금지.
-  - 검증 결과 (2026-05-08): `xtask/src/check_cycles.rs` 박음 (DOT parser + DFS white/gray/black cycle detect + slice prefix cross-slice check). `cargo xtask check-cycles` hand-test 통과 — 16 modules / 0 cycles / 0 cross-slice refs. xtask 19 unit tests + 5 main dispatch tests = 45 tests pass (167 unit + 21 integration + 45 xtask). tarpaulin 87.74% (≥80% gate). spec-architecture.md + project-ops.md cargo-modules 표기 갱신 (cascade closure).
+### Phase 5.3 — encoding 변환 시도
 
-### Phase 6.3 — panic 검출 lint 단계적 도입
+- [ ] **E. 인코딩 라이브러리 조사 + 채택**
+  - acceptance: `encoding_rs` (Mozilla) vs `chardet` 평가. UTF-8 → 다른 인코딩 detect 정확도 + Rust ecosystem 정합 + license + dependency 확장 검토. `docs/research/encoding-library-eval.md` 박음. 결정 박음.
+  - spec: 없음 (research).
 
-- [x] **R. workspace lint warn 박음 + tests 면제 + baseline 측정**
-  - acceptance: workspace `Cargo.toml`에 박힘 (`unwrap_used`/`expect_used`/`panic` = warn, 2026-05-08). lib.rs / main.rs 상단 `#![cfg_attr(test, allow(...))]` + tests/integration.rs 상단 `#![allow(...)]` 박힘 (2026-05-08, hard gate fix). `cargo clippy --workspace --all-targets -- -D warnings` 실행 후 production 코드 위반 카운트 측정 → `docs/research/phase6-baseline.md`에 박음. **현 baseline**: production expect 2건 임시 `#[allow(clippy::expect_used)]` 박혀있음 (`commands/scan/mod.rs:70`, `mod.rs:415`) — task S에서 진짜 fix + allow 제거.
-  - spec: `docs/specs/spec-architecture.md` § Panic escape hatch 차단.
-  - 검증 결과 (2026-05-08): clippy `-D warnings` 통과 + 233 tests pass (167 unit + 21 integration + 45 xtask) + tarpaulin 87.74% (≥80% gate). `docs/research/phase6-baseline.md` 박음 — production expect 2건 (`commands/scan/mod.rs:70` ScanReport serialize + `mod.rs:419` rayon pool build, 둘 다 `#[allow(clippy::expect_used)]` 임시 박혀 silent suppress 상태) enumeration. test 면제는 lib.rs:6 + main.rs:1 (cfg_attr) + integration.rs:1 (file-level) 3곳. 누락된 production violation 0건 검증.
+- [ ] **F. 비-UTF-8 인코딩 변환 시도 박음**
+  - acceptance: `normalize.rs`에 `try_decode_text` 함수 박음. 1차 UTF-8 디코드 시도 → 2차 다른 인코딩 detect → 3차 binary 취급 (Status::Failed). 변환 성공 시 LF normalize 적용. unit test (EUC-KR / Shift_JIS / Latin-1 fixture).
+  - spec: `docs/specs/spec-domain-pitfalls.md` § encoding + `spec-hash-and-normalize.md`.
 
-- [x] **S. unwrap/expect/panic 위반 fix**
-  - acceptance: production 코드의 `.unwrap()` / `.expect()` / `panic!()` 모두 `?` + `anyhow::Context` 또는 `Result` 변환으로 대체. **임시 박힌 `#[allow(clippy::expect_used)]` 2건 (`commands/scan/mod.rs:70`, `mod.rs:415`) 제거 + 진짜 fix.** baseline 위반 0건 도달.
-  - 검증: `cargo clippy --workspace --all-targets -- -D warnings` 시 production 코드에서 0 warning + `#[allow(clippy::*_used)]` 0건.
-  - spec: `docs/specs/spec-architecture.md` § Panic escape hatch 차단.
-  - 검증 결과 (2026-05-08): production expect 2건 모두 `.map_err(|e| GitlessError::Config(format!(...)))?` 패턴으로 fix. (1) `commands/scan/mod.rs:70` ScanReport serialize 실패 → `Config("ScanReport JSON serialization failed: ...")`. (2) `commands/scan/mod.rs:415` rayon thread pool build 실패 → `Config("rayon thread pool build failed: ...")` (advisor 권고 + spec § Config "환경 문제" 정합). `#[allow(clippy::expect_used)]` 2건 모두 제거. `run_with_client` doc comment의 `# Panics` 블록 제거 + `# Errors`로 흡수. clippy `-D warnings` 통과 (production 0 warning) + 233 tests pass (167 unit + 21 integration + 45 xtask) + tarpaulin 87.77% (≥80% gate, +0.03%).
+### Phase 5.4 — submodule / symlink detect
 
-- [x] **T. unwrap/expect/panic deny 전환**
-  - acceptance: workspace lint `unwrap_used`/`expect_used`/`panic` warn → deny. `cargo clippy -D warnings` 통과. 188+ tests pass.
-  - spec: `docs/specs/spec-architecture.md` § Enforcement 단계.
-  - 검증 결과 (2026-05-08): workspace `Cargo.toml` `[workspace.lints.clippy]`의 `unwrap_used`/`expect_used`/`panic` 모두 warn → deny 박음. `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 233 tests pass (167 unit + 21 integration + 45 xtask) + tarpaulin 87.77% (≥80% gate). baseline 위반 0건 (task S에서 production expect 2건 fix 완료) → deny 전환에 추가 fix 0건. xtask는 `[lints] workspace = true` 미박힘(task L 영역) — workspace deny는 `gitless-sync` crate에만 영향. Phase 6.3 panic 검출 trilogy (R warn 박음 → S 위반 fix → T deny 박음) 완결, 향후 신규 production 위반은 빌드 fail로 즉시 차단.
+- [ ] **G. submodule (`160000`) detect-only**
+  - acceptance: `github.rs::trees`에서 submodule entry skip 대신 `RemoteFile`에 mode 박음. `compare.rs`에서 submodule path → Status::Failed + reason "submodule". JSON 출력에 mode bit (`160000`) 박음.
+  - spec: `docs/specs/spec-domain-pitfalls.md` § Submodule + `spec-classification.md`.
 
-### Phase 6.4 — File 분할 (LOC + Layer 결합)
+- [ ] **H. symlink (`120000`) detect-only**
+  - acceptance: `github.rs::trees`에서 symlink entry mode 박음. walker가 local symlink 발견 시 Status::Failed + reason "symlink". JSON 출력에 mode bit (`120000`) 박음.
+  - spec: `docs/specs/spec-domain-pitfalls.md` § Symlink + `spec-classification.md`.
 
-- [x] **F. scan/mod.rs 1093줄 분할**
-  - acceptance: orchestrator(`mod.rs`)에 진입점만 남기고 logic을 domain/IO sub-module로 분리 (예: `scan/orchestrator.rs` 또는 mod.rs 그대로 + helper file 추가). 분할 직후 LOC 게이트 + cycle 게이트 + cross-slice 게이트 동시 통과 (task N — 분할이 새 cycle 만들 가능성 차단). 188 tests pass.
-  - spec: `docs/specs/spec-architecture.md` § Slice-internal directional discipline + § LOC 임계.
-  - 검증 결과 (2026-05-08): scan/mod.rs 1093 → 288 LOC. orchestrator(mod.rs: run_with_client + build_report + 9 tests) + domain(`pipeline.rs` 286 LOC: GitHubContext + assemble_entries + build_pre_entries + extract_commit_paths + finalize_entries + Pre* + 2 tests) + IO(`commits.rs` 211 LOC: MAX_COMMITS_CONCURRENCY + fetch_commit_map + fetch_commit_dates_parallel + 6 tests, `hash_local.rs` 64 LOC: try_hash_local + 4 tests) + helper(`status_filter.rs` 246 LOC: parse_status_filter + parse_status_token + 13 tests, `args.rs` 26 LOC: Backend + ScanArgs, `test_helpers.rs` 95 LOC: shared test fixtures) 분리. `pipeline.rs`에서 `commit_paths` 추출을 `extract_commit_paths` helper로 분리, `commits::fetch_commit_map`이 PreEntry 모르도록 signature 단순화 → cycle 차단. cross-slice ref 0건 + cycles 0건 (`cargo xtask check-cycles` 21 modules). LOC 게이트 4 → 3 위반 (남은 3은 task G/H/I 영역). `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 233 tests pass (167 unit + 21 integration + 45 xtask, baseline 유지) + tarpaulin 88.02% (≥80% gate, +0.25% baseline 87.77% 대비). main.rs / integration tests의 `commands::scan::{Backend, ScanArgs, build_report, run_with_client}` 호환성 유지 (`pub use args::{Backend, ScanArgs}` re-export).
+### Phase 5.5 — 빈 파일 실파일 검증
 
-- [x] **G. shared/github*.rs 748줄 분할**
-  - acceptance: A에서 이전한 후, `shared/github.rs` (또는 `shared/github/mod.rs` 폴더)을 sub-module 분리 (rest/graphql/common 또는 trees/blobs/commits 도메인별). LOC + cycle 게이트 통과. 188 tests pass.
-  - spec: 동일.
-  - 검증 결과 (2026-05-08): `shared/github.rs` 748 → 도메인별 4 sub-module + re-export mod.rs로 분할. `shared/github/mod.rs` 10 LOC (re-export only) + `trees.rs` 265 LOC (`fetch_tree` + `RemoteFile` + `TreeResponse`/`TreeEntry` + 10 tests) + `blobs.rs` 193 LOC (`fetch_blob` + `BlobResponse` + 9 tests) + `commits.rs` 286 LOC (`fetch_last_commit_at` + `CommitItem`/`CommitInner`/`CommitActor` + `ArgsCapture` + 9 tests) + `error_map.rs` 57 LOC (`map_gh_error` + 4 tests). 호출자 코드 변경 0 (mod.rs `pub use trees::RemoteFile` + `pub(crate) use ...::fetch_*`로 기존 import path 유지). `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 233 tests pass (167 unit + 21 integration + 45 xtask, baseline 유지) + tarpaulin 88.02% (≥80% gate, baseline 유지). LOC 게이트 4 → 2 위반 (남은 2: `commands/diff/mod.rs` 472, `commands/scan/graphql.rs` 564 — task H/I 영역). cycles 0 + cross-slice refs 0 (`cargo xtask check-cycles` 25 modules — 21 → 25, 4 sub-module 추가). 각 sub-file 라인 커버리지 100% (blobs 17/17, commits 22/22, error_map 6/6, trees 27/27).
+- [ ] **I. 빈 파일 실파일 fixture + integration test**
+  - acceptance: integration test fixture로 실제 0-byte 파일 박음. `blob_hash(&[])` == git empty blob constant (`e69de29bb2d1d6434b8b29ae775ad8c2e48c5391`) 확인. local empty file ↔ remote empty blob → Status::Identical.
+  - spec: `spec-hash-and-normalize.md` § Acceptance.
 
-- [x] **H. scan/graphql.rs 565줄 분할**
-  - acceptance: GraphQL alias batching logic + response parsing 분리 (예: `graphql/batch.rs` + `graphql/parse.rs` + `graphql/mod.rs`). LOC + cycle 게이트 통과. 188 tests pass.
-  - spec: 동일.
-  - 검증 결과 (2026-05-08): scan/graphql.rs 565 → 4-way split + test_helpers. `graphql/mod.rs` 39 LOC (module doc + GRAPHQL_BATCH_SIZE const + 3 sub-mod 선언 + re-export) + `batch.rs` 268 LOC (`fetch_last_commit_at_batch` entry + 8 tests, query/response 위임) + `parse.rs` 265 LOC (`parse_chunk` + Response types + 11 tests including envelope-shape coverage missing/empty/invalid_date/invalid_json) + `query.rs` 106 LOC (`split_repo` + `escape_graphql_string` + `build_query` + 6 tests) + `test_helpers.rs` 46 LOC (`ok_resp`/`err_resp`/`graphql_args`/`ok_response_for` shared fixtures, `#[cfg(test)] mod test_helpers`로 mod.rs 박음). advisor 권고대로 4-way split 채택 (3-way batch.rs 382/310 LOC 위반 → query 분리 후 268 LOC) + parse tests는 `parse_chunk` 직접 호출(byte slice)로 MockGhClient 의존 제거. 호출자 코드 변경 0 (commits.rs `super::graphql::fetch_last_commit_at_batch` + doc reference `graphql::GRAPHQL_BATCH_SIZE` 모두 mod.rs re-export로 호환). `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 241 tests pass (175 unit + 21 integration + 45 xtask, +8 unit: parse envelope 5 + parse happy direct 1 + query split_repo 2) + tarpaulin 88.44% (≥80% gate, baseline 유지). LOC 게이트 4 → 1 위반 (남은 1: `commands/diff/mod.rs` 472 — task I 영역). cycles 0 + cross-slice refs 0 (`cargo xtask check-cycles` 28 modules, 25 → 28: graphql sub-mod batch/parse/query 3개 추가 - 단일 graphql.rs 1개 + 1 graphql/mod.rs = +3, test_helpers는 `#[cfg(test)]`로 production graph 제외). batch/parse/query 라인 커버리지 100% (17/17 + 26/26 + 29/29).
+### Phase 5.6 — 실행 권한 detect
 
-- [x] **I. diff/mod.rs 472줄 분할**
-  - acceptance: orchestrator + domain + IO 분리 (예: `diff/compare.rs` domain + `diff/output.rs` 등). LOC + cycle 게이트 통과. 188 tests pass.
-  - spec: 동일.
-  - 검증 결과 (2026-05-08): diff/mod.rs 472 → 6-way split. orchestrator(`mod.rs` 66 LOC: run_with_client + 1 test) + args(`args.rs` 13 LOC: DiffArgs — `mod.rs ↔ compute.rs` cycle 차단용) + compute(`compute.rs` 290 LOC: compute_diff + 11 tests, render와 single-direction edge) + render(`render.rs` 52 LOC: DiffOutcome 소유 + one_sided + both_sides — leaf 모듈) + io(`io.rs` 38 LOC: read_local_optional + 2 tests) + test_helpers(`test_helpers.rs` 72 LOC, `#[cfg(test)] mod`로 production graph 제외). DiffOutcome 위치는 render.rs로 이동(advisor 권고: render 사용처 owner) → `compute → render → compute` cycle 차단. DiffArgs 위치는 별도 args.rs로 분리(scan/args.rs 패턴) → `mod.rs ↔ compute` cycle 차단. compute.rs LOC 게이트 위해 advisor 권고대로 redundant `compute_diff_remote_only_returns_remote_content_and_label` 제거 (`local_only` test와 symmetric, render::one_sided 동일 함수 호출 — 한 쪽 커버 충분). 호출자 코드 변경 0 (main.rs `commands::diff::run_with_client` + `commands::diff::DiffArgs` 모두 mod.rs `pub use args::DiffArgs` re-export로 호환). `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 240 tests pass (174 unit + 21 integration + 45 xtask, baseline 241 대비 -1: 위 redundant test 제거 1건만) + tarpaulin 88.32% (≥80% gate, baseline 88.45% 대비 -0.13% — 절대 라인 covered 동일, ratio 변동 1 test removal). LOC 게이트 4 → 0 위반 (37 files all ≤ 300, F/G/H/I 4-task split sequence 완결). cycles 0 + cross-slice refs 0 (`cargo xtask check-cycles` 32 modules — 28 → 32, diff slice +4: args/compute/io/render). 각 sub-file 라인 커버리지: render.rs 22/22 (100%), mod.rs 6/6 (100%), compute.rs 22/23 (95.65%), io.rs 4/5 (80%) — args.rs/test_helpers.rs는 데이터·`#[cfg(test)]`로 자연 면제.
+- [ ] **J. mode bit (`100755` vs `100644`) detect-only**
+  - acceptance: `RemoteFile`에 mode field 박음 (G/H에서 박힌 같은 field 활용). `compare.rs`에서 mode bit 차이 발견 시 Status::Identical 유지 (content 같으면), JSON 출력에 mode 정보 박음.
+  - spec: `docs/specs/spec-domain-pitfalls.md` § 실행 권한 + `spec-output-schema.md`.
 
-### Phase 6.5 — 구조적 분리 task
+### Phase 5.7 — `.gitattributes` 정확 hash 재현 (큰 변경)
 
-- [x] **Q. error 모듈 도메인 분리**
-  - acceptance: `shared/error.rs` 137줄 단일 파일 → `shared/error/mod.rs` (re-export hub) + `shared/error/core.rs` (`GitlessError` enum + impls + `StderrPayload`) + `shared/error/network.rs` (GraphQL 응답 매핑) 도메인별 sub-module. mod.rs가 enum을 직접 소유하면 sub-module이 parent type을 import → cargo modules 그래프 cycle 발생 (cycle 게이트 deny). github/mod.rs(task G) 동일 패턴 따라 mod.rs는 re-export hub로 박음. config/filesystem/partial sub-module은 도입하지 않음 — 분리할 helper 코드 없음 (yagni). 호출자 API 호환 유지(`crate::shared::error::*` path 동일). **`docs/specs/spec-error-contracts.md` § Module Layout 표 신설** (도메인 sub-module 박힌 후, advisor §3 갭 fix). 240 tests pass + `cargo xtask check-cycles` 통과.
-  - spec: `docs/specs/spec-architecture.md` § LOC 임계 § 구조적 분리 + `docs/specs/spec-error-contracts.md`.
-  - 검증 결과 (2026-05-08): `shared/error.rs` 137 LOC 단일 → `shared/error/mod.rs` 14 LOC (re-export hub: `pub mod core; pub mod network;` + `pub use core::{GitlessError, StderrPayload}; pub use network::{GraphqlError, GraphqlErrorExtensions, map_graphql_error};`) + `shared/error/core.rs` 84 LOC (`GitlessError` enum + `exit_code()` / `error_code()` / `to_stderr_payload()` + `StderrPayload`) + `shared/error/network.rs` 67 LOC (`GraphqlError`, `GraphqlErrorExtensions`, `map_graphql_error`, `format_graphql_errors` + `use super::core::GitlessError;`). git mv로 변경 추적 보존 (`error.rs` → `error/mod.rs` rename history 유지, 이후 mod.rs는 re-export로 재작성). **첫 시도(mod.rs에 enum 직접 소유)는 cycle 게이트 deny** — `error -> network -> error` cycle. `super::GitlessError` ↔ `crate::shared::error::GitlessError` 둘 다 module identity 같아 cycle 동일. advisor reconcile 후 github/mod.rs(task G) 동일 패턴(`mod.rs` = re-export hub + 도메인 sub-module이 sibling import)로 재구성 → cycle 0건. 호출자 21곳 import 변경 0건 (`use crate::shared::error::GitlessError;` path 동일). spec-error-contracts.md § Module Layout 표 신설 + cycle 회피 이유 박음. plan.md acceptance 텍스트 cycle 회피 design 반영. `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 240 tests pass (174 unit + 21 integration + 45 xtask, baseline 유지) + tarpaulin 88.32% (≥80% gate, baseline 유지) + `cargo xtask check-line-limits` (39 files all ≤300 LOC, baseline 38 → 39: error/ 폴더 +3 sub-file - 단일 error.rs 1개 = +2... wait 실제로는 38 → 39 +1 — 단일 error.rs → mod.rs+core.rs+network.rs = 3, mod.rs는 LOC 14로 재카운트, 단일 → 3-way split이라 35 + 3 = 38, 36 + 3 = 39 — xtask "39 files" 출력대로) + `cargo xtask check-cycles` (33 → 34 modules: error/ 1 → 3 sub-mod = +2, 그러나 mod.rs는 module identity로 카운트되어 1 + 2 sibling = +3? 출력 "34 modules" 일치, 0 cycles, 0 cross-slice refs). 각 sub-file 라인 커버리지: core.rs 20/25 (80%), network.rs 13/16 (81.25%) — `format_graphql_errors`의 multi-error iteration / empty-code branch 일부 미커버지만 mod.rs re-export(LOC 0 측정)와 합쳐 baseline 88.32% 유지.
+- [ ] **K1. `.gitattributes` 파서 박음**
+  - acceptance: `shared/gitattributes.rs` 박음. project root + 하위 디렉토리의 `.gitattributes` 파일 1회 로드 + glob pattern matching (gitignore-style). 우선순위: 가장 깊은 `.gitattributes`가 우선 + line-level pattern은 마지막 매칭이 winner. unit test (multi-level fixture).
+  - spec: `spec-hash-and-normalize.md` § `.gitattributes` 파서.
 
-- [x] **P. integration tests 도메인별 분리**
-  - acceptance: `crates/gitless-sync/tests/integration.rs` 1 file → 도메인별 분리 (`tests/scan_dogfooding.rs`, `tests/diff_workflow.rs`, `tests/init_redirect.rs`, `tests/scan_backend_parity.rs` 등 자연 묶음). 공통 setup → `tests/common/mod.rs` (Cargo가 separate test로 취급 안 함). 21 integration tests 모두 pass.
-  - spec: Rust 공식 ch11-03 + `docs/specs/spec-architecture.md` § 구조적 분리.
-  - 검증 결과 (2026-05-08): `tests/integration.rs` 792 LOC 단일 → `tests/common/mod.rs` 178 LOC (re-export hub: TestGhClient + 12 helpers, file-level `#![allow(dead_code)]` + `#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]`) + 4 도메인 file: `scan_dogfooding.rs` 174 LOC (scenarios 1, 2, 3, 4, 9, 13, 14 — happy path 4분류 + gitignore + summary-only + status filter, 7 tests) + `scan_errors.rs` 142 LOC (scenarios 10, 11×2, 12, 15 — auth/rate/truncated/Windows partial failure, 5 tests) + `init_redirect.rs` 124 LOC (scenarios 16, 17, 18, 19 — init stdout TOML + redirect hint + scan round-trip, 4 tests) + `scan_backend_parity.rs` 175 LOC (scenarios 20, 21×3, 24 — GraphQL backend + cross-backend parity, 5 tests). advisor 권고대로 4 file + common 분할 (filters scenarios 13/14를 dogfooding과 결합 — 50 LOC scan_filters 단독 분리 회피). 각 file `mod common;` 선언으로 helpers 임포트, `#![allow(clippy::unwrap_used, ...)]` 헤더 박음 (workspace lint deny 우회). scenario_15는 `#[cfg(windows)]` 유지. `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 240 tests pass (174 unit + 21 integration: 4+5+7+5 + 45 xtask, baseline 유지) + tarpaulin 88.32% (≥80% gate, baseline 유지) + `cargo xtask check-line-limits` (39 files all ≤300 LOC) + `cargo xtask check-cycles` (34 modules — 1 → 5 integration test files = +4, 0 cycles, 0 cross-slice refs). 호출자 코드 변경 0 (integration tests는 외부 lib API만 사용, public API 변동 없음).
+- [ ] **K2. conditional LF normalize 박음**
+  - acceptance: `prepare_for_hash` 함수 시그니처 변경 — `gitattr: &GitAttributesMatch` 인자 추가. `text=auto` / `binary` / `eol=lf` / `eol=crlf` / 미명시 5 분기 박음. 미명시 default = v0.1 정책 그대로. 모든 caller 갱신.
+  - spec: `spec-hash-and-normalize.md` § Normalize 규칙.
 
-### Phase 6.6 — Dogfooding + 회귀 가드
+- [ ] **K3. binary attribute 정확 적용**
+  - acceptance: `.gitattributes`에 `binary` 명시된 file은 NUL byte 휴리스틱 무시 + raw bytes 해시. unit test (NUL byte 0개 binary fixture).
+  - spec: `spec-hash-and-normalize.md` § Normalize 규칙.
 
-- [x] **L. xtask self-dogfooding**
-  - acceptance: `xtask/` crate에도 workspace lints 적용 (300줄 LOC + clippy 60/15/5 + panic deny). xtask 자체 코드가 게이트 통과. xtask Cargo.toml에 `[lints] workspace = true` 박음.
-  - spec: `docs/specs/spec-architecture.md` § Enforcement.
-  - 검증 결과 (2026-05-09): `xtask/Cargo.toml`에 `[lints] workspace = true` 박음 (clippy 60/15/5 + panic deny inherit). `xtask/src/main.rs` 상단 `#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]` 박음 (test 면제). pedantic cascade fix 2건: (1) `check_cycles::detect_cycles`의 nested `fn visit` 함수를 top-level `visit_for_cycles`로 추출 (`items_after_statements` deny). (2) `.map(|s| s.to_string())` → `.map(ToString::to_string)` (`redundant_closure_for_method_calls` deny). 박힘 직후 xtask 2 file LOC 위반 (check_cycles.rs 530, check_line_limits.rs 315) 해소: 각각 `mod.rs` + `tests.rs` 2-way 폴더 split (`#[cfg(test)] mod tests;` 선언 + `tests.rs`가 module body, file-level inner attr 불필요 — main.rs cfg_attr가 crate 전체 propagate). check_cycles/mod.rs 263 LOC (production) + tests.rs 257 LOC. check_line_limits/mod.rs 132 LOC + tests.rs 218 LOC (run_multi 3 tests 추가). check_line_limits.rs `DEFAULT_SCAN_ROOT` 단일 → `DEFAULT_SCAN_ROOTS: &[&str] = &["crates/gitless-sync/src", "xtask/src"]` 다중 root + `run_multi(scan_roots: &[&Path], limit) -> io::Result<u8>` helper 박음 (xtask 자체 LOC도 게이트 대상). `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 243 tests pass (174 unit + 21 integration + 48 xtask, baseline 240 대비 +3: run_multi 3 tests) + tarpaulin 88.29% (≥80% gate, baseline 88.32% 대비 -0.03% — xtask main.rs 18/29 + check_cycles/mod.rs 121/150에 fetch_dot/run external `cargo modules` 호출 untested). `cargo xtask check-line-limits` 통과 (39 gitless-sync + 5 xtask 파일 all ≤300 LOC). `cargo xtask check-cycles` 통과 (34 modules, 0 cycles, 0 cross-slice refs).
+- [ ] **K4. `.gitattributes` 우선순위 정합 검증**
+  - acceptance: project root `.gitattributes` < sub-directory `.gitattributes` < line-level pattern 마지막 매칭 winner 정합. unit test로 검증 (3-level fixture).
+  - spec: `spec-hash-and-normalize.md` § `.gitattributes` 파서.
 
-- [x] **M. 분할 전/후 baseline metric 박제**
-  - acceptance: `docs/research/phase6-baseline.md` 박음. 분할 전 (현재) + 분할 후 (F-I 완료) 측정값: file 수, total LOC, max LOC, fan-out (file별 import count), cycle count, panic 위반 카운트.
-  - spec: 없음 (research artifact, clean-context §4 누락 추가).
-  - 검증 결과 (2026-05-08, 분할 전 baseline 박음): `docs/research/phase6-baseline.md` § File Split Metrics — Pre-Split Baseline 박음. file 18개 / total 4434 LOC / max 1092 (`commands/scan/mod.rs`) / LOC > 300 4 files (diff/mod.rs 472, scan/graphql.rs 564, scan/mod.rs 1092, shared/github.rs 748) / fan-out 67 use 문 (14 files non-zero, 4 files zero) / cycles 0 / cross-slice refs 0 / panic 위반 0 (task R/S/T 계승). Post-split metric은 task J 직후 본 sub-section 아래 누적 placeholder 박음. G-012 spec-only 면제 (코드 변경 0, docs/research만 수정) — fmt/clippy/test/tarpaulin baseline 유지로 자동 통과.
+### Phase 5.8 — spec 갱신 cascade
 
-- [x] **N. F-I 분할 후 layer 게이트 pass 검증 (각 task 안에 step 명시)**
-  - acceptance: F~I 각 task 완료 시 `cargo xtask check-line-limits` + `cargo xtask check-cycles` 통과 검증을 acceptance에 명시. 각 task 완료 시 cycle 0건 + cross-slice ref 0건 + LOC 위반 0건 (면제 카테고리 외).
-  - spec: `docs/specs/spec-architecture.md` § Slice 안 acyclic + § Cross-slice 직접 ref 금지.
-  - 검증 결과 (2026-05-09): F-I 각 task acceptance에 LOC + cycle 게이트 통과 검증 명시 확인 — F는 "task N — 분할이 새 cycle 만들 가능성 차단" 라벨 + 검증 결과 둘 다 박힘, G/H/I는 "LOC + cycle 게이트 통과" 텍스트 + 검증 결과 본문에 `cargo xtask check-cycles` modules 변동(21→25→28→32) + cycles 0 + cross-slice refs 0이 박힘. 현재 시점 회귀 검증 통과: `cargo xtask check-line-limits` (gitless-sync/src 39 files + xtask/src 5 files all ≤ 300 LOC, 면제 카테고리 외 위반 0) + `cargo xtask check-cycles` (34 modules, 0 cycles, 0 cross-slice refs). F-I 4-task 분할 sequence + Q + P 구조 분리 + L xtask self-dogfooding 누적해 layer 게이트 회귀 가드 통과 박힘 — task J(LOC + cycle 게이트 deny 전환) 진입 준비 완료. 코드 변경 0 (plan.md만 수정, G-012 spec-only 면제로 fmt/clippy/test/tarpaulin baseline 유지).
+- [ ] **L. spec-hash-and-normalize.md `.gitattributes` 박힌 정합 검증**
+  - acceptance: spec 본문 + acceptance criteria가 K1~K4 결과와 정합. 기존 PRD 시나리오 5/6/7 통과 + 새 시나리오 (`.gitattributes` binary / eol=crlf) 박음.
+  - spec: `spec-hash-and-normalize.md`.
 
-- [x] **O. pre-commit hook 또는 CI gate 박음**
-  - acceptance: `.github/workflows/ci.yml` (또는 `.git/hooks/pre-commit`)에 `cargo xtask check-line-limits` + `cargo xtask check-cycles` + `cargo machete` + `cargo public-api diff` 추가. 게이트가 실제 PR 차단하는지 회귀 가드. Windows runner 검증 필수.
-  - spec: 없음 (CI 설정).
-  - 검증 결과 (2026-05-09): `.github/workflows/ci.yml` 박음 (windows-latest single job + concurrency cancel + 4 gates). 토폴로지: actions/checkout@v4 fetch-depth 0 → dtolnay/rust-toolchain@stable(1.95.0 + clippy/rustfmt) + @nightly(public-api auto-fallback) → Swatinem/rust-cache@v2 → cargo install --locked × 3 (cargo-modules, cargo-machete, cargo-public-api) → 4 gates. public-api diff는 `if: github.event_name == 'pull_request'`로 PR 한정 + `origin/${{ github.base_ref }}..HEAD` 비교 (push to main에서는 redundant, skip). machete baseline 0 위반은 `crates/gitless-sync/Cargo.toml`의 `anyhow = "1"` 제거로 도달 (source 0건 grep 검증, project-ops.md "task S 시점 자연 해결 예정"은 빗나간 예측이라 task O scope에서 자연 정리 — Cargo.toml 1줄 - / project-ops.md baseline 텍스트 + enforcement 표 sync). 4 gates 모두 local Windows 검증 통과 (windows-latest 동일 OS): `cargo xtask check-line-limits` exit 0 (39+5 files ≤300 LOC) / `cargo xtask check-cycles` exit 0 (34 modules / 0 cycles / 0 cross-slice refs) / `cargo machete` exit 0 (anyhow 제거 후) / `cargo public-api -p gitless-sync diff HEAD~1..HEAD` exit 0 (no diff). Validation pipeline 통과 (`cargo fmt --check` exit 0 + `cargo clippy --workspace --all-targets -- -D warnings` exit 0 + `cargo test --workspace` exit 0 / 243 tests pass / 174 unit + 21 integration + 48 xtask, baseline 유지 + `cargo tarpaulin --engine llvm --workspace --out Stdout` exit 0 / 88.29%, 709/803 lines / +0.00% baseline 유지). **Strict reading 갭**: "게이트가 실제 PR 차단하는지 회귀 가드"는 push + 의도된 위반 test PR 생성을 통한 end-to-end 검증을 요구하지만, ralph autonomous loop scope 외 (push 권한은 사용자 판단). Loose reading 채택 — workflow 구조 정합성 + 4 gates local Windows 검증 + main 푸시 시 자연 trigger로 충족. End-to-end PR 차단 회귀 가드는 사용자가 push + 시범 PR로 검증 (post-merge concern).
+- [ ] **M. spec-classification.md path 정규화 정합**
+  - acceptance: spec 본문에 NFC 정규화 + case-sensitive 정책 박음. 4분류 판정 정합.
+  - spec: `spec-classification.md`.
 
-### Phase 6.7 — Step 2/3 deny 전환 + 부속 리서치
+- [ ] **N. spec-error-contracts.md 함정별 에러 매핑**
+  - acceptance: encoding 변환 fail / submodule / symlink → `GitlessError` variant 박음. exit code 매핑.
+  - spec: `spec-error-contracts.md`.
 
-- [x] **J. baseline 위반 0건 도달 후 LOC + cycle 게이트 deny 전환**
-  - acceptance: F-I 분할 + Q error 분리 + P tests 분리 후 LOC 위반 0건 (300 면제 카테고리 외) + cycle 위반 0건. xtask check-* 명령이 위반 시 exit 1로 박음 (deny). CI 게이트 deny 전환.
-  - 검증: `cargo xtask check-line-limits` exit 0 + `cargo xtask check-cycles` exit 0.
-  - spec: `docs/specs/spec-architecture.md` § Enforcement.
-  - 검증 결과 (2026-05-09): `xtask/src/check_line_limits/mod.rs::run` warn(`Ok(0)` 무조건) → deny(`Ok(u8::from(violations > 0))`)로 전환. 면제(`exemptions > 0`)는 violations 카운트에 미포함 — `is_doc_heavy()` 통과한 file은 EXEMPT 분기에서 `exemptions += 1`만, deny 게이트는 발동 안 함 (advisor 권고 discriminator 검증). main.rs help 텍스트 "warn stage" → "deny stage" sync. tests sync: `run_returns_zero_with_violation_in_warn_stage` → `run_returns_one_with_violation_in_deny_stage` (rename + expect 1), `run_multi_visits_each_root_and_returns_zero_in_warn_stage` → `run_multi_visits_each_root_and_returns_one_in_deny_stage` (rename + expect 1). 새 `run_returns_one_when_violation_and_exemption_coexist` test 추가 (violations>0 AND exemptions>0 분기 커버, 1 line uncovered 보강). check-cycles는 task E 시점부터 이미 deny (`report` exit 1 on cycles or cross-slice refs) — 본 task의 코드 변경 0건. CI workflow `.github/workflows/ci.yml`은 task O에서 두 명령 모두 separate step으로 박혀있어 추가 workflow 편집 0 (xtask exit 1만으로 CI deny 자동 발동). baseline 회귀 검증: `cargo xtask check-line-limits` exit 0 (39+5 files all ≤300 LOC) + `cargo xtask check-cycles` exit 0 (34 modules / 0 cycles / 0 cross-slice refs). project-ops.md 게이트 박힘 시점 표 sync — cargo-modules 4열 "task J에서 deny" → "deny active (cycles + cross-slice refs, baseline 0 위반)" + check-line-limits row 신설 ("D (warn) → J (deny)" + "deny active (300 LOC, baseline 0 위반, doc-heavy 면제)"). 사용자 취향 박제 § Phase 6 Step 2 "deny 전환" 완결 — 향후 신규 LOC 300+ 또는 cycle/cross-slice ref 위반은 빌드 fail로 즉시 차단. `cargo fmt --check` 통과 + `cargo clippy --workspace --all-targets -- -D warnings` 통과 (clippy `bool_to_int_with_if` 1건 캐스케이드 fix: `if violations > 0 { 1 } else { 0 }` → `u8::from(violations > 0)`) + 244 tests pass (174 unit + 21 integration + 49 xtask, baseline 243 대비 +1: violation+exemption 공존 분기 신규 test) + tarpaulin 88.31% (≥80% gate, baseline 88.29% 대비 +0.02% — `check_line_limits/mod.rs` 64/67 +1.49%).
+- [ ] **O. spec-output-schema.md mode bit + reason 필드**
+  - acceptance: 출력 JSON에 mode bit + skipped reason 박음. `schema_version` bump.
+  - spec: `spec-output-schema.md`.
 
-- [x] **K. 외부 Rust 프로젝트 LOC 통계 측정 (부속 리서치)**
-  - acceptance: ripgrep / cargo / tokio 등 mid-size Rust 프로젝트 LOC 분포 측정 (`tokei` 또는 `scc`). `docs/research/rust-loc-stats.md` 박음. 우리 300 임계 사후 검증 (외부 통계와 비교).
-  - spec: 없음 (research artifact, 흥미 위주).
-  - 검증 결과 (2026-05-09): `docs/research/rust-loc-stats.md` 박음. 4 프로젝트 (ripgrep / cargo / tokio + size peer bat) shallow clone 후 PowerShell `[System.IO.File]::ReadAllLines.Length` (xtask `content.lines().count()` 일치 셈법)로 `*.rs` 파일별 LOC 측정. exclude `target/` `vendor/` `.git/`. 결과: ripgrep 100 file 43% > 300, cargo 1356 file 19.1% > 300, tokio 777 file 22.78% > 300, bat 67 file 25.37% > 300. 4 프로젝트 모두 0–100 LOC bin이 최대(29–69%), median 30–178 모두 임계 아래. 본 프로젝트 post-split 39 file 0% > 300 (enforcement). 사후 sanity check: 300 임계는 성숙한 Rust 생태계 분포 대비 엄격한 편이지만, 자연 분포 sub-set 안에 있음 (median + p50 모두 임계 아래) — 합리적 위치 확인. 임계는 외부 stats가 아닌 인지부하 + 구조적 선택에서 도출, 본 문서는 "기괴하지 않다"의 사후 점검. tokei/scc 미설치 — install 의존성 회피 + xtask 셈법 일치 위해 PowerShell 직접 측정 채택. clone 위치는 `$env:TEMP\rust-loc-stats\` (본 프로젝트 트리 외부 격리, 측정 후 33.3MB 정리). G-012 spec-only 면제 (코드 변경 0, `docs/research/` 1 file 신규) — fmt/clippy/test/tarpaulin baseline 유지로 자동 통과.
+### Phase 5.9 — 보강 task
+
+- [ ] **P. NFD raw bytes injection unit test fixture 박음**
+  - acceptance: Windows 환경에서 macOS NFD path 시뮬레이션 fixture 박음. compose 한글 (`가` = `\u{AC00}`) vs decompose 한글 (`가` = `\u{1100}\u{1161}`) 둘 다 시도. `walker.rs` + 비교 path key 정합 검증.
+  - spec: `docs/specs/spec-domain-pitfalls.md` § 검증 환경.
+
+- [ ] **Q. 인코딩 변환 fixture 박음**
+  - acceptance: EUC-KR / Shift_JIS / Latin-1 byte literal fixture 박음 + 변환 시나리오 unit test.
+  - spec: `docs/specs/spec-domain-pitfalls.md` § Encoding.
+
+- [ ] **R. submodule/symlink/permission integration fixture**
+  - acceptance: `MockGhClient` Trees API mock 응답에 submodule (`160000`) / symlink (`120000`) / `100755` entry 박음. integration test 박음 + JSON 출력 정합 검증.
+  - spec: `docs/specs/spec-domain-pitfalls.md` § Submodule/Symlink/실행 권한.
+
+- [ ] **S. `.gitattributes` integration fixture**
+  - acceptance: `tempfile`에 `.gitattributes` 박은 후 K1~K4 통과 검증. text=auto / binary / eol=lf / eol=crlf 4 시나리오 + multi-level fixture.
+  - spec: `docs/specs/spec-domain-pitfalls.md` § `.gitattributes`.
+
+### Phase 5.10 — vault dogfooding
+
+- [ ] **T. vault dogfooding (Phase 5 후)**
+  - acceptance: Phase 5 후 vault scan 재실행 — false drift 0건 (의도된 detect-only drift = submodule/symlink/encoding fail 제외). `docs/research/phase5-vault-after.md` 박음 + before/after 비교.
+  - spec: `docs/specs/spec-domain-pitfalls.md` § Acceptance Criteria.
+
+### Phase 5.11 — 최종 박제 + CI
+
+- [ ] **U. CI gate 갱신 (.github/workflows/ci.yml)**
+  - acceptance: `.gitattributes` / encoding fixture / submodule mock 추가 시나리오를 CI에서 검증. Windows runner에서 통과.
+  - spec: 없음 (CI).
+
+- [ ] **V. CLAUDE.md / roadmap.md 완료 박스 박음**
+  - acceptance: Phase 6 완료 박스 처럼 Phase 5 완료 박스 박음. 다음 세션 진입점 갱신 (vault scale 1000+ path / Phase 7+).
+  - spec: 없음 (docs).
 
 ## 의존 순서
 
 ```
-A → B → {C, D, E}
-A → {F, G, H, I}  (G는 A 직후 자연 cascade)
-B → L
-{D, E} → {F, G, H, I}  (게이트 박힌 후 분할 task 검증)
-F-I → N (각 task 안에 step)
-F-I → J (deny 전환)
-Q + P → J (구조 분리 후 deny)
-{D, E} → O (CI gate)
-R → S → T (단계적 panic 도입, 독립 진행 가능)
-M (baseline metric) — A 직전 + J 직후 (전/후)
-K (외부 통계) — 독립, 어디서든 가능
+A → B (vault 데이터 → 우선순위 박음)
+B → {C, D, E, G, H, I, J, K1}  (우선순위 박힌 후 함정별 처리 시작)
+E → F (인코딩 라이브러리 결정 후 변환 박음)
+G → H (submodule mode 박힌 후 symlink 같은 field 활용)
+G/H → J (mode field 공유)
+K1 → {K2, K3, K4} (.gitattributes 파서 후 정책)
+K2 → F (conditional normalize 박힌 후 인코딩 변환 정합)
+{C, D} → M (path 정규화 → spec)
+{G, H} → N (submodule/symlink → spec)
+J → O (mode bit → spec)
+{K1, K2, K3, K4} → L (.gitattributes → spec)
+{C, D, F, G, H, I, J, K1~K4} → {P, Q, R, S}  (함정 처리 후 fixture 박음)
+모든 함정 task + L/M/N/O 완료 → T (vault dogfooding)
+T → U (CI gate 박힘)
+U → V (완료 박스)
 ```
 
 ralph build mode 진행 권장 순서:
-1. A (cross-slice fix)
-2. B → C → D → E (xtask + 게이트 박음)
-3. M baseline 박음 (전 측정)
-4. R → S → T (panic 검출 단계적 도입, F-I와 병렬 가능)
-5. F → G → H → I (파일 분할, N step 포함)
-6. Q + P (구조 분리)
-7. L (xtask self-dogfooding)
-8. O (CI gate 박음)
-9. J (deny 전환)
-10. M baseline 박음 (후 측정)
-11. K (외부 통계, 부속 리서치)
+1. A (vault 분석)
+2. B (우선순위 박음)
+3. C → D (path 정규화 — 가장 silent drift 위험 큼 추정)
+4. E → F (encoding 변환)
+5. G → H → J (mode bit detect-only 묶음)
+6. I (빈 파일 실파일 fixture)
+7. K1 → K2 → K3 → K4 (.gitattributes 4 sub-task)
+8. L → M → N → O (spec 갱신 cascade)
+9. P → Q → R → S (보강 fixture)
+10. T (vault dogfooding)
+11. U → V (CI + 완료 박스)

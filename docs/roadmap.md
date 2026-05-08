@@ -125,20 +125,33 @@ vague 4건 결론 박은 후 메모리 차단된 fresh session으로 5개 각도
 - §5-2 cargo-* 외부 도구 채택 — public-api / machete / modules.
 - §5-3 (mention) — LOC 300 + `cognitive_complexity` 15 부분 중복 비판. 박제 expiration 정책에 따라 Phase 7 진입 시 재검토 (proxy 두 개 동시 deny가 정당한지). 현 시점은 둘 다 유지.
 
-## Phase 5 — 도메인 함정 정리
+## Phase 5 — 도메인 함정 정리 (CONFIRMED, 2026-05-09)
 
-> "언젠가는 터질 폭탄"이므로 비목표가 아닌 명시적 후속 단계로 박는다.
+> **2026-05-09 vague 결론 박힘.** 8 함정 모두 ralph 자율 진행 (한 phase 통째). 우선순위 입력은 vault 운영 데이터 (Phase 5 첫 task). 검증 환경 Windows 1차 + 실용 근사 (raw bytes injection / mock 응답). 완료 기준 = implement 완료 + vault dogfooding 통과. 상세 spec: `docs/specs/spec-domain-pitfalls.md`. task list: `docs/ralph/implementation-plan.md`.
 
-- macOS HFS+/APFS의 NFD 정규화 vs GitHub의 NFC 보존 (한글·악센트 파일명 깨짐).
-- 대소문자 충돌 (Windows에서 `README.md` vs `Readme.md`가 동일 path key).
-- 비-UTF-8 텍스트 인코딩 (EUC-KR 등) — v0.1은 바이너리 취급으로 영구 drift 발생 (G-006).
-- submodule (Trees mode `160000`) entry 처리.
-- 심볼릭 링크 (Trees mode `120000`).
-- 빈 파일 (`SHA-1("blob 0\0") = e69de29...`) 실파일 통합 검증 — v0.1에서 unit test로는 통과했으나 실파일 케이스 검증 필요.
-- 실행 권한 (Trees mode `100755` vs `100644`).
-- `.gitattributes` 파싱 → git 표준 blob SHA 정확 재현 (선택적, 큰 변경).
+### 8 함정 처리 정책 매핑
 
-> **우선순위 결정 미정** (ex-ADR 0001 Open Question #3). Phase 4 완료 후 운영 데이터(어떤 함정이 실제 사용 중 자주 발생하는지)와 사용자 요청 빈도로 순서 정함.
+| 함정 | 정책 |
+|---|---|
+| **NFD vs NFC** (path) | 정확 hash 재현 — path NFC 정규화 |
+| **대소문자 충돌** | 정확 hash 재현 — case-sensitive 비교 (Unix-style) |
+| **비-UTF-8 인코딩** (EUC-KR 등) | 변환 시도 후 detect-only — 실패 시 Status::Failed |
+| **submodule (`160000`)** | detect-only — Status::Failed + reason 보고 |
+| **symlink (`120000`)** | detect-only — Status::Failed + reason 보고 |
+| **빈 파일** | 정확 hash + 실파일 fixture 검증 추가 |
+| **실행 권한 (`100755` vs `100644`)** | detect-only — content 같으면 Identical, mode 정보 보고 |
+| **`.gitattributes`** | **정확 hash 재현 (큰 변경)** — 파싱 + LF/CRLF 경계 + binary attribute |
+
+### 영향 spec
+
+- `spec-hash-and-normalize.md` — `.gitattributes` 정합 큰 구조 변경 (v0.1 항상 LF normalize → conditional).
+- `spec-classification.md` — path 정규화 + case 정책.
+- `spec-error-contracts.md` — encoding / submodule / symlink error variant.
+- `spec-output-schema.md` — mode bit + skipped reason 필드.
+
+### 사용자 vault 운영 데이터 (우선순위 입력)
+
+Phase 5 첫 task로 vault scan 재실행 + drift 근원 분석. 결과 `docs/research/phase5-vault-baseline.md` 박음. 이 데이터로 8 함정 우선순위 박음.
 
 ## v0.1 시점 미결 (Open Questions)
 
