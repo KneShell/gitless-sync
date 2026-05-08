@@ -1,6 +1,8 @@
 use std::env;
 use std::process::ExitCode;
 
+mod check_line_limits;
+
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();
     ExitCode::from(run(&args))
@@ -12,6 +14,13 @@ fn run(args: &[String]) -> u8 {
             print_help();
             0
         }
+        Some("check-line-limits") => match check_line_limits::run_default() {
+            Ok(code) => code,
+            Err(err) => {
+                eprintln!("xtask check-line-limits: {err}");
+                1
+            }
+        },
         Some(cmd) => {
             eprintln!("xtask: unknown command '{cmd}'");
             print_help();
@@ -25,9 +34,9 @@ fn print_help() {
     println!();
     println!("Commands:");
     println!("  help               Show this help message");
+    println!("  check-line-limits  Check LOC <= 300 per file (warn stage)");
     println!();
     println!("Future commands (Phase 6):");
-    println!("  check-line-limits  Check LOC <= 300 per file (task D)");
     println!("  check-cycles       Detect cycles via cargo-modules (task E)");
 }
 
