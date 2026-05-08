@@ -61,7 +61,7 @@
 
 ### Phase 6.4 — File 분할 (LOC + Layer 결합)
 
-- [ ] **F. scan/mod.rs 1093줄 분할**
+- [~] **F. scan/mod.rs 1093줄 분할**
   - acceptance: orchestrator(`mod.rs`)에 진입점만 남기고 logic을 domain/IO sub-module로 분리 (예: `scan/orchestrator.rs` 또는 mod.rs 그대로 + helper file 추가). 분할 직후 LOC 게이트 + cycle 게이트 + cross-slice 게이트 동시 통과 (task N — 분할이 새 cycle 만들 가능성 차단). 188 tests pass.
   - spec: `docs/specs/spec-architecture.md` § Slice-internal directional discipline + § LOC 임계.
 
