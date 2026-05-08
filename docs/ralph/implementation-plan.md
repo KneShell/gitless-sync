@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-08 (Phase 6 진입 — vague 4건 + clean-context 5건 + panic 검출 박힘)
 - Total tasks: 20
-- Completed: 3 / 20
+- Completed: 4 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -31,9 +31,10 @@
   - spec: `docs/specs/spec-architecture.md` § 외부 도구.
   - 검증 결과 (2026-05-08): cargo-modules 0.26.0 + cargo-public-api 0.51.0 + cargo-machete 0.9.2 설치 + dry-run 통과. cargo-public-api는 nightly toolchain 필요 (별도 설치, 본 프로젝트 빌드는 stable 1.95.0 그대로). cargo-machete 현 baseline `anyhow` 1건 unused (task S 이후 자연 해결 예정). `.github/workflows/` 부재 — task O 시점 박힘.
 
-- [~] **D. xtask check-line-limits 박음 (LOC 게이트)**
+- [x] **D. xtask check-line-limits 박음 (LOC 게이트)**
   - acceptance: `cargo xtask check-line-limits`가 `crates/gitless-sync/src/**/*.rs` LOC 측정. 300줄 초과 file 경고 출력 (warn 단계, 빌드 깨뜨리지 않음). doc comment heavy 면제 룰 박음 (`///` 비중 ≥ X% 시 면제). tests 포함 카운트.
   - spec: `docs/specs/spec-architecture.md` § LOC 임계.
+  - 검증 결과 (2026-05-08): `xtask/src/check_line_limits.rs` 박음 + `main.rs`에 dispatch wired. doc-heavy 임계 50% (1/2 정수 비교). `cargo xtask check-line-limits` hand-test 통과 — 4 files exceed 300 LOC (diff/mod.rs 472, scan/graphql.rs 564, scan/mod.rs 1094, shared/github.rs 748). exit 0 (warn stage). 14 unit tests for check_line_limits + 5 main dispatch tests = 191 tests pass (167 unit + 21 integration + 24 xtask). tarpaulin 89.97%.
 
 - [ ] **E. xtask check-cycles 박음 (cycle 검출)**
   - acceptance: `cargo xtask check-cycles`가 `cargo-modules generate graph --uses` 출력 파싱하여 cycle 1건 이상이면 exit 1. cycle 0건 시 OK 출력. cross-slice ref 검증도 동시 (slice 간 import 금지).
