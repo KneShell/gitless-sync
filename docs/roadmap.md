@@ -36,49 +36,81 @@
 - **1000+ path scale에서 mtime cache 재도입 검토** — 50 path scale에선 hash 비중 작아 cache 효과 noise floor 안. vault scale (수백~수천 files)에서 hash 비중 증가 시 speedup 가능성 (ADR 0008 § Future work).
 - **Trees API sub-tree 재귀 fallback** (truncated repo 지원, G-002 해소).
 
-## Phase 6 — Code Quality Strengthening (IN PROGRESS, 2026-05-07)
+## Phase 6 — Code Quality Strengthening (IN PROGRESS, 2026-05-08)
 
 > 사용자 stance: SonarLint 패턴의 quality gate 강화. 현재 hard gate(test ≥80% / fmt / clippy / deny / audit)에 **코드 구조·복잡도 게이트** 추가.
+>
+> 결론 박제 (2026-05-08, vague 4건 + clean-context 외부 시각 5건 + 추가 panic 검출). 상세 task list는 `docs/ralph/implementation-plan.md` (A~T 20 task), 아키텍처 룰 spec은 `docs/specs/spec-architecture.md`.
 
-### Step 1 — clippy 룰 강화 (low-effort) — COMPLETED (2026-05-07)
+### Step 1 — clippy 룰 강화 — COMPLETED (2026-05-07)
 
-함수 라인·cognitive complexity·인자 수를 clippy `deny` lint로 영구 박음. workspace `Cargo.toml [workspace.lints.clippy]` + workspace root `clippy.toml`.
+| 룰 | clippy lint | 임계값 |
+|---|---|---|
+| 함수 ≤ 60줄 | `clippy::too_many_lines` | 60 |
+| cognitive complexity | `clippy::cognitive_complexity` | 15 |
+| 함수 인자 ≤ 5 | `clippy::too_many_arguments` | 5 |
 
-| 룰 | clippy lint | 임계값 (영구 박음) | clippy default |
-|---|---|---|---|
-| 함수 ≤ 60줄 | `clippy::too_many_lines` | 60 | 100 |
-| cognitive complexity | `clippy::cognitive_complexity` | 15 | 25 |
-| 함수 인자 ≤ 5 | `clippy::too_many_arguments` | 5 | 7 |
+baseline 위반 1건(`scan/mod.rs::assemble_entries` 7 args)을 `GitHubContext` struct로 fix. 188 tests pass.
 
-**baseline 측정 결과 (2026-05-07)**: too_many_lines (60) / cognitive_complexity (15) 위반 **0건**. too_many_arguments (5) 위반 **1건** — `commands/scan/mod.rs::assemble_entries` (7 args).
+### Step 1.5 — panic 검출 lint 단계적 도입 — CONFIRMED (2026-05-08)
 
-**fix**: `GitHubContext<'_, C: GhClient + Sync>` struct 신규 박음 (`client + repo + branch + backend` 4 fields wrap) → `assemble_entries` args 7 → 4. 호출 측 3건 (production + test 2) `ctx` inject. `fetch_commit_map`은 5 args로 통과, yagni 일관 그대로 둠.
+production 코드 panic escape hatch 차단. unwrap/expect/panic이 안티패턴이라는 Rust 커뮤니티 합의 + read-only CLI 본성(panic 즉시 사용자 노출).
 
-**검증**: fmt + clippy(`-D warnings` + workspace lint deny) + test 188 통과 (167 unit + 21 integration). 옵션 (a) 즉시 강제 + 영구 박음 채택.
+| lint | 단계 | 최종 |
+|---|---|---|
+| `clippy::unwrap_used` | warn → fix → deny | deny |
+| `clippy::expect_used` | warn → fix → deny | deny |
+| `clippy::panic` | warn → fix → deny | deny |
 
-### Step 2 — 파일/모듈 ≤ 300줄 (medium-effort, 자체 게이트)
+tests 코드는 `#[cfg_attr(test, allow(clippy::unwrap_used, ...))]` 자연 면제. baseline 위반 0건 도달 시 deny 전환 (task R/S/T).
 
-clippy에 직접 lint 부재. **`cargo xtask check-line-limits` 박음** (또는 PowerShell 스크립트). project-ops § Validation에 게이트 추가. baseline 측정 후 임계값 조정 (Rust trait impl + match arms로 자연 길어지는 경우 마진 검토).
+### Step 2 — 파일/모듈 ≤ 300줄 — CONFIRMED (2026-05-08)
 
-도입 시점: Step 1 baseline 안정 후.
+LOC 임계 300줄 (사용자 취향, 인지부하 임계, 박제 with Phase 진입마다 재검토).
 
-### Step 3 — Layer 의존 검증 (medium-effort)
+- **tests 포함** (same-file `#[cfg(test)] mod tests` 그대로 카운트).
+- **면제 카테고리**: doc comment heavy 모듈 (`///` 비중 높음).
+- **구조적 분리** (면제 X): error 정의 모듈 (도메인별 sub-module — task Q), integration tests (도메인별 file 분리 — task P, Rust ch11-03 best practice).
+- **mod.rs re-export only**: 자연 통과 (별도 면제 정책 X).
+- **enforcement**: F-I 4 task 분할 직후 baseline 위반 0건 도달 시 즉시 deny 전환. **enforcement 시점 deferred 금지** (clean-context §3-1 fix).
 
-"같은 layer 내부 cross-ref 금지"의 layer 정의 결정 필요:
-- (a) vertical slice 유지 (`commands/scan/` ↔ `commands/diff/` 간 참조 금지 — 이미 박힘)
-- (b) horizontal layer 신규 정의 (CLI / domain / IO 분리)
-- (c) slice 안에서 같은 layer file 간 참조 금지 (`mod.rs` ↔ `walker.rs`)
+### Step 3 — Layer 의존 검증 — CONFIRMED (2026-05-08)
 
-`cargo-modules` JSON 추출 + `cargo xtask layer-deps` 자체 검증. 정의 결정 후 진행.
+- **vertical slice 유지** (사용자 취향 박제) + **cross-slice 직접 ref 금지** (현재 위반 1건: `diff/mod.rs:7 → scan::github` → github.rs를 shared로 이전, task A).
+- **slice 안 의존 그래프 acyclic** 강제 (`cargo-modules` CLI 1회 호출, task E).
+- **slice-internal directional discipline**: orchestrator(`mod.rs`) → domain(`compare.rs/output.rs`) → IO(`walker.rs/github.rs/graphql.rs`). naming convention + `pub(crate)`/`pub(super)` 가시성으로 자연 강제. (이전 "mini-layer 단방향" naming 모순 — clean-context §3-2 fix로 rename, "horizontal layer 축소판" 인상 회피.)
+- **horizontal layer 영구 제외** (CLI/Domain/IO 전체 분층 안 박음).
+- **manifest X** (clean-context §4 격하 — 18 files 프로젝트에 deviation 거의 없음, naming convention으로 충분).
 
-### 미정 / 다음 세션 vague 항목
+### Step 4 — 외부 cargo 도구 도입 — CONFIRMED (2026-05-08)
 
-다음 세션 진입 시 vague로 박을 4가지 결정 (Phase 6 plan 작성 + ralph 자율 진행 전):
+| 도구 | 목적 | 비고 |
+|---|---|---|
+| `cargo-modules` | 의존 그래프 + cycle 검출 | Step 3 핵심 |
+| `cargo-public-api` | API 변경 추적 | F-I 분할 회귀 가드 |
+| `cargo-machete` | unused dependency | stable Rust |
 
-1. **Layer 정의** — (a) vertical slice 그대로 (`commands/scan/` ↔ `commands/diff/` 간 cross-ref 금지, 이미 박힘) / (b) horizontal CLI·domain·IO 신규 정의 / (c) slice 안에서 file 간 cross-ref 금지 (`mod.rs` ↔ `walker.rs`).
-2. **파일/모듈 임계값** — 300줄이 Rust 코드(trait impl + match arms로 자연 길어짐)에 적정한지 baseline 측정(`tokei` 또는 PowerShell) 트리거. 임계값 결정 후 `cargo xtask` 또는 자체 스크립트로 게이트 박음.
-3. **`cargo xtask` 도입 여부** — Step 2(파일 라인) + Step 3(layer 의존) 자체 lint를 xtask crate로 박을지 / PowerShell 스크립트로 분리할지. xtask는 cross-platform + IDE 지원 OK이지만 첫 빌드 ~10-30s 비용.
-4. **Event 기반 layer 통신** — Rust 관용 대비 비용 큼 (channel/actor/observer/async 도입 가능성). 진짜 필요한지 yagni 검증 — 실용적 대안 = layer 가시성 강화 + 함수 호출 유지.
+`cargo-udeps` 제외 (machete와 중복 + nightly 필요, MSRV 1.95 stable과 충돌).
+
+이미 박힌 도구: `cargo-tarpaulin` (coverage ≥80%), `cargo-deny` (license/supply chain), `cargo-audit` (security).
+
+### Step 5 — 영구 제외
+
+- **Event 기반 layer 통신** (channel/observer/actor/async): yagni 영구 제외. 사용자 의도(참조 방향성 보호)는 Step 3로 이미 강제. 도메인에 cross-feature 런타임 통신 0 (CLI 1회 호출 → main.rs dispatch → 단일 명령어 실행 → 종료). Phase 5+ 시나리오 발생 시 재검토.
+
+### 부속 리서치
+
+- 외부 Rust 프로젝트(ripgrep/cargo/tokio) LOC 통계 측정 → `docs/research/rust-loc-stats.md` (흥미 위주, Step 2 임계 사후 검증, task K).
+- 분할 전/후 baseline metric 박제 → `docs/research/phase6-baseline.md` (task M).
+
+### clean-context 외부 시각 보강 (2026-05-08)
+
+vague 4건 결론 박은 후 메모리 차단된 fresh session으로 5개 각도 비판 받음. 5건 다 채택:
+- §3-1 — Step 2 enforcement 무조건문 재작성 (deferred escape hatch 제거).
+- §4 D·E 격하 — Tarjan SCC + manifest 빼고 cargo-modules CLI 한 줄로.
+- §2 면제 카테고리 5종 — doc 면제 + error/tests 구조적 분리 + mod.rs re-export 자연 통과 + xtask self-apply.
+- §5-1 박제 expiration — Phase 진입마다 재검토 (transitive constraint 누적 차단).
+- §5-2 cargo-* 외부 도구 채택 — public-api / machete / modules.
 
 ## Phase 5 — 도메인 함정 정리
 
