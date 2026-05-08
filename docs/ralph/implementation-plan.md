@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-08 (Phase 6 진입 — vague 4건 + clean-context 5건 + panic 검출 박힘)
 - Total tasks: 20
-- Completed: 2 / 20
+- Completed: 3 / 20
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -26,9 +26,10 @@
   - acceptance: `xtask/` 폴더 + `xtask/Cargo.toml` + `xtask/src/main.rs` 박음. workspace `members`에 추가. `cargo xtask` alias `.cargo/config.toml`에 박음. `cargo xtask --help` 통과.
   - spec: 없음 (boilerplate).
 
-- [~] **C. cargo-modules + cargo-public-api + cargo-machete 도구 검증**
+- [x] **C. cargo-modules + cargo-public-api + cargo-machete 도구 검증**
   - acceptance: 각 도구 `cargo install` 후 1회 dry-run 출력 확인. `docs/ralph/project-ops.md`에 설치 가이드 + 명령어 박음. CI 워크플로 사용한다면 `.github/workflows/` 갱신 (옵션).
   - spec: `docs/specs/spec-architecture.md` § 외부 도구.
+  - 검증 결과 (2026-05-08): cargo-modules 0.26.0 + cargo-public-api 0.51.0 + cargo-machete 0.9.2 설치 + dry-run 통과. cargo-public-api는 nightly toolchain 필요 (별도 설치, 본 프로젝트 빌드는 stable 1.95.0 그대로). cargo-machete 현 baseline `anyhow` 1건 unused (task S 이후 자연 해결 예정). `.github/workflows/` 부재 — task O 시점 박힘.
 
 - [ ] **D. xtask check-line-limits 박음 (LOC 게이트)**
   - acceptance: `cargo xtask check-line-limits`가 `crates/gitless-sync/src/**/*.rs` LOC 측정. 300줄 초과 file 경고 출력 (warn 단계, 빌드 깨뜨리지 않음). doc comment heavy 면제 룰 박음 (`///` 비중 ≥ X% 시 면제). tests 포함 카운트.
