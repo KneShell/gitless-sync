@@ -44,7 +44,7 @@ fn print_help() {
     println!();
     println!("Commands:");
     println!("  help               Show this help message");
-    println!("  check-line-limits  Check LOC <= 300 per file (warn stage)");
+    println!("  check-line-limits  Check LOC <= 300 per file (deny stage)");
     println!("  check-cycles       Detect module cycles + cross-slice refs (deny stage)");
 }
 

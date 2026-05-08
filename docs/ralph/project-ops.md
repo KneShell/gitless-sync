@@ -55,11 +55,12 @@ rustup toolchain install nightly  # cargo-public-api 전용. 본 프로젝트 �
 
 | 도구 | xtask wrap | 박힘 task | enforcement |
 |---|---|---|---|
-| cargo-modules | `cargo xtask check-cycles` | E | task J에서 deny |
+| cargo-modules | `cargo xtask check-cycles` | E | deny active (cycles + cross-slice refs, baseline 0 위반) |
+| (없음 — pure xtask) | `cargo xtask check-line-limits` | D (warn) → J (deny) | deny active (300 LOC, baseline 0 위반, doc-heavy 면제) |
 | cargo-public-api | (직접 실행, CI 비교) | task O CI gate | PR 이벤트에서 `diff origin/<base>..HEAD` 표시 (deny 아님) |
 | cargo-machete | (직접 실행, CI gate) | task O CI gate | CI gate active (exit 1 deny, baseline 0 위반) |
 
-상세 권장 cli/exit 정책은 task E/L/O 시점 spec/plan 갱신 동반.
+상세 권장 cli/exit 정책은 task E/J/L/O 시점 spec/plan 갱신 동반.
 
 ## Git Workflow
 - 브랜치: `main` 단일. 작업 브랜치 분기 없이 진행 (소규모 단일 개발자).
