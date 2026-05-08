@@ -1,5 +1,6 @@
 [workspace]
-members = ["crates/gitless-sync"]
+members = ["crates/gitless-sync", "xtask"]
+default-members = ["crates/gitless-sync"]
 resolver = "2"
 
 [workspace.package]
