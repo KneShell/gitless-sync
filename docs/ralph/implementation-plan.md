@@ -22,7 +22,7 @@
 
 ### Phase 6.2 — xtask + 외부 도구 박음
 
-- [ ] **B. xtask crate workspace 멤버 박음**
+- [~] **B. xtask crate workspace 멤버 박음**
   - acceptance: `xtask/` 폴더 + `xtask/Cargo.toml` + `xtask/src/main.rs` 박음. workspace `members`에 추가. `cargo xtask` alias `.cargo/config.toml`에 박음. `cargo xtask --help` 통과.
   - spec: 없음 (boilerplate).
 
