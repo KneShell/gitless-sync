@@ -27,7 +27,7 @@ crates/gitless-sync/src/
 ### Slice 안 의존 그래프 acyclic 강제
 
 - file A → B → A 같은 순환 의존 금지.
-- 검증: `cargo-modules generate graph --types --uses` 출력에서 cycle 검출 (`cargo xtask check-cycles`).
+- 검증: `cargo xtask check-cycles` (xtask가 `cargo modules dependencies --lib --no-fns --no-types --no-traits --no-sysroot` DOT 출력을 파싱해 module-level uses 그래프에서 cycle 검출). cargo-modules `--acyclic`은 type-method edge를 cycle로 잘못 잡는 false positive가 있어 직접 사용하지 않음.
 
 ### Slice-internal directional discipline
 
