@@ -42,8 +42,9 @@
 | `binary` (명시, **화이트리스트 ✓**) | raw bytes — NUL 휴리스틱 무시, normalize 안 함 |
 | `eol=lf` (명시, **화이트리스트 ✓**) | LF normalize (`\r\n` → `\n`) |
 | `eol=crlf` (명시, **화이트리스트 ✓**) | CRLF 보존 — `\r\n` → `\r\n` 그대로, `\n` → `\r\n` 변환 안 함 (GitHub 측 SHA와 일치) |
+| **`filter=lfs`** (명시, **화이트리스트 ✓**, advisor BLOCKING fix) | LFS-tracked 마커 — `Status::Failed` + `failed_reason: "lfs_pointer"` + `lfs_pointer: {oid, size}` (scan은 unknown, diff는 정확 파싱). `AttributeMatch::LfsPointer` variant. |
 | 미명시 (default) | v0.1 정책 그대로 — NUL 휴리스틱 + BOM + LF normalize |
-| **화이트리스트 외** (예: `working-tree-encoding`, `ident`, `filter`, macro attributes, `crlf` legacy) | `Status::Failed` + `failed_reason: "gitattributes_unsupported"` (spec-domain-pitfalls.md § 지원 attribute 화이트리스트) |
+| **화이트리스트 외** (예: `working-tree-encoding`, `ident`, `filter=*` (lfs 외), macro attributes, `crlf` legacy) | `Status::Failed` + `failed_reason: "gitattributes_unsupported"` (spec-domain-pitfalls.md § 지원 attribute 화이트리스트) |
 
 #### Phase 5 — 인코딩 변환 시도 (비-UTF-8)
 

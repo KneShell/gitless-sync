@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `schema_version`: 1.0 → 1.1 (minor — 새 필드 `mode` + `failed_reason` + `lfs_pointer` 추가, 기존 호환)
 - `prepare_for_hash` 시그니처 변경 — `gitattr: &Arc<GitAttributes>` 인자 추가 (`shared::gitattributes` 모듈 박음)
 - 새 의존성: `unicode-normalization`, `encoding_rs` (Mozilla)
+- **`status="failed"` 의미 확장 (advisor flag 2)**: v0.1 = "hash IO 실패"만, v0.2 = 9 reasons (`hash_io` / `encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported`). 기존 호출자가 `status == "failed"` 단일 분기 박혀있으면 `failed_reason` 추가 분기 박을 가치 — 특히 LFS pointer를 hash 에러로 오인 위험.
 
 ## [0.1.0] - Phase 6 완료 시점 (2026-05-09)
 

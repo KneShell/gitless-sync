@@ -106,12 +106,19 @@ pub fn prepare_for_hash(
 - v0.2 (Phase 5): `Status::Failed` + `failed_reason: "submodule"` 또는 `"symlink"` + mode bit JSON 출력.
 - 정확 hash 재현 안 함 (submodule은 외부 repo, symlink는 OS-dependent target).
 
-### LFS pointer (clean-context §2 누락 보강)
+### LFS pointer (clean-context §2 + advisor BLOCKING fix)
 
-- GitHub `/git/blobs` endpoint은 LFS pointer text를 base64로 그대로 반환 [source: https://github.com/git-lfs/git-lfs/blob/main/docs/spec.md] — 실 content 아님.
-- pointer file format: `version https://git-lfs.github.com/spec/v1\noid sha256:<hash>\nsize <bytes>\n`
-- detection: 첫 줄 `version https://git-lfs.github.com/spec/v1` 시그니처.
-- 처리: `Status::Failed` + `failed_reason: "lfs_pointer"` + `lfs_pointer: {oid, size}` JSON 박음. 호출자가 LFS fetch 결정 입력으로 사용.
+- git-lfs 표준 마커: `.gitattributes`에 `*.psd filter=lfs diff=lfs merge=lfs -text` 형식 [source: https://github.com/git-lfs/git-lfs/blob/main/docs/spec.md].
+- **detection 경로 — `.gitattributes` 파싱 시점**:
+  - `filter=lfs` 매칭 path는 LFS-tracked로 표시.
+  - scan은 blob fetch 안 함 (Phase 4 GraphQL batching 이득 유지). LFS-tracked path는 자동 `Status::Failed` + `failed_reason: "lfs_pointer"` + `lfs_pointer: {oid: "?", size: 0}` 박음 (oid/size는 blob fetch 안 했으므로 unknown).
+- **Defence-in-depth (옵션)**: `diff` 명령은 이미 blob fetch — pointer text 첫 줄 `version https://git-lfs.github.com/spec/v1` 시그니처 추가 검증 박음. oid + size 정확히 파싱.
+- 처리: `Status::Failed` + `failed_reason: "lfs_pointer"` + `lfs_pointer: {oid, size}` JSON. 호출자가 LFS fetch 결정 입력으로 사용.
+
+**왜 blob fetch 의존 제거**:
+- scan은 Trees + Commits API만 호출 (per-file fetch는 차이 있는 path만). blob fetch는 N×subprocess + N×round-trip 추가 → Phase 4 batching 무효화.
+- `.gitattributes` 1회 파싱으로 LFS-tracked 전부 detect 가능 → cost 0.
+- diff 명령은 blob fetch 박혀있어 추가 시그니처 검증으로 pointer text 정확 파싱 가능.
 
 ### Windows long path / 예약 파일명
 
