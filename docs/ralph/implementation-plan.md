@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 34
-- Completed: 14 / 34
+- Completed: 15 / 34
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -89,7 +89,7 @@
 
 ### Phase 5.7 — `.gitattributes` 정확 hash 재현 (큰 변경)
 
-- [~] **K1. `.gitattributes` 파서 박음 (working tree 한정)**
+- [x] **K1. `.gitattributes` 파서 박음 (working tree 한정)**
   - acceptance: `shared/gitattributes.rs` 박음. project root + 하위 디렉토리의 `.gitattributes` 파일 1회 로드 + glob pattern matching (gitignore-style). 우선순위: 가장 깊은 `.gitattributes` 우선 + line-level 마지막 매칭 winner. `.git/info/attributes` / global 미지원. unit test (multi-level fixture). tarpaulin 80% 유지 — 신규 모듈 cover 책임.
   - spec: `spec-hash-and-normalize.md` § `.gitattributes` 파서 + `spec-config.md` § 위치 정책.
 

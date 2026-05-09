@@ -1,6 +1,7 @@
 pub mod config;
 pub mod error;
 pub mod gh;
+pub mod gitattributes;
 pub mod github;
 pub mod hash;
 pub mod ignore;
