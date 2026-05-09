@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 34
-- Completed: 21 / 34
+- Completed: 22 / 34
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -117,9 +117,10 @@
 
 ### Phase 5.8 — spec 갱신 cascade
 
-- [~] **L. spec-hash-and-normalize.md `.gitattributes` 박힌 정합 검증**
+- [x] **L. spec-hash-and-normalize.md `.gitattributes` 박힌 정합 검증**
   - acceptance: spec 본문 + acceptance criteria가 K1~K4 결과와 정합. 기존 PRD 시나리오 5/6/7 통과 + 새 시나리오 박음. (Phase 5 spec 갱신에서 이미 박혔으니 본 task는 implementation 정합 검증.)
   - spec: `spec-hash-and-normalize.md`.
+  - 결과 (2026-05-09): K1~K4 + K1.5 구현 vs spec 정합 audit 5 drift 박음 + 수정. (1) `현재 상태` section 박힌 K-task 박힘 marker 박음 (K1/K2/K3/K4/K1.5 박힘 + commands/scan 경로 + decode.rs 경로 박음). (2) `Lifetime 계약` section signature 4 인자 박음 (`path: &str` 추가, 구현 정합). (3) Acceptance criterion `Unsupported → Status::Failed` 매핑 박음 — K1.5 classifier scope만 cover, caller-side `pipeline.rs` 단락 plumbing은 follow-up. (4) `Arc<GitAttributes>` rayon worker 공유 criterion 박음 — sequential `.iter().map()` 현실 + 1000+ path scale에서 활성화 가능 박음. (5) BOM `호출 지점` section path 오류(`shared/normalize.rs` → `shared/decode.rs`) + caller mapping 미구현 명시. validation: cargo fmt clean (spec-only, G-012 적용). 코드 변경 0 — baseline 유지.
 
 - [ ] **M. spec-classification.md path 정규화 정합**
   - acceptance: spec 본문에 NFC 정규화 + case-sensitive 정책 박혀있음 (이미 Phase 5 spec 갱신). 4분류 판정 정합 검증.
