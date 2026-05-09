@@ -35,7 +35,7 @@
   - acceptance: `walker.rs`에서 local file path를 NFC로 정규화 (`unicode-normalization` crate). remote tree path도 NFC 정규화. 비교 key는 NFC. unit test (raw bytes injection으로 NFD 가짜 fixture 박음).
   - spec: `docs/specs/spec-domain-pitfalls.md` § Path 정규화 + `spec-classification.md`.
 
-- [ ] **D. 대소문자 충돌 처리 정책 박음**
+- [~] **D. 대소문자 충돌 처리 정책 박음**
   - acceptance: 같은 path key가 두 case (`README.md` vs `Readme.md`)로 박힐 때 case-sensitive 비교 정책 박음. integration test fixture (mock Trees API + walker).
   - spec: `docs/specs/spec-domain-pitfalls.md` § Path 정규화 + `spec-classification.md`.
 
