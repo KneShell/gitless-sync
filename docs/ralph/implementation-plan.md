@@ -154,7 +154,7 @@
   - spec: `docs/specs/spec-domain-pitfalls.md` § 검증 환경.
   - 결과 (2026-05-09): `crates/gitless-sync/tests/scan_nfd_real_file.rs` 박음 — 3 integration tests (P unit-level synthetic fixture에 실파일 fs round-trip 차원 추가). (1) `local_nfd_hangul_real_file_matches_remote_nfc_blob` — `\u{1100}\u{1161}.txt` (NFD jamo LV) 실파일 + 원격 `\u{AC00}.txt` (NFC) tree → Identical, walker side `to_nfc` (walker.rs:92) 정합 검증. (2) `local_nfd_latin_n_tilde_real_file_matches_remote_nfc_blob` — `n\u{0303}ame.txt` (NFD decomposition table) 실파일 + 원격 `\u{00F1}ame.txt` (NFC) tree → Identical, 알고리즘과 다른 normalization 코드 경로 cover. (3) `local_nfc_real_file_matches_remote_nfd_blob` — symmetric 방향 (NFC 실파일 + NFD remote tree) → Identical, `shared/github/trees.rs::to_nfc` (line 63/75/87) 정합 검증. NFD path는 `\u{}` Rust escape 박은 const + raw format! interpolate 패턴 (advisor 권고). Platform note: NTFS/ext4/APFS는 raw bytes 박음 (NFD 실파일 생성 가능), HFS+은 canonicalize-on-write로 NFD 박혀도 양쪽 NFC 수렴 → 모든 platform 통과. Commits API stub 안 박음 — Identical entries skip Commits API (G-003). validation: cargo fmt clean + clippy 0 warnings + xtask check-line-limits (52 files within 300, scan_nfd_real_file.rs 113) + xtask check-cycles (0/0) + cargo machete clean + cargo test 292 lib + 28 integration + 49 xtask = **369 tests pass** (+3) + tarpaulin **90.34%** (945/1046 lines, +0.00% change).
 
-- [ ] **Q. 인코딩 변환 fixture 박음**
+- [~] **Q. 인코딩 변환 fixture 박음**
   - acceptance: EUC-KR / Shift_JIS / Latin-1 byte literal fixture 박음 + 변환 시나리오 unit test. **hash 입력 raw bytes 정합 검증**.
   - spec: `docs/specs/spec-domain-pitfalls.md` § Encoding.
 
