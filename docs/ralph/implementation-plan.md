@@ -31,7 +31,7 @@
 
 ### Phase 5.2 — path 정규화 함정 (NFD / case)
 
-- [ ] **C. NFD → NFC path 정규화**
+- [~] **C. NFD → NFC path 정규화**
   - acceptance: `walker.rs`에서 local file path를 NFC로 정규화 (`unicode-normalization` crate). remote tree path도 NFC 정규화. 비교 key는 NFC. unit test (raw bytes injection으로 NFD 가짜 fixture 박음).
   - spec: `docs/specs/spec-domain-pitfalls.md` § Path 정규화 + `spec-classification.md`.
 
