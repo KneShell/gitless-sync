@@ -83,7 +83,7 @@
 
 ### Phase 5.6 — 실행 권한 detect
 
-- [ ] **J. mode bit (`100755` vs `100644`) detect-only**
+- [~] **J. mode bit (`100755` vs `100644`) detect-only**
   - acceptance: `RemoteFile`에 mode field 박음 (G/H에서 박힌 같은 field 활용). `compare.rs`에서 mode bit 차이 발견 시 `Status::Identical` 유지 (content 같으면), JSON 출력에 mode 정보 박음.
   - spec: `docs/specs/spec-domain-pitfalls.md` § 실행 권한 + `spec-output-schema.md`.
 
