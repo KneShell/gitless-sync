@@ -316,6 +316,45 @@
   - Files: (git command only — 코드 변경 없음).
   - 결과 (2026-05-09): no-op (worktree 이미 제거된 상태였음). `git worktree list` 결과 — `D:/00.Projects/02.Personal/05.gitless-sync 33ef520 [main]` 단일 표시 + `D:/00.Projects/02.Personal/` 디렉토리에 `gitless-sync-v01baseline` 폴더 부재 확인. acceptance 자연 충족, commit 생략.
 
+### Phase 5.14 — md 자료 audit (verbose / security / privacy)
+
+> 사용자 발견 (2026-05-09): CLAUDE.md "### 메모리 환경" section의 사용자 정보 노출 (vault path `C:\Users\admin\iCloudDrive\iCloud~md~obsidian` + admin username + 컨텍스트 종류 `프로필·재무·자기성찰`) — privacy critical. 추가로 CLAUDE.md verbose + ralph spec 중복 + CHANGELOG/ADR/research/specs verbose + 정보성 md 보안/privacy 점검. 검증은 clean-context skill 권장 (사용자 명시).
+
+- [ ] **NN. CLAUDE.md "### 메모리 환경" section 제거 (privacy critical)**
+  - acceptance: CLAUDE.md line 143-144 "### 메모리 환경" section 통째 제거. 사용자 정보 노출 (vault path + admin username + obsidian context 종류) public exposure violation. 메모리 환경 설명은 글로벌 `~/.claude/CLAUDE.md`나 사용자 개인 노트로 이동하면 충분, 프로젝트 CLAUDE.md에는 부적절.
+  - 검증: `git grep "iCloud~md~obsidian"` 0건 확인 + `git grep "C:\\\\Users\\\\admin"` 0건 확인 (전체 repo 범위).
+  - Files: `CLAUDE.md`.
+
+- [ ] **OO. CLAUDE.md slim — Current State + 사용자 취향 결정 + Ralph Workflow + File Locations**
+  - acceptance: CLAUDE.md line 3-59 "Current State" section의 ADR/Phase narrative summary는 `docs/adr/*.md` + `CHANGELOG.md` + `docs/roadmap.md`와 중복 — 1~2 paragraph로 압축 ("현재 v0.2.x, Phase 5.14 진행 중. history는 CHANGELOG/ADR/research"). 사용자 취향 결정 section (line 129-141)도 spec-architecture.md와 중복 — pointer로 압축. Ralph Workflow + File Locations section은 `docs/ralph/`로 pointer. 결과 CLAUDE.md ≤ 60 LOC 목표.
+  - 검증: CLAUDE.md LOC 측정 (PowerShell `(Get-Content CLAUDE.md).Count`) ≤ 60. 기존 ralph build mode prompt에서 CLAUDE.md만 읽어도 핵심 (도구 본성 + 비목표 + 검증된 함정 + Architecture vertical slice 요점) 정보 잔존 확인.
+  - Files: `CLAUDE.md`.
+
+- [ ] **PP. CHANGELOG.md slim — v0.2 entry verbose paragraph 정리**
+  - acceptance: CHANGELOG.md v0.2 entry의 task별 결과 narrative paragraph 압축. semver-style (`## [0.2.0] - 2026-05-09` + `### Added/Changed/Removed/Fixed` 4개 sub-section) 표준 형식 따라 bullet으로 정리. 자세한 task별 결과는 `docs/ralph/implementation-plan.md` 본문에 이미 존재 — CHANGELOG는 user-facing summary만.
+  - 검증: CHANGELOG.md LOC ≤ 100. 기존 v0.2 entry의 모든 user-facing 변경 (schema bump 1.0→1.1 / failed_reason enum 신규 / .gitattributes 화이트리스트 / encoding detect / NFC 정규화 / mode bit / LFS pointer / Windows long path / 8 도메인 함정) 모두 잔존 확인.
+  - Files: `CHANGELOG.md`.
+
+- [ ] **QQ. ADR (0001~0009) audit + slim**
+  - acceptance: ADR 0001~0009 audit — verbose / 사용자 정보 노출 / sensitive info 점검. ADR 표준 형식 (Context / Decision / Consequences) 따라 narrative paragraph 압축. 측정 결과 (예: ADR 0003 rayon speedup 4.86x / ADR 0006 GraphQL 1.73x)는 research file로 이동 + ADR은 결정 근거만 retain. file별 LOC 200 이내.
+  - 검증: 각 ADR file LOC 측정 ≤ 200. `git grep "C:\\\\Users\\\\admin"` 0건 + `git grep "iCloud~md~obsidian"` 0건.
+  - Files: `docs/adr/*.md`.
+
+- [ ] **RR. docs/research/* audit (privacy + verbose)**
+  - acceptance: docs/research/* audit — phase5-vault-baseline.md / phase5-vault-after.md / phase5-regression.md 박힌 vault path 명시 (`C:\Users\admin\iCloudDrive\iCloud~md~obsidian`)는 privacy 노출. 일반화된 placeholder (`<vault path>` 또는 `~/iCloud~md~obsidian`) 또는 환경 변수 reference로 교체. verbose 본문은 핵심만 retain — measurement table + 결론 + Limitations.
+  - 검증: `git grep "C:\\\\Users\\\\admin"` 0건 + `git grep "iCloud~md~obsidian"` 0건. 각 research file LOC ≤ 250.
+  - Files: `docs/research/*.md`.
+
+- [ ] **SS. docs/specs/* audit (privacy + verbose)**
+  - acceptance: docs/specs/* audit — privacy / verbose / unnecessary cross-ref 점검. spec 본문은 acceptance criterion + 결정 근거만 retain, 결과 narrative는 implementation-plan으로 이동. 사용자 정보 노출 0건 확인.
+  - 검증: `git grep "C:\\\\Users\\\\admin"` 0건 + 각 spec file LOC ≤ 300.
+  - Files: `docs/specs/*.md`.
+
+- [ ] **TT. docs/ralph/* audit (verbose + 중복)**
+  - acceptance: docs/ralph/* (prompt-plan / prompt-build / project-ops / guardrails / implementation-plan) audit — CLAUDE.md와 중복 박힌 spec 본문 정리 (prompt-build.md § 0 Orientation의 CLAUDE.md / spec-architecture.md 명시는 retain). guardrails.md G-001~G-016 entry는 압축 — 각 entry 1 paragraph 이내. implementation-plan.md는 task 자체가 본질이라 verbose retain (감축 대상 아님).
+  - 검증: prompt-plan/prompt-build/project-ops/guardrails 각 LOC ≤ 200. CLAUDE.md와 중복 0건 확인 (`git grep` cross-check).
+  - Files: `docs/ralph/{prompt-plan.md, prompt-build.md, project-ops.md, guardrails.md}`. (implementation-plan.md 제외 — 본질적 verbose).
+
 ## 의존 순서
 
 ```
@@ -346,6 +385,9 @@ Z → CC (sibling test trees 정리)
 {AA, Z} → DD (pipeline module 분할은 AA의 enum 변경 수용 + Z sibling 정책 정합)
 DD → {EE, FF, GG, HH, II, JJ, KK} (clean-context audit follow-up — DD 분할 결과 위에서 cleanup + spec 명시)
 KK → {LL, MM} (cleanup — tmp/ 정리 + 외부 worktree 제거)
+{LL, MM} → NN (Phase 5.13.1 종료 후 Phase 5.14 진입)
+NN → OO (CLAUDE.md privacy 제거 후 slim)
+OO → {PP, QQ, RR, SS, TT} (CLAUDE.md slim 후 다른 md 병렬 audit)
 ```
 
 ralph build mode 진행 권장 순서:
@@ -364,3 +406,4 @@ ralph build mode 진행 권장 순서:
 13. AA → CC → DD (Phase 5.13 plumbing follow-up + sibling cleanup)
 14. EE → FF → GG → HH → II → JJ → KK (Phase 5.13.1 clean-context audit follow-up)
 15. LL → MM (cleanup — tmp/ + 외부 worktree)
+16. NN → OO → {PP, QQ, RR, SS, TT} (Phase 5.14 md 자료 audit — privacy + verbose)
