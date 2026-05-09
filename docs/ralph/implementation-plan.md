@@ -105,7 +105,7 @@
   - acceptance: `.gitattributes`에 `binary` 명시된 file은 NUL byte 휴리스틱 무시 + raw bytes 해시. unit test (NUL byte 0개 binary fixture).
   - spec: `spec-hash-and-normalize.md` § Normalize 규칙.
 
-- [ ] **K4. `.gitattributes` 우선순위 정합 검증**
+- [~] **K4. `.gitattributes` 우선순위 정합 검증**
   - acceptance: project root `.gitattributes` < sub-directory `.gitattributes` < line-level pattern 마지막 매칭 winner 정합. unit test로 검증 (3-level fixture).
   - spec: `spec-hash-and-normalize.md` § `.gitattributes` 파서.
 
