@@ -56,3 +56,8 @@
   - 영구 signal (즉시 [!] + 별도 G-NNN 신규): gh stderr `HTTP 401`(인증 만료, 사람 회복 필요), `gh: command not found`/`Command::new` IO err(미설치), spec/code 정합 충돌, parse error 등.
 - **auto-recovery**: G-015로 [!] 마크된 task는 `prompt-build.md` § 1 [!] auto-recovery 룰에 따라 다음 iteration 자동 [!]→[ ] reset. 사람 개입 0. 영구 사유는 사람 대기.
 - **경계 모호 case**: stderr 패턴이 transient/permanent 분류 모호한 경우(예: gh `HTTP 503` 단발 vs backend 영구 issue). default는 transient retry 시도(N=3 + 30s backoff). 3회 실패 시 [!] + commit message에 stderr 본문 인용(grep 가능 형태). 사람이 패턴 보고 G-015 substring 추가 또는 새 G-NNN 정의 후 task reset.
+
+## G-016: validation은 `cargo fmt --check`, 절대 bare `cargo fmt` 아님
+- **문제**: `cargo fmt`는 silent-rewrite (인플레이트만 하고 exit 0). LOC 게이트 직전 1~2줄 여유인 file은 bare `cargo fmt` 통과 + `cargo fmt --check` 실패 동시 발생 가능. 다음 iteration이 `cargo fmt --check` 돌리는 순간 fmt drift surface + 자동 fix 시 LOC 게이트 위반 cascade. 사례 (2026-05-09): GG task에서 `assert_promoted(result.as_ref(), "100644", FailedReason::GitattributesUnsupported);` 1줄 작성 (`fn_call_width=60` 초과) → bare fmt가 silent inflate 안 함 → GG가 fmt clean 보고 → 다음 iteration HH가 `--check`로 4줄 wrap 필요 검출 → 298 + 4 = 302 LOC > 300 게이트.
+- **해결**: **validation step 1은 무조건 `cargo fmt --check`**, 절대 `cargo fmt` 단독 아님. project-ops.md § Full Validation Pipeline § 1 "cargo fmt --check" 정확 mirror. fmt fix는 별도 step (drift detect → 수정 → 재검증). LOC 게이트 직전 file (≥ 290 LOC) 작업 시 `fn_call_width=60` 초과 호출 의심 grep으로 사전 검증.
+- **post-recovery**: 본 G로 [!] 마크된 task는 § 1 [!] auto-recovery 룰의 transient 영구 분류상 영구. 사람이 LOC 압박 해소 (file 분할 / 압축 / 리팩토링) 후 task reset.

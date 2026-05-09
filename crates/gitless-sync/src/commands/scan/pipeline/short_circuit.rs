@@ -228,7 +228,8 @@ mod tests {
         let nfd = empty_set();
         let cctx = cctx_with(&case, &nfd, &attrs);
         let result = try_short_circuit_failed("notes.txt", None, None, &cctx);
-        assert_promoted(result.as_ref(), "100644", FailedReason::GitattributesUnsupported);
+        let want = FailedReason::GitattributesUnsupported;
+        assert_promoted(result.as_ref(), "100644", want);
     }
 
     #[test]
