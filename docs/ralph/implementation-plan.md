@@ -215,7 +215,7 @@
 
 ### Phase 5.12 — Audit & cleanup (병렬 sub-agent, 모든 task 후 마지막 sweep)
 
-- [ ] **Z. 코드 스멜 audit + sibling test file 정리 (병렬 Explore sub-agent 6개)**
+- [~] **Z. 코드 스멜 audit + sibling test file 정리 (병렬 Explore sub-agent 6개)**
   - acceptance: 6 sub-agent로 코드베이스 audit 병렬 박음 — (1) Test 구조 (sibling test file / same file mod tests vs integration test 분류 / `#[cfg(test)]` 가드 일관) / (2) Module 구조 (`mod.rs` re-export only 패턴 / sub-module 분리 / file LOC 분포) / (3) Error handling (`Result` propagation / `failed_reason` enum 분류 / `?` + `Context` vs panic) / (4) Public API exposure (`pub` over-exposure / `pub(crate)`/`pub(super)` 가시성 정합) / (5) Rust 관용 위반 (`.clone()` 남용 / `&Vec<T>` vs `&[T]` / `&String` vs `&str` / `Vec::new()` + push vs `vec![]` macro / dead code) / (6) Panic escape hatch 우회 (`.expect("unreachable")` + `#[allow(clippy::expect_used)]` 같은 우회 패턴). audit 결과 `docs/research/code-smell-audit.md` 박음 (영역별 발견 list + 위반 위치).
   - **확정 fix 1건 즉시 박음** — `shared/gitattributes.rs` (296 LOC) → `shared/gitattributes/{mod.rs, parser.rs, classify.rs, matching.rs}` module 폴더 분할 + 각 sub-module에 `#[cfg(test)] mod tests` 박음 + `shared/gitattributes_tests.rs` + `shared/gitattributes_classify_tests.rs` 제거 (spec-architecture.md § 금지 패턴 정합).
   - 추가 fix는 audit list로 사람이 후행 task 박음 (CLAUDE.md ralph plan 모드 스킵 정책).
