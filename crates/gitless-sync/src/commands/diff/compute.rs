@@ -265,6 +265,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(windows)]
     fn compute_diff_normalizes_backslash_path_to_forward_slash() {
         let dir = TempDir::new().unwrap();
         let nested = dir.path().join("sub");
