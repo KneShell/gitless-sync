@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (Phase 5.14 task OO 완료)
+- Last updated: 2026-05-09 (Phase 5.14 task PP 완료)
 - Total tasks: 57
-- Completed: 52 / 57
+- Completed: 53 / 57
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -332,10 +332,11 @@
   - Files: `CLAUDE.md`.
   - 결과 (2026-05-09): CLAUDE.md 142 LOC → **45 LOC** (≤ 60 게이트 통과, 68% 감축). Current State 57 lines (line 3-59 ADR 0001~0008 + Phase 2/4/6/5 narrative + 자율 진행 통계 + 다음 진입점) → 1 paragraph pointer (`CHANGELOG.md` + `docs/adr/*.md` + `docs/research/*.md` + `docs/ralph/implementation-plan.md`). 사용자 취향 결정 13 lines (line 129-141, vertical slice / coverage 80% / init stdout / GraphQL default / rayon 정책 / 파일 ≤ 300 / Layer 정의 / panic 차단 / Event 영구 제외) → 1 line pointer (`docs/specs/spec-architecture.md` + 박제 expiration 정책 retain). Ralph Workflow + File Locations → 압축 pointer (각 1~3 line). Architecture directory tree (24 lines) → 1 paragraph + spec-architecture.md pointer. Pillars retention 검증 통과: 도구 본성 (3 bullets) + 비목표 (1 paragraph + Phase 5 8 함정 명시) + 검증된 함정 (3 bullets, tarpaulin Windows / 자체 hash / gh -F POST G-017) + Architecture vertical slice 요점 (1 paragraph) 모두 잔존. Privacy: `git grep "iCloud~md~obsidian" -- CLAUDE.md` 0건 + `git grep "C:\\Users\\admin" -- CLAUDE.md` 0건 (NN 후속 baseline 유지). validation: cargo fmt --check clean (G-016 mirror) + cargo clippy 0 warnings + cargo xtask check-line-limits (56 + 5 within 300) + cargo xtask check-cycles (51 modules, 0 cycle / 0 cross-slice ref) + cargo machete clean + cargo test --workspace (318 lib + 43 integration + 49 xtask = 410 tests baseline 그대로) + tarpaulin은 G-012 spec-only 일반화 면제 (CLAUDE.md doc-only 코드 변동 0, baseline 유지 자동 통과). Status counter Completed 51 → 52 + Last updated 갱신.
 
-- [~] **PP. CHANGELOG.md slim — v0.2 entry verbose paragraph 정리**
+- [x] **PP. CHANGELOG.md slim — v0.2 entry verbose paragraph 정리**
   - acceptance: CHANGELOG.md v0.2 entry의 task별 결과 narrative paragraph 압축. semver-style (`## [0.2.0] - 2026-05-09` + `### Added/Changed/Removed/Fixed` 4개 sub-section) 표준 형식 따라 bullet으로 정리. 자세한 task별 결과는 `docs/ralph/implementation-plan.md` 본문에 이미 존재 — CHANGELOG는 user-facing summary만.
   - 검증: CHANGELOG.md LOC ≤ 100. 기존 v0.2 entry의 모든 user-facing 변경 (schema bump 1.0→1.1 / failed_reason enum 신규 / .gitattributes 화이트리스트 / encoding detect / NFC 정규화 / mode bit / LFS pointer / Windows long path / 8 도메인 함정) 모두 잔존 확인.
   - Files: `CHANGELOG.md`.
+  - 결과 (2026-05-09): CHANGELOG.md 159 LOC → **76 LOC** (≤ 100 게이트 통과, 52% 감축). v0.2 entry 84 lines (line 12-95, Pitfall handling 13 bullet + Schema 3 bullet + Dependencies 2 + Specs 1 + Research 6 + CI gate 1 + Changed 3 + Fixed 1 + Verified 4 + Known limitations 3) → **39 lines** (Added 8 bullet + Changed 3 + Fixed 1 + Verified 3 + Known limitations 3) Keep a Changelog 표준 sub-section 정합. v0.1 entry 63 lines → **30 lines** (CLI/분류/Hash/GitHub API/Quality Gates 5 bullet + Architecture decisions 1 + Verified 2 + Known limitations 1 + Excluded 1) cascade 정리 (전체 LOC 게이트 만족 위해 minimal touch). Unreleased section 4 lines → 3 lines ("Phase 5 audit sweep (task Z)" 잔존 narrative 제거 — Z 이미 완료, 미정 Phase 7+ 만 명시). Retention 검증 통과: schema_version v1.1 명시 (line 21) + failed_reason 4건 출현 + gitattributes/encoding_rs/NFC/long_path/LFS/BOM 12건 출현 + 8 핵심 함정 (NFC/case_collision/encoding/submodule/symlink/empty file/executable/`.gitattributes`) + 추가 함정 4건 (UTF-8/16 BOM/LFS pointer/Windows long path/`.gitignore`) + .gitattributes 화이트리스트 5 entry 명시 + mode bit 4-digit octal 명시 모두 잔존. validation: cargo fmt --check clean (G-016 mirror, doc-only 변동 0) + cargo clippy 0 warnings + cargo xtask check-line-limits (56 + 5 within 300) + cargo xtask check-cycles (51 modules, 0 cycle / 0 cross-slice ref) + cargo machete clean + cargo test --workspace (318 lib + 43 integration + 49 xtask = 410 tests baseline 그대로) + tarpaulin은 G-012 spec-only 일반화 면제 (CHANGELOG.md doc-only 코드 변동 0, baseline 유지 자동 통과). Status counter Completed 52 → 53 + Last updated 갱신.
 
 - [ ] **QQ. ADR (0001~0009) audit + slim**
   - acceptance: ADR 0001~0009 audit — verbose / 사용자 정보 노출 / sensitive info 점검. ADR 표준 형식 (Context / Decision / Consequences) 따라 narrative paragraph 압축. 측정 결과 (예: ADR 0003 rayon speedup 4.86x / ADR 0006 GraphQL 1.73x)는 research file로 이동 + ADR은 결정 근거만 retain. file별 LOC 200 이내.
