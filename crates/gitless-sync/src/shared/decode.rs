@@ -135,16 +135,65 @@ mod tests {
     #[test]
     fn try_decode_text_preserves_raw_bytes_for_hashing() {
         // (b) policy: detection must not perturb the bytes that flow into
-        // the hash. Same raw EUC-KR file on local + remote → same blob hash
-        // regardless of detection variant.
+        // the hash. Three encodings exercise distinct encoding_rs decoder
+        // paths (EUC-KR/CP949 stateful · Shift_JIS lead+trail multi-byte ·
+        // Windows-1252 single-byte table) — input diversity ≈ codepath
+        // diversity, not tautology.
         use crate::shared::hash::blob_hash;
-        let euc_kr_local = [0xC7u8, 0xD1, 0xB1, 0xDB];
-        let euc_kr_remote = [0xC7u8, 0xD1, 0xB1, 0xDB];
-        let hash_before = blob_hash(&euc_kr_local);
-        let _ = try_decode_text(&euc_kr_local);
-        let hash_after = blob_hash(&euc_kr_local);
-        assert_eq!(hash_before, hash_after);
-        assert_eq!(blob_hash(&euc_kr_local), blob_hash(&euc_kr_remote));
+        let cases: &[&[u8]] = &[
+            &[0xC7, 0xD1, 0xB1, 0xDB], // EUC-KR "한글"
+            &[0x82, 0xA0],             // Shift_JIS "あ"
+            &[0xA9, 0xAE, 0xE9],       // Latin-1 © ® é
+        ];
+        for raw in cases {
+            let local = raw.to_vec();
+            let remote = raw.to_vec();
+            let hash_before = blob_hash(&local);
+            let _ = try_decode_text(&local);
+            let hash_after = blob_hash(&local);
+            assert_eq!(hash_before, hash_after, "decode mutated bytes for {raw:?}");
+            assert_eq!(
+                blob_hash(&local),
+                blob_hash(&remote),
+                "identical raw bytes diverged on hash for {raw:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn prepare_for_hash_preserves_non_utf8_raw_bytes_via_pipeline() {
+        // 변환 시나리오 — decode + normalize boundary. Non-UTF-8 raw bytes
+        // pass through `prepare_for_hash` (default policy, no .gitattributes)
+        // unchanged for hashing. NUL-free non-UTF-8 inputs go through the
+        // text-normalize branch — no `\r\n` so output == input == hash input.
+        // Local + remote with identical raw bytes → identical blob_hash via
+        // the same chain a real scan traverses.
+        use crate::shared::gitattributes::GitAttributes;
+        use crate::shared::hash::blob_hash;
+        use crate::shared::normalize::prepare_for_hash;
+        use std::sync::Arc;
+
+        let attrs = Arc::new(GitAttributes::default());
+        let cases: &[(&[u8], &str)] = &[
+            (&[0xC7, 0xD1, 0xB1, 0xDB], "ko/notes.txt"), // EUC-KR
+            (&[0x82, 0xA0], "ja/letter.txt"),            // Shift_JIS
+            (&[0xA9, 0xAE, 0xE9], "eu/symbols.txt"),     // Latin-1
+        ];
+        for (raw, path) in cases {
+            let (local_prep, local_bin) = prepare_for_hash(raw, false, &attrs, path);
+            let (remote_prep, remote_bin) = prepare_for_hash(raw, false, &attrs, path);
+            assert_eq!(local_prep, remote_prep, "prepare diverged for {path}");
+            assert_eq!(local_bin, remote_bin, "is_binary diverged for {path}");
+            assert_eq!(
+                local_prep, *raw,
+                "prepare mutated NUL-free non-UTF-8 raw bytes for {path}"
+            );
+            assert_eq!(
+                blob_hash(&local_prep),
+                blob_hash(&remote_prep),
+                "blob_hash diverged on identical raw bytes for {path}"
+            );
+        }
     }
 
     #[test]
