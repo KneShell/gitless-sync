@@ -1,22 +1,19 @@
 //! `.gitattributes` parser — working tree only.
 //!
 //! Loads project root + sub-directory `.gitattributes` files in a single pass
-//! and exposes raw per-line attributes via [`GitAttributes::match_path`]. The
-//! K1 task scope: parse + raw match. Whitelist mapping (`AttributeMatch` enum)
-//! and last-wins-per-attribute reduction live in K1.5/K2.
+//! and exposes raw per-line attributes via [`GitAttributes::match_path`].
+//! K1.5 layers [`AttributeMatch`] + [`GitAttributes::classify_path`] on top
+//! to reduce a path's matched attributes to one whitelist bucket. K2 wires
+//! the result into `prepare_for_hash`.
 //!
 //! See `docs/specs/spec-hash-and-normalize.md` § `.gitattributes` 파서 and
 //! `docs/specs/spec-config.md` § 위치 정책.
 //!
-//! Divergence from `.gitattributes(5)`:
-//! - Lines whose pattern token starts with `!` (forbidden negation) are
-//!   silently skipped. Attribute *tokens* prefixed with `!` (e.g. `!text`)
-//!   are still parsed correctly as [`RawAttribute::Unspecified`].
-//! - Trailing-slash directory patterns (`docs/`) match recursively because
-//!   we reuse `ignore::gitignore::GitignoreBuilder`. K1 acceptance pins
-//!   "gitignore-style glob"; revisit in K3/K4 if vault dogfooding regresses.
-//! - Whitespace-escaped tokens (`foo\ bar text=auto`) are not handled —
-//!   `split_whitespace` treats the backslash as a literal.
+//! Divergence from `.gitattributes(5)`: pattern lines starting with `!`
+//! (forbidden negation) are silently skipped — attribute *tokens* prefixed
+//! with `!` (e.g. `!text`) still parse correctly. Trailing-slash directory
+//! patterns match recursively (gitignore style); whitespace-escaped tokens
+//! (`foo\ bar`) are not handled. Revisit in K3/K4 if dogfooding regresses.
 #![allow(dead_code)]
 
 use std::fs;
@@ -104,7 +101,7 @@ impl GitAttributes {
 
     /// Every attribute matching `path` (working-tree-relative, forward
     /// slash). Order: shallowest file first, lines top-to-bottom — K1.5
-    /// iterates and applies last-wins-per-attribute.
+    /// iterates and applies whitelist precedence + last-wins.
     #[must_use]
     pub fn match_path(&self, path: &str) -> Vec<RawAttribute> {
         let mut acc = Vec::new();
@@ -125,9 +122,83 @@ impl GitAttributes {
         acc
     }
 
+    /// Reduce all attributes matching `path` into a single
+    /// [`AttributeMatch`] hash-mode bucket. Precedence (pinned K1.5):
+    /// (1) any `filter=lfs` → [`AttributeMatch::LfsPointer`] (presence is
+    /// authoritative on canonical git-lfs lines like `*.psd filter=lfs
+    /// diff=lfs merge=lfs -text`); (2) any non-whitelist attribute →
+    /// [`AttributeMatch::Unsupported`] with the first non-whitelist name —
+    /// fires even when a whitelist attribute also matches; (3) otherwise
+    /// last-wins among the four hash-mode whitelist variants; (4) empty
+    /// match → [`AttributeMatch::Unspecified`] (v0.1 default in K2).
+    #[must_use]
+    pub(crate) fn classify_path(&self, path: &str) -> AttributeMatch {
+        classify_raw_attributes(&self.match_path(path))
+    }
+
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.files.is_empty()
+    }
+}
+
+/// Whitelisted hash-mode classification, derived from `.gitattributes`
+/// matches via [`GitAttributes::classify_path`]. K2 routes each variant to
+/// a `prepare_for_hash` branch (text=auto / binary / eol=lf / eol=crlf /
+/// LFS pointer / v0.1 default / failed-with-reason).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AttributeMatch {
+    TextAuto,
+    Binary,
+    EolLf,
+    EolCrlf,
+    LfsPointer,
+    Unspecified,
+    Unsupported { attribute_name: String },
+}
+
+fn classify_raw_attributes(raws: &[RawAttribute]) -> AttributeMatch {
+    let mut last_whitelist: Option<AttributeMatch> = None;
+    let mut first_unsupported: Option<String> = None;
+    for raw in raws {
+        match whitelist_match(raw) {
+            Some(AttributeMatch::LfsPointer) => return AttributeMatch::LfsPointer,
+            Some(matched) => last_whitelist = Some(matched),
+            None => {
+                if first_unsupported.is_none() {
+                    first_unsupported = Some(unsupported_name(raw));
+                }
+            }
+        }
+    }
+    if let Some(name) = first_unsupported {
+        return AttributeMatch::Unsupported {
+            attribute_name: name,
+        };
+    }
+    last_whitelist.unwrap_or(AttributeMatch::Unspecified)
+}
+
+fn whitelist_match(raw: &RawAttribute) -> Option<AttributeMatch> {
+    match raw {
+        RawAttribute::Set(name) if name == "binary" => Some(AttributeMatch::Binary),
+        RawAttribute::KeyValue { name, value } => match (name.as_str(), value.as_str()) {
+            ("text", "auto") => Some(AttributeMatch::TextAuto),
+            ("eol", "lf") => Some(AttributeMatch::EolLf),
+            ("eol", "crlf") => Some(AttributeMatch::EolCrlf),
+            ("filter", "lfs") => Some(AttributeMatch::LfsPointer),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn unsupported_name(raw: &RawAttribute) -> String {
+    match raw {
+        RawAttribute::Set(name)
+        | RawAttribute::Unset(name)
+        | RawAttribute::Unspecified(name)
+        | RawAttribute::KeyValue { name, .. } => name.clone(),
     }
 }
 
@@ -219,3 +290,7 @@ fn parse_attribute(token: &str) -> RawAttribute {
 #[cfg(test)]
 #[path = "gitattributes_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "gitattributes_classify_tests.rs"]
+mod classify_tests;
