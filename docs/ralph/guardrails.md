@@ -36,8 +36,7 @@
 
 ## G-011: GitHub abuse detection / 동시 요청 제한
 - **문제**: GitHub은 burst가 큰 동시 요청에 abuse detection을 발동시켜 일시 차단할 수 있다. rayon으로 commits API 병렬 호출 시 무제한으로 풀면 위험.
-- **해결**: 동시 요청 수 = **8** (default). rayon thread pool 크기를 명시 제어: `rayon::ThreadPoolBuilder::new().num_threads(8).build().unwrap().install(|| paths.par_iter()...)` 또는 동등 수단. burst 시 server 측 throttle (429 응답) 가능성 있으나 exponential backoff은 v0.1 비목표 — `GitlessError::Http(...)`로 매핑 후 즉시 종료. 동시 요청 수 변경 시 본 G와 `spec-github-api.md` § 병렬 호출 정책 + ADR 0003 동시 갱신.
-- **ADR 0003 (2026-05-07) confirmed**: rayon 유지 결정. M5a 측정(commit `5e95312`)에서 8 concurrent vs sequential 4.86x speedup 입증, abuse detection 0회 발동. cap = 8.
+- **해결**: 동시 요청 수 = **8** (default, ADR 0003 2026-05-07 confirmed — M5a 측정 8 concurrent vs sequential 4.86x speedup + abuse detection 0회 발동). rayon thread pool 크기를 명시 제어: `rayon::ThreadPoolBuilder::new().num_threads(8).build().unwrap().install(|| paths.par_iter()...)` 또는 동등 수단. burst 시 server 측 throttle (429 응답) 가능성 있으나 exponential backoff은 v0.1 비목표 — `GitlessError::Http(...)`로 매핑 후 즉시 종료. 동시 요청 수 변경 시 본 G와 `spec-github-api.md` § 병렬 호출 정책 + ADR 0003 동시 갱신.
 
 ## G-012: Coverage 게이트는 phase-final task 책임
 - **문제**: ralph build iteration의 step 4 (`cargo tarpaulin --engine llvm --workspace --out Stdout` ≥ 80%)는 phase 진행 중 다수 모듈이 `todo!()` 스텁 상태에서 자연스럽게 미달. 자기 task 내에서 80%를 끌어올릴 수단이 부재 (다른 task 파일 수정은 plan rule 위배).
@@ -59,5 +58,4 @@
 
 ## G-016: validation은 `cargo fmt --check`, 절대 bare `cargo fmt` 아님
 - **문제**: `cargo fmt`는 silent-rewrite (인플레이트만 하고 exit 0). LOC 게이트 직전 1~2줄 여유인 file은 bare `cargo fmt` 통과 + `cargo fmt --check` 실패 동시 발생 가능. 다음 iteration이 `cargo fmt --check` 돌리는 순간 fmt drift surface + 자동 fix 시 LOC 게이트 위반 cascade. 사례 (2026-05-09): GG task에서 `assert_promoted(result.as_ref(), "100644", FailedReason::GitattributesUnsupported);` 1줄 작성 (`fn_call_width=60` 초과) → bare fmt가 silent inflate 안 함 → GG가 fmt clean 보고 → 다음 iteration HH가 `--check`로 4줄 wrap 필요 검출 → 298 + 4 = 302 LOC > 300 게이트.
-- **해결**: **validation step 1은 무조건 `cargo fmt --check`**, 절대 `cargo fmt` 단독 아님. project-ops.md § Full Validation Pipeline § 1 "cargo fmt --check" 정확 mirror. fmt fix는 별도 step (drift detect → 수정 → 재검증). LOC 게이트 직전 file (≥ 290 LOC) 작업 시 `fn_call_width=60` 초과 호출 의심 grep으로 사전 검증.
-- **post-recovery**: 본 G로 [!] 마크된 task는 § 1 [!] auto-recovery 룰의 transient 영구 분류상 영구. 사람이 LOC 압박 해소 (file 분할 / 압축 / 리팩토링) 후 task reset.
+- **해결**: **validation step 1은 무조건 `cargo fmt --check`**, 절대 `cargo fmt` 단독 아님. project-ops.md § Full Validation Pipeline § 1 "cargo fmt --check" 정확 mirror. fmt fix는 별도 step (drift detect → 수정 → 재검증). LOC 게이트 직전 file (≥ 290 LOC) 작업 시 `fn_call_width=60` 초과 호출 의심 grep으로 사전 검증. 본 G로 [!] 마크된 task는 § 1 [!] auto-recovery의 영구 분류상 영구 (사람이 LOC 압박 해소 — file 분할 / 압축 / 리팩토링 후 task reset).
