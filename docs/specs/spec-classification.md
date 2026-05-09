@@ -75,6 +75,38 @@ scan 범위는 다음 ignore 룰의 합집합 외 path:
 
 ignored path는 비교 대상 자체에서 제외 — `summary` 카운트에도 포함 안 함. spec은 `spec-ignore-policy.md`.
 
+### Cascade priority (Phase 5.13.1 task FF)
+
+`Status::Failed` 격하는 두 단계로 나뉜다 — **pre-hash cascade**와 **post-read encoding**. 동일 path가 둘 다 surface 가능한 경우 항상 **cascade가 우선**이다.
+
+**Pre-hash cascade** — `commands/scan/pipeline/short_circuit.rs::try_short_circuit_failed`. local read 전에 path/mode/`.gitattributes` 메타만 보고 격하. 우선순위는 코드의 if-else chain 순서 그대로:
+
+| priority | reason | trigger |
+|---|---|---|
+| 1 | `nfd_collision` | `cctx.nfd_collisions` 멤버 |
+| 2 | `case_collision` | `cctx.case_collisions` 멤버 |
+| 3 | `long_path` | `long_path::is_invalid` (DOS 예약명 또는 260자+) |
+| 4 | `submodule` | `remote.mode == "160000"` |
+| 5 | `symlink` | `remote.mode == "120000"` 또는 `local.is_symlink` |
+| 6 | `lfs_pointer` | `.gitattributes` `AttributeMatch::LfsPointer` |
+| 7 | `gitattributes_unsupported` | `.gitattributes` `AttributeMatch::Unsupported` |
+
+위 7 arm 중 가장 먼저 매칭되는 reason이 surface — cascade는 단일 if-else chain으로 priority 1이 가장 강함. 두 arm이 동시 fire 가능한 fixture (예: priority 3 long_path + priority 6 lfs_pointer)는 priority 3이 surface. cascade는 이 우선순위를 코드 구조 자체로 enforce — 추가 정렬/감리 layer 없음.
+
+**Post-read encoding** — `commands/scan/hash_local.rs::try_hash_local`. cascade가 `None`을 반환해야만 진입. raw bytes 읽은 후 `try_decode_text` 결과가 `Utf16Bom` 또는 `Unknown`이면 `failed_reason: "encoding"` 마크.
+
+**Encoding은 cascade 외부 (구조적 priority)**:
+
+- **위치**: encoding detection은 raw read 이후에만 가능 (decoder 입력이 bytes 본체 필요). cascade는 raw read **전**에 동작 — 두 단계는 시점이 다르다.
+- **invariant**: cascade가 `Some(reason)` 반환 → `build_one_pre_entry`가 `try_hash_local` 호출 자체를 차단 → encoding은 영영 measure되지 않음. 즉 cascade 7 reason 중 어느 것이라도 surface하면 encoding은 같은 path에서 동시 surface 불가.
+- **의도**: cascade reason은 path/mode/`.gitattributes` 메타로 충분히 결정되는 함정 — local read 비용을 굳이 발생시킬 이유 없음. encoding은 본질적으로 raw read 결과 — cascade에 끼워 넣을 데이터가 없음 (`try_short_circuit_failed`의 `cctx`에 raw bytes 없음).
+
+**호출자가 알아야 할 사실**:
+- 동일 path에서 cascade reason과 encoding이 동시 가능한 fixture (예: `*.psd filter=lfs` + UTF-16 BOM raw bytes)에서는 항상 cascade reason이 wire JSON에 surface. encoding은 누락.
+- 이 priority는 spec 박제 — `try_short_circuit_failed` cascade arm 순서 변경 또는 encoding을 cascade 안으로 옮기는 변경은 spec § Cascade priority 갱신 동반.
+
+자세한 구현 정합은 `commands/scan/pipeline/{short_circuit, hash_pass}.rs` 참조. encoding 정책 본체는 `spec-domain-pitfalls.md` § Encoding 변환 시도.
+
 ## Acceptance Criteria
 - `[AUTO]` PRD 검증 시나리오 1: 양쪽 SHA 동일 → `Identical`.
 - `[AUTO]` PRD 검증 시나리오 2: 로컬 변경(원격 last_commit < 로컬 mtime) → `LocalOnlyChanged`.
@@ -85,3 +117,5 @@ ignored path는 비교 대상 자체에서 제외 — `summary` 카운트에도 
 - `[AUTO]` 양쪽 다른 SHA + `local_mtime == remote_last_commit_at` → `Drift` (G-005).
 - `[AUTO]` 양쪽 다른 SHA + 시간 정보 누락(한쪽 None) → `Drift` (시간 비교 불가).
 - `[AUTO]` 모든 케이스에 대해 unit test (`compare::tests::*`) 작성. 라인 커버리지에 기여.
+- `[AUTO]` Cascade priority — `pipeline/short_circuit.rs` cascade arm 순서가 spec § Cascade priority 표와 정합. priority 간 동시 fire 가능 fixture에서 상위 priority가 surface (예: priority 3 long_path > priority 6 lfs_pointer, priority 1 nfd_collision > priority 6 lfs_pointer). lock test는 `pipeline/short_circuit.rs::tests`.
+- `[AUTO]` Encoding cascade 외부 — `try_short_circuit_failed`가 LFS filter 매칭 path에서 `Some(LfsPointer)` 반환 → `build_one_pre_entry`가 `try_hash_local` 미호출 → encoding은 같은 path에서 동시 surface 불가. lock test는 `pipeline/short_circuit.rs::tests` (`lfs_pointer_via_cascade_locks_out_post_read_encoding`).
