@@ -63,7 +63,7 @@
   - acceptance: `github.rs::trees`에서 submodule entry skip 대신 `RemoteFile`에 mode 박음. `compare.rs`에서 submodule path → `Status::Failed` + `failed_reason: "submodule"`. JSON 출력에 mode bit (`160000`) 박음.
   - spec: `docs/specs/spec-domain-pitfalls.md` § Submodule + `spec-classification.md`.
 
-- [ ] **H. symlink (`120000`) detect-only**
+- [~] **H. symlink (`120000`) detect-only**
   - acceptance: `github.rs::trees`에서 symlink entry mode 박음. walker가 local symlink 발견 시 `Status::Failed` + `failed_reason: "symlink"`. JSON 출력에 mode bit (`120000`) 박음.
   - spec: `docs/specs/spec-domain-pitfalls.md` § Symlink + `spec-classification.md`.
 
