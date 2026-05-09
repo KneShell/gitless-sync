@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 34
-- Completed: 9 / 34
+- Completed: 10 / 34
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -59,7 +59,7 @@
 
 ### Phase 5.4 — submodule / symlink / LFS pointer / Windows long path
 
-- [~] **G. submodule (`160000`) detect-only**
+- [x] **G. submodule (`160000`) detect-only**
   - acceptance: `github.rs::trees`에서 submodule entry skip 대신 `RemoteFile`에 mode 박음. `compare.rs`에서 submodule path → `Status::Failed` + `failed_reason: "submodule"`. JSON 출력에 mode bit (`160000`) 박음.
   - spec: `docs/specs/spec-domain-pitfalls.md` § Submodule + `spec-classification.md`.
 

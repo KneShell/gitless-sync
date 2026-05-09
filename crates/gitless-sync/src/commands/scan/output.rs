@@ -3,7 +3,7 @@ use serde::Serialize;
 
 use super::compare::FileEntry;
 
-pub const SCHEMA_VERSION: &str = "1.0";
+pub const SCHEMA_VERSION: &str = "1.1";
 
 #[derive(Debug, Default, Serialize)]
 pub struct Summary {

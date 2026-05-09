@@ -19,6 +19,7 @@ pub enum Status {
 #[serde(rename_all = "snake_case")]
 pub enum FailedReason {
     CaseCollision,
+    Submodule,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -34,6 +35,7 @@ pub struct FileEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_last_commit_at: Option<DateTime<Utc>>,
     pub is_binary: bool,
+    pub mode: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failed_reason: Option<FailedReason>,
 }

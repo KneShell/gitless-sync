@@ -56,10 +56,9 @@ pub(super) fn assemble_entries<C: GhClient + Sync>(
     Ok(finalize_entries(pending, &commit_map))
 }
 
-/// Pass 1: hash local files, no Commits API call. Hash failures map to
-/// [`PreState::Failed`] with `failed_reason: None` (v1.0 `hash_io` default).
-/// Paths in `collisions` short-circuit to [`FailedReason::CaseCollision`]
-/// without invoking [`try_hash_local`].
+/// Pass 1: hash local files, no Commits API call. Delegates per-path
+/// composition to [`build_one_pre_entry`] so the loop body stays small and
+/// the case-collision / submodule short-circuits remain isolated.
 fn build_pre_entries(
     all_paths: &BTreeSet<&str>,
     local_map: &HashMap<&str, &LocalFile>,
@@ -67,55 +66,89 @@ fn build_pre_entries(
     keep_bom: bool,
     collisions: &HashSet<String>,
 ) -> Vec<PreEntry> {
-    let mut pending: Vec<PreEntry> = Vec::with_capacity(all_paths.len());
-    for path in all_paths {
-        let local = local_map.get(path).copied();
-        let remote = remote_map.get(path).copied();
-        let remote_sha = remote.map(|r| r.sha.clone());
+    all_paths
+        .iter()
+        .map(|path| {
+            let local = local_map.get(path).copied();
+            let remote = remote_map.get(path).copied();
+            build_one_pre_entry(path, local, remote, keep_bom, collisions)
+        })
+        .collect()
+}
 
-        if collisions.contains(*path) {
-            pending.push(PreEntry {
-                path: (*path).to_string(),
-                state: PreState::Failed {
-                    remote_sha,
-                    local_mtime: local.map(|lf| lf.mtime),
-                    failed_reason: Some(FailedReason::CaseCollision),
-                },
-            });
-            continue;
-        }
+/// Compose one [`PreEntry`]. Short-circuits in priority order:
+///   1. `collisions.contains(path)` → `FailedReason::CaseCollision`
+///   2. `remote.mode == "160000"` → `FailedReason::Submodule`
+///      (content compare vs a commit-pointer SHA is meaningless)
+///   3. local present + hash ok → `Hashed`
+///   4. local present + hash err → `Failed { failed_reason: None }`
+///      (v1.0 `hash_io` default, no explicit reason)
+///   5. local absent → `Hashed { local_sha: None }` (remote-only)
+fn build_one_pre_entry(
+    path: &str,
+    local: Option<&LocalFile>,
+    remote: Option<&RemoteFile>,
+    keep_bom: bool,
+    collisions: &HashSet<String>,
+) -> PreEntry {
+    let remote_sha = remote.map(|r| r.sha.clone());
+    let mode = remote.map_or_else(|| "100644".to_string(), |r| r.mode.clone());
+    let local_mtime = local.map(|lf| lf.mtime);
 
-        let state = match local {
-            Some(lf) => match try_hash_local(&lf.absolute_path, keep_bom) {
-                Ok((sha, is_binary)) => PreState::Hashed {
-                    local_sha: Some(sha),
-                    remote_sha,
-                    local_mtime: Some(lf.mtime),
-                    is_binary,
-                },
-                Err(err) => {
-                    eprintln!("warning: failed to hash {path}: {err}");
-                    PreState::Failed {
-                        remote_sha,
-                        local_mtime: Some(lf.mtime),
-                        failed_reason: None,
-                    }
-                }
-            },
-            None => PreState::Hashed {
-                local_sha: None,
+    if collisions.contains(path) {
+        return PreEntry {
+            path: path.to_string(),
+            mode,
+            state: PreState::Failed {
                 remote_sha,
-                local_mtime: None,
-                is_binary: false,
+                local_mtime,
+                failed_reason: Some(FailedReason::CaseCollision),
             },
         };
-
-        pending.push(PreEntry {
-            path: (*path).to_string(),
-            state,
-        });
     }
-    pending
+
+    if remote.is_some_and(|r| r.mode == "160000") {
+        return PreEntry {
+            path: path.to_string(),
+            mode,
+            state: PreState::Failed {
+                remote_sha,
+                local_mtime,
+                failed_reason: Some(FailedReason::Submodule),
+            },
+        };
+    }
+
+    let state = match local {
+        Some(lf) => match try_hash_local(&lf.absolute_path, keep_bom) {
+            Ok((sha, is_binary)) => PreState::Hashed {
+                local_sha: Some(sha),
+                remote_sha,
+                local_mtime,
+                is_binary,
+            },
+            Err(err) => {
+                eprintln!("warning: failed to hash {path}: {err}");
+                PreState::Failed {
+                    remote_sha,
+                    local_mtime,
+                    failed_reason: None,
+                }
+            }
+        },
+        None => PreState::Hashed {
+            local_sha: None,
+            remote_sha,
+            local_mtime: None,
+            is_binary: false,
+        },
+    };
+
+    PreEntry {
+        path: path.to_string(),
+        mode,
+        state,
+    }
 }
 
 /// Pass 2 input: keep only paths whose SHA differs on both sides.
@@ -134,7 +167,7 @@ fn extract_commit_paths(pending: &[PreEntry]) -> Vec<String> {
 }
 
 /// Pass 3: classify each pending entry and emit `FileEntry` rows in input
-/// (`BTreeSet`) order.
+/// (`BTreeSet`) order. Per-entry composition lives in [`pre_entry_to_file`].
 fn finalize_entries(
     pending: Vec<PreEntry>,
     commit_map: &HashMap<String, DateTime<Utc>>,
@@ -144,61 +177,78 @@ fn finalize_entries(
     let mut failed_count = 0usize;
 
     for pre in pending {
-        let entry = match pre.state {
-            PreState::Failed {
-                remote_sha,
-                local_mtime,
-                failed_reason,
-            } => {
-                summary.failed += 1;
-                failed_count += 1;
-                FileEntry {
-                    path: pre.path,
-                    status: Status::Failed,
-                    local_sha: None,
-                    remote_sha,
-                    local_mtime,
-                    remote_last_commit_at: None,
-                    is_binary: false,
-                    failed_reason,
-                }
-            }
-            PreState::Hashed {
-                local_sha,
-                remote_sha,
-                local_mtime,
-                is_binary,
-            } => {
-                let remote_last_commit_at = commit_map.get(pre.path.as_str()).copied();
-                let status = classify(
-                    local_sha.as_deref(),
-                    remote_sha.as_deref(),
-                    local_mtime,
-                    remote_last_commit_at,
-                );
-                match status {
-                    Status::Identical => summary.identical += 1,
-                    Status::LocalOnlyChanged => summary.local_only_changed += 1,
-                    Status::RemoteOnlyChanged => summary.remote_only_changed += 1,
-                    Status::Drift => summary.drift += 1,
-                    Status::Failed => summary.failed += 1,
-                }
-                FileEntry {
-                    path: pre.path,
-                    status,
-                    local_sha,
-                    remote_sha,
-                    local_mtime,
-                    remote_last_commit_at,
-                    is_binary,
-                    failed_reason: None,
-                }
-            }
-        };
+        let entry = pre_entry_to_file(pre, commit_map, &mut summary, &mut failed_count);
         entries.push(entry);
     }
 
     (entries, summary, failed_count)
+}
+
+/// Convert one [`PreEntry`] into a [`FileEntry`], updating the shared
+/// `summary` / `failed_count` accumulators. Failed pre-entries skip the
+/// Commits API lookup and carry through `failed_reason` (e.g. submodule,
+/// case collision); hashed entries run [`classify`] against the matching
+/// commit date.
+fn pre_entry_to_file(
+    pre: PreEntry,
+    commit_map: &HashMap<String, DateTime<Utc>>,
+    summary: &mut Summary,
+    failed_count: &mut usize,
+) -> FileEntry {
+    let PreEntry { path, mode, state } = pre;
+    match state {
+        PreState::Failed {
+            remote_sha,
+            local_mtime,
+            failed_reason,
+        } => {
+            summary.failed += 1;
+            *failed_count += 1;
+            FileEntry {
+                path,
+                status: Status::Failed,
+                local_sha: None,
+                remote_sha,
+                local_mtime,
+                remote_last_commit_at: None,
+                is_binary: false,
+                mode,
+                failed_reason,
+            }
+        }
+        PreState::Hashed {
+            local_sha,
+            remote_sha,
+            local_mtime,
+            is_binary,
+        } => {
+            let remote_last_commit_at = commit_map.get(path.as_str()).copied();
+            let status = classify(
+                local_sha.as_deref(),
+                remote_sha.as_deref(),
+                local_mtime,
+                remote_last_commit_at,
+            );
+            match status {
+                Status::Identical => summary.identical += 1,
+                Status::LocalOnlyChanged => summary.local_only_changed += 1,
+                Status::RemoteOnlyChanged => summary.remote_only_changed += 1,
+                Status::Drift => summary.drift += 1,
+                Status::Failed => summary.failed += 1,
+            }
+            FileEntry {
+                path,
+                status,
+                local_sha,
+                remote_sha,
+                local_mtime,
+                remote_last_commit_at,
+                is_binary,
+                mode,
+                failed_reason: None,
+            }
+        }
+    }
 }
 
 /// Hash result + remote SHA carried between pass 1 (hashing) and pass 3
@@ -219,6 +269,10 @@ enum PreState {
 
 struct PreEntry {
     path: String,
+    /// Tree mode bit propagated from the remote tree entry, defaulting to
+    /// `"100644"` for local-only paths (no remote mode to copy). Carried
+    /// through `finalize_entries` into `FileEntry::mode` (v1.1 schema).
+    mode: String,
     state: PreState,
 }
 
