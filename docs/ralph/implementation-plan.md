@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 6.1 VV 완료 — CI 안정성 1차 검증, 8 successful runs retro, G-018 surface 0건)
-- Total tasks: 59
-- Completed: 59 / 59
+- Last updated: 2026-05-10 (Phase 6.1 진행 — UU/VV 완료, WW 추가 — CI Linux runner 전환)
+- Total tasks: 60
+- Completed: 59 / 60
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -378,6 +378,11 @@
   - Files: `.github/workflows/ci.yml` (필요 시 갱신), `README.md` (badge 선택), `docs/ralph/guardrails.md` (G-018 신규 시).
   - 결과 (2026-05-10): **retrospective 검증 채택** (advisor 권고 — 새 1회 CI run을 기다리지 않고 누적된 8건 successful runs 자체가 "1차 안정성 검증"의 load-bearing 증거). `gh run list --limit 15 --workflow ci.yml`로 2026-05-08 23:22Z ~ 2026-05-09 14:24Z 사이 11 runs 감사 — **8 successful** (2026-05-09 14:24Z `25603434659` Phase 5.14 fix / 2026-05-09 13:13Z `25602014425` Phase 5.13.1 / 2026-05-09 10:11Z `25598532542` 한국어 cleanup / 2026-05-09 03:29Z `25590489540` 0e entry / 2026-05-09 00:05Z `25585619896` xtask + machete / 2026-05-08 23:56Z `25585385615` LFS conflict fix / 2026-05-08 23:51Z `25585236292` clean-context / 2026-05-08 23:22Z `25584353246` vague 결론) + **3 cancelled** (concurrency 정책 정합 — `cancel-in-progress: true`로 다음 push가 이전 run 중단, ci.yml line 9-11 정합, instability 아님). **Tarpaulin coverage 80%+ stability**: `25603434659` 90.57% (932/1029) / `25602014425` 90.57% (932/1029) / `25598532542` 90.66% (942/1039) — 3 latest 측정 variance < 0.1pp + 모두 80% gate 여유 (`--fail-under 80` deny 통과). LLVM version 22.1.2 / 22.1.4 (windows-latest runner 분포, drift 정상). tarpaulin v0.35.4 caching 정합 (Swatinem/rust-cache@v2 hit). **G-018 surface 0건**: 8 successful runs 전체 grep `warning:` / `panicked` / `thread.*panic` / `FAILED` / `error\[` patterns 0건 (DEP0040 punycode deprecation은 GitHub Actions setup-node 인프라 noise, 본 프로젝트 무관). non-zero exit code transient 0건 + thread safety panic 0건 + retry 0건 — G-007 "LLVM 백엔드는 함정 있음" 가설은 본 프로젝트 scope에서 **반증** (no flake observed over 8 runs). **README CI badge 미추가**: repo `KneShell/gitless-sync`는 private (`gh api repos/... .visibility == "private"`), `gh api .../actions/workflows .badge_url == "https://github.com/KneShell/gitless-sync/workflows/CI/badge.svg"` 그대로 사용 시 unauthenticated viewer에 404 → broken image render. 새 viewer가 README 클릭 시 깨진 badge 노출은 해롭다 (advisor 권고 "broken badge worse than no badge"). 선택 acceptance criterion은 "선택" 명시되어 있어 skip 정합. **`.github/workflows/ci.yml` 갱신 0건**: 현 7 step pipeline (fmt-check / clippy / xtask check-line-limits / xtask check-cycles / cargo machete / cargo test / cargo tarpaulin --fail-under 80) + PR-only public-api diff 모두 정합, project-ops § Full Validation Pipeline order mirror, 변경 불필요. **G-018 entry 미작성**: surface 사례 0건이므로 acceptance 정합. validation: cargo fmt --check clean (G-016 mirror) + cargo clippy 0 warnings + cargo xtask check-line-limits (56 + 5 within 300) + cargo xtask check-cycles (51 modules, 0 cycle / 0 cross-slice ref) + cargo machete clean + cargo test --workspace **410 tests pass** (UU baseline 그대로) + tarpaulin G-012 spec-only 일반화 면제 (코드 변동 0, baseline 유지 자동 통과). 다른 task scope 침범 없음 (CLAUDE.md/CHANGELOG/ci.yml/README/code/spec 미변경, `Files` listed scope 정합 — guardrails는 G-018 미작성으로 미수정). Status counter Completed 58 → 59 (Phase 6.1 종료, 59/59 task 모두 [x]).
 
+- [~] **WW. CI runner Linux 전환 (Windows → Linux)**
+  - acceptance: 사용자 명시 (2026-05-10) — CLAUDE.md "Windows 1차"는 실행 환경 한정 (사용자 도구 사용 환경), CI 환경과 분리 합리적. `.github/workflows/ci.yml` `runs-on: windows-latest` → `runs-on: ubuntu-latest` 전환. tarpaulin engine `--engine llvm` retain (cross-platform 정합, project-ops.md 명시 그대로 — Linux LLVM 백엔드도 정상 지원). 비용 (private 전환 시 Windows 2배) + cold-start (Windows ~3~5min vs Linux ~30s) 둘 다 Linux 우위.
+  - 검증: 본 세션 직접 Edit + commit + push origin main → `gh run watch <run-id>` Linux CI run 1회 성공 확인 + tarpaulin coverage 80%+ 통과. 사례 surface (Linux-specific 함정) 시 G-018 신규 entry 작성. README badge skip (VV result `private repo 404 unauthenticated` 정합).
+  - Files: `.github/workflows/ci.yml`.
+
 ## 의존 순서
 
 ```
@@ -412,6 +417,7 @@ KK → {LL, MM} (cleanup — tmp/ 정리 + 외부 worktree 제거)
 NN → OO (CLAUDE.md privacy 제거 후 slim)
 OO → {PP, QQ, RR, SS, TT} (CLAUDE.md slim 후 다른 md 병렬 audit)
 TT → {UU, VV} (Phase 5.14 종료 후 Phase 6.1 v0.2.x cleanup 진입)
+{UU, VV} → WW (Phase 6.1 안에 묶음 — VV retrospective 후 사용자 명시 Linux 전환)
 ```
 
 ralph build mode 진행 권장 순서:
@@ -431,4 +437,4 @@ ralph build mode 진행 권장 순서:
 14. EE → FF → GG → HH → II → JJ → KK (Phase 5.13.1 clean-context audit follow-up)
 15. LL → MM (cleanup — tmp/ + 외부 worktree)
 16. NN → OO → {PP, QQ, RR, SS, TT} (Phase 5.14 md 자료 audit — privacy + verbose)
-17. UU → VV (Phase 6.1 v0.2.x cleanup — 박제 expiration 재검토 + CI 안정성)
+17. UU → VV → WW (Phase 6.1 v0.2.x cleanup — 박제 expiration 재검토 + CI 안정성 + Linux runner 전환)
