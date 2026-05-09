@@ -59,7 +59,7 @@
 
 ### Phase 5.4 — submodule / symlink / LFS pointer / Windows long path
 
-- [ ] **G. submodule (`160000`) detect-only**
+- [~] **G. submodule (`160000`) detect-only**
   - acceptance: `github.rs::trees`에서 submodule entry skip 대신 `RemoteFile`에 mode 박음. `compare.rs`에서 submodule path → `Status::Failed` + `failed_reason: "submodule"`. JSON 출력에 mode bit (`160000`) 박음.
   - spec: `docs/specs/spec-domain-pitfalls.md` § Submodule + `spec-classification.md`.
 
