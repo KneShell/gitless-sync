@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 34
-- Completed: 6 / 34
+- Completed: 7 / 34
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -45,7 +45,7 @@
 
 ### Phase 5.3 — encoding 변환 시도 (hash 입력 (b) 정책)
 
-- [~] **E. 인코딩 라이브러리 조사 + 채택**
+- [x] **E. 인코딩 라이브러리 조사 + 채택**
   - acceptance: `encoding_rs` (Mozilla, Recommended) vs `chardet` 평가. UTF-8 → 다른 인코딩 detect 정확도 + Rust ecosystem 정합 + license. `docs/research/encoding-library-eval.md` 박음. 결정 박음.
   - spec: 없음 (research).
 
