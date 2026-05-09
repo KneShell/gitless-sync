@@ -10,6 +10,13 @@
 //! 6. `.gitattributes` LFS (`AttributeMatch::LfsPointer`, task G1).
 //! 7. `.gitattributes` Unsupported (task K1.5 + AA).
 //!
+//! `Encoding` is structurally outside this cascade (Phase 5.13.1 task
+//! FF) — detection lives in `super::hash_local::try_hash_local` after
+//! a raw read, which only runs when this dispatch returns `None`. A
+//! `Some(reason)` here blocks `try_hash_local` so encoding cannot
+//! surface for the same path. See `spec-classification.md` § Cascade
+//! priority + `spec-domain-pitfalls.md` § Encoding 변환 시도.
+//!
 //! See `spec-domain-pitfalls.md` § Path 정규화 / Submodule / Symlink /
 //! LFS pointer / Windows long path / `.gitattributes` 화이트리스트.
 
@@ -97,16 +104,24 @@ mod tests {
         }
     }
 
+    fn cctx_with<'a>(
+        case: &'a HashSet<String>,
+        nfd: &'a HashSet<String>,
+        attrs: &'a Arc<GitAttributes>,
+    ) -> ClassifyContext<'a> {
+        ClassifyContext {
+            case_collisions: case,
+            nfd_collisions: nfd,
+            gitattr: attrs,
+        }
+    }
+
     #[test]
     fn nfd_collision_promotes_with_remote_mode() {
         let nfd: HashSet<String> = ["dup.txt".to_string()].into_iter().collect();
         let case = empty_set();
         let attrs = empty_attrs();
-        let cctx = ClassifyContext {
-            case_collisions: &case,
-            nfd_collisions: &nfd,
-            gitattr: &attrs,
-        };
+        let cctx = cctx_with(&case, &nfd, &attrs);
         let r = remote_file("dup.txt", "100644");
         let result = try_short_circuit_failed("dup.txt", None, Some(&r), &cctx);
         assert_eq!(
@@ -120,11 +135,7 @@ mod tests {
         let case: HashSet<String> = ["Foo.txt".to_string()].into_iter().collect();
         let nfd = empty_set();
         let attrs = empty_attrs();
-        let cctx = ClassifyContext {
-            case_collisions: &case,
-            nfd_collisions: &nfd,
-            gitattr: &attrs,
-        };
+        let cctx = cctx_with(&case, &nfd, &attrs);
         let r = remote_file("Foo.txt", "100644");
         let result = try_short_circuit_failed("Foo.txt", None, Some(&r), &cctx);
         assert_eq!(
@@ -138,11 +149,7 @@ mod tests {
         let case = empty_set();
         let nfd = empty_set();
         let attrs = empty_attrs();
-        let cctx = ClassifyContext {
-            case_collisions: &case,
-            nfd_collisions: &nfd,
-            gitattr: &attrs,
-        };
+        let cctx = cctx_with(&case, &nfd, &attrs);
         let r = remote_file("docs/CON.md", "100644");
         let result = try_short_circuit_failed("docs/CON.md", None, Some(&r), &cctx);
         assert_eq!(result, Some(("100644".to_string(), FailedReason::LongPath)));
@@ -153,11 +160,7 @@ mod tests {
         let case = empty_set();
         let nfd = empty_set();
         let attrs = empty_attrs();
-        let cctx = ClassifyContext {
-            case_collisions: &case,
-            nfd_collisions: &nfd,
-            gitattr: &attrs,
-        };
+        let cctx = cctx_with(&case, &nfd, &attrs);
         let path = "a".repeat(260);
         let r = remote_file(&path, "100644");
         let result = try_short_circuit_failed(&path, None, Some(&r), &cctx);
@@ -169,11 +172,7 @@ mod tests {
         let case = empty_set();
         let nfd = empty_set();
         let attrs = empty_attrs();
-        let cctx = ClassifyContext {
-            case_collisions: &case,
-            nfd_collisions: &nfd,
-            gitattr: &attrs,
-        };
+        let cctx = cctx_with(&case, &nfd, &attrs);
         let r = remote_file("vendor/lib", "160000");
         let result = try_short_circuit_failed("vendor/lib", None, Some(&r), &cctx);
         assert_eq!(
@@ -187,11 +186,7 @@ mod tests {
         let case = empty_set();
         let nfd = empty_set();
         let attrs = empty_attrs();
-        let cctx = ClassifyContext {
-            case_collisions: &case,
-            nfd_collisions: &nfd,
-            gitattr: &attrs,
-        };
+        let cctx = cctx_with(&case, &nfd, &attrs);
         let r = remote_file("link", "120000");
         let result = try_short_circuit_failed("link", None, Some(&r), &cctx);
         assert_eq!(result, Some(("120000".to_string(), FailedReason::Symlink)));
@@ -202,11 +197,7 @@ mod tests {
         let case = empty_set();
         let nfd = empty_set();
         let attrs = empty_attrs();
-        let cctx = ClassifyContext {
-            case_collisions: &case,
-            nfd_collisions: &nfd,
-            gitattr: &attrs,
-        };
+        let cctx = cctx_with(&case, &nfd, &attrs);
         let dir = TempDir::new().unwrap();
         let l = local_file("stale-link", dir.path(), true);
         let result = try_short_circuit_failed("stale-link", Some(&l), None, &cctx);
@@ -224,11 +215,7 @@ mod tests {
         let attrs = Arc::new(GitAttributes::load(dir.path()).unwrap());
         let case = empty_set();
         let nfd = empty_set();
-        let cctx = ClassifyContext {
-            case_collisions: &case,
-            nfd_collisions: &nfd,
-            gitattr: &attrs,
-        };
+        let cctx = cctx_with(&case, &nfd, &attrs);
         let result = try_short_circuit_failed("cover.psd", None, None, &cctx);
         assert_eq!(
             result,
@@ -247,11 +234,7 @@ mod tests {
         let attrs = Arc::new(GitAttributes::load(dir.path()).unwrap());
         let case = empty_set();
         let nfd = empty_set();
-        let cctx = ClassifyContext {
-            case_collisions: &case,
-            nfd_collisions: &nfd,
-            gitattr: &attrs,
-        };
+        let cctx = cctx_with(&case, &nfd, &attrs);
         let result = try_short_circuit_failed("notes.txt", None, None, &cctx);
         assert_eq!(
             result,
@@ -264,11 +247,7 @@ mod tests {
         let case = empty_set();
         let nfd = empty_set();
         let attrs = empty_attrs();
-        let cctx = ClassifyContext {
-            case_collisions: &case,
-            nfd_collisions: &nfd,
-            gitattr: &attrs,
-        };
+        let cctx = cctx_with(&case, &nfd, &attrs);
         let r = remote_file("plain.txt", "100644");
         let result = try_short_circuit_failed("plain.txt", None, Some(&r), &cctx);
         assert_eq!(result, None);
@@ -283,16 +262,38 @@ mod tests {
         let case: HashSet<String> = ["Foo.txt".to_string()].into_iter().collect();
         let nfd = empty_set();
         let attrs = empty_attrs();
-        let cctx = ClassifyContext {
-            case_collisions: &case,
-            nfd_collisions: &nfd,
-            gitattr: &attrs,
-        };
+        let cctx = cctx_with(&case, &nfd, &attrs);
         let r = remote_file("Foo.txt", "160000");
         let result = try_short_circuit_failed("Foo.txt", None, Some(&r), &cctx);
         assert_eq!(
             result,
             Some(("160000".to_string(), FailedReason::CaseCollision))
+        );
+    }
+
+    #[test]
+    fn lfs_pointer_via_cascade_locks_out_post_read_encoding() {
+        // Cascade-priority lock (Phase 5.13.1 task FF): `Encoding` lives
+        // in `try_hash_local` (post-read) and only fires when this
+        // dispatch returns `None`. A `Some(LfsPointer)` here blocks
+        // `build_one_pre_entry` from ever reaching `try_hash_local`, so
+        // encoding cannot surface for the same path — the cascade is
+        // byte-blind, so the LFS `.gitattributes` rule alone locks it.
+        // See spec-classification.md § Cascade priority.
+        let dir = TempDir::new().unwrap();
+        fs::write(
+            dir.path().join(".gitattributes"),
+            "*.psd filter=lfs diff=lfs merge=lfs -text\n",
+        )
+        .unwrap();
+        let attrs = Arc::new(GitAttributes::load(dir.path()).unwrap());
+        let case = empty_set();
+        let nfd = empty_set();
+        let cctx = cctx_with(&case, &nfd, &attrs);
+        let result = try_short_circuit_failed("cover.psd", None, None, &cctx);
+        assert_eq!(
+            result,
+            Some(("100644".to_string(), FailedReason::LfsPointer))
         );
     }
 }

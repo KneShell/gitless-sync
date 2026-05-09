@@ -102,6 +102,8 @@ pub fn prepare_for_hash(
 
 **`is_binary` 보존 (Phase 5.13.1 task EE)**: encoding-failure 격하는 local read가 이미 일어난 경로 (`try_hash_local` 본체) — UTF-16 BOM 입력의 NUL 휴리스틱 측정값(`is_binary == true`)을 wire JSON `Status::Failed` entry에 그대로 보존. 다른 함정(submodule/symlink/long_path/case_collision/nfd_collision/lfs_pointer/gitattributes_unsupported)은 short-circuit으로 local read 없이 격하되어 `is_binary == false` (no measurement). 자세한 정책은 `spec-output-schema.md` § null 정책 § `is_binary` 정책 참조.
 
+**Cascade 외부 정책 (Phase 5.13.1 task FF)**: encoding은 pre-hash cascade 외부 — raw read 시점에만 detect. cascade가 어느 reason(nfd_collision/case_collision/long_path/submodule/symlink/lfs_pointer/gitattributes_unsupported)이라도 surface하면 `try_hash_local` 호출 자체가 차단되어 encoding은 같은 path에서 동시 surface 불가. 즉 동일 path에 LFS filter `.gitattributes` 매칭 + UTF-16 BOM raw bytes처럼 cascade reason과 encoding이 둘 다 가능한 fixture에서도 wire JSON에는 cascade reason만 surface. 자세한 우선순위 표 + 구조적 invariant은 `spec-classification.md` § Cascade priority 참조.
+
 ### Submodule / Symlink
 
 - Trees mode `160000` (submodule) / `120000` (symlink) entry는 v0.1 비목표 (skip + warning, G-010).
