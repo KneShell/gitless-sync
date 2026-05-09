@@ -198,7 +198,7 @@
 
 ### Phase 5.11 — 최종 박제 + CI
 
-- [ ] **U. CI gate 갱신 (.github/workflows/ci.yml)**
+- [~] **U. CI gate 갱신 (.github/workflows/ci.yml)**
   - acceptance: `.gitattributes` / encoding fixture / submodule mock / LFS pointer / Windows long path 시나리오를 CI에서 검증. Windows runner에서 통과.
   - spec: 없음 (CI).
 
