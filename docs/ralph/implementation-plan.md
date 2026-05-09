@@ -260,7 +260,7 @@
 
 > 4 sub-claude (overall + AA + CC + DD) clean-context 검증으로 surface된 follow-up 7건. med 3건 (EE/FF/GG) + low 4건 (HH/II/JJ/KK).
 
-- [ ] **EE. encoding Failed entry의 `is_binary` schema 처리 명시 (med)**
+- [~] **EE. encoding Failed entry의 `is_binary` schema 처리 명시 (med)**
   - acceptance: UTF-16 BOM input은 NUL 다수 포함 → `is_binary == true` 분기 가능. 현재 `PreState::Failed`/`FileEntry`에 `is_binary` 필드 처리가 모호. 정책 결정: (a) `Failed` entry는 `is_binary` 필드 omit, 또는 (b) `is_binary` 필드 보존 + spec 명시. spec 본문에 명시 + `output.rs`/`compare.rs` round-trip 정합 unit test.
   - spec: `docs/specs/spec-output-schema.md` § Failed entry, `docs/specs/spec-domain-pitfalls.md` § Encoding
   - 검증: cargo fmt + clippy + check-line-limits + check-cycles + machete + test (407+ pass) + tarpaulin 80% 유지.
