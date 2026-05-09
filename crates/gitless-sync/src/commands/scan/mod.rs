@@ -19,6 +19,7 @@ pub mod walker;
 mod test_helpers;
 
 use std::path::Path;
+use std::sync::Arc;
 
 use chrono::Utc;
 
@@ -89,7 +90,7 @@ pub fn build_report<C: GhClient + Sync>(
 
     let remote_files = github::fetch_tree(client, &repo, &branch)?;
     let local_files = walker::walk(local_root, &matcher)?;
-    let gitattr = GitAttributes::load(local_root)?;
+    let gitattr = Arc::new(GitAttributes::load(local_root)?);
 
     if args.verbose >= 1 {
         eprintln!(

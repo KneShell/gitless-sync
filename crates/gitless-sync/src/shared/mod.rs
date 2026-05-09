@@ -1,4 +1,5 @@
 pub mod config;
+pub mod decode;
 pub mod error;
 pub mod gh;
 pub mod gitattributes;

@@ -22,7 +22,6 @@ use gitless_sync::commands::scan::{Backend, ScanArgs, build_report};
 use gitless_sync::shared::error::GitlessError;
 use gitless_sync::shared::gh::{GhClient, GhResponse};
 use gitless_sync::shared::hash::blob_hash;
-use gitless_sync::shared::normalize::prepare_for_hash;
 
 // ---- TestGhClient: argv → canned response (mirrors the in-crate MockGhClient)
 //
@@ -131,8 +130,9 @@ pub fn args_for(dir: &Path, repo: &str) -> ScanArgs {
 }
 
 pub fn lf_blob_hash(text_lf: &str) -> String {
-    let (prepared, _) = prepare_for_hash(text_lf.as_bytes(), false);
-    blob_hash(&prepared)
+    // Inputs are pre-normalized LF text (no BOM, no CRLF) — direct hash
+    // matches `prepare_for_hash`'s output for the unspecified branch.
+    blob_hash(text_lf.as_bytes())
 }
 
 pub fn read_mtime_rfc3339(path: &Path) -> String {

@@ -1,6 +1,7 @@
 //! Three-pass `assemble_entries`: hash → fetch commits → classify.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 
@@ -28,9 +29,10 @@ pub(super) struct GitHubContext<'a, C: GhClient + Sync> {
 
 /// Per-path classification context — collisions + `.gitattributes` —
 /// bundled to keep `try_short_circuit_failed` within the 5-arg gate.
+/// `gitattr: &Arc` honors K2's lifetime contract (no reparse per call).
 struct ClassifyContext<'a> {
     collisions: &'a HashSet<String>,
-    gitattr: &'a GitAttributes,
+    gitattr: &'a Arc<GitAttributes>,
 }
 
 /// Compare local/remote files → per-entry rows. REST uses rayon (ADR 0003);
@@ -40,7 +42,7 @@ pub(super) fn assemble_entries<C: GhClient + Sync>(
     remote_files: &[RemoteFile],
     ctx: &GitHubContext<'_, C>,
     keep_bom: bool,
-    gitattr: &GitAttributes,
+    gitattr: &Arc<GitAttributes>,
 ) -> Result<(Vec<FileEntry>, Summary, usize), GitlessError> {
     let local_map: HashMap<&str, &LocalFile> = local_files
         .iter()
@@ -110,7 +112,7 @@ fn build_one_pre_entry(
 
     let mode = remote.map_or_else(|| "100644".to_string(), |r| r.mode.clone());
     let state = match local {
-        Some(lf) => match try_hash_local(&lf.absolute_path, keep_bom) {
+        Some(lf) => match try_hash_local(&lf.absolute_path, keep_bom, cctx.gitattr, path) {
             Ok((sha, is_binary)) => PreState::Hashed {
                 local_sha: Some(sha),
                 remote_sha,

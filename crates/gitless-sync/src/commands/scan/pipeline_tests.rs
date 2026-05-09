@@ -3,6 +3,7 @@
 //! LOC stays out of the 300-LOC implementation-file gate.
 
 use std::fs;
+use std::sync::Arc;
 
 use tempfile::TempDir;
 
@@ -11,6 +12,10 @@ use crate::commands::scan::test_helpers::{COMMITS_BODY, mtime, stub_commits};
 use crate::shared::gh::MockGhClient;
 use crate::shared::gitattributes::GitAttributes;
 use crate::shared::hash::blob_hash;
+
+fn empty_attrs() -> Arc<GitAttributes> {
+    Arc::new(GitAttributes::default())
+}
 
 #[test]
 fn assemble_entries_marks_unreadable_local_as_failed() {
@@ -37,7 +42,7 @@ fn assemble_entries_marks_unreadable_local_as_failed() {
         backend: Backend::Rest,
     };
     let (entries, summary, failed) =
-        assemble_entries(&[bogus], &[remote], &ctx, false, &GitAttributes::default()).unwrap();
+        assemble_entries(&[bogus], &[remote], &ctx, false, &empty_attrs()).unwrap();
 
     assert_eq!(failed, 1);
     assert_eq!(summary.failed, 1);
@@ -77,7 +82,7 @@ fn assemble_entries_skips_commits_for_identical() {
         backend: Backend::Rest,
     };
     let (entries, summary, failed) =
-        assemble_entries(&[local], &[remote], &ctx, false, &GitAttributes::default()).unwrap();
+        assemble_entries(&[local], &[remote], &ctx, false, &empty_attrs()).unwrap();
 
     assert_eq!(failed, 0);
     assert_eq!(summary.identical, 1);
@@ -116,9 +121,8 @@ fn assemble_entries_promotes_case_collision_to_failed_with_reason() {
         branch: "main",
         backend: Backend::Rest,
     };
-    let gitattr = GitAttributes::default();
     let (entries, summary, failed) =
-        assemble_entries(&[local], &[lower, upper], &ctx, false, &gitattr).unwrap();
+        assemble_entries(&[local], &[lower, upper], &ctx, false, &empty_attrs()).unwrap();
 
     assert_eq!(failed, 1, "case_collision must increment failed_count");
     assert_eq!(summary.failed, 1);
@@ -168,7 +172,7 @@ fn assemble_entries_promotes_remote_submodule_to_failed_with_reason() {
         backend: Backend::Rest,
     };
     let (entries, summary, failed) =
-        assemble_entries(&[local], &[remote], &ctx, false, &GitAttributes::default()).unwrap();
+        assemble_entries(&[local], &[remote], &ctx, false, &empty_attrs()).unwrap();
 
     assert_eq!(failed, 1);
     assert_eq!(summary.failed, 1);
@@ -204,7 +208,7 @@ fn assemble_entries_carries_mode_for_local_only_files() {
         backend: Backend::Rest,
     };
     let (entries, summary, _) =
-        assemble_entries(&[local], &[], &ctx, false, &GitAttributes::default()).unwrap();
+        assemble_entries(&[local], &[], &ctx, false, &empty_attrs()).unwrap();
 
     assert_eq!(summary.local_only_changed, 1);
     assert_eq!(entries[0].mode, "100644");
@@ -241,7 +245,7 @@ fn assemble_entries_promotes_remote_symlink_to_failed_with_reason() {
         backend: Backend::Rest,
     };
     let (entries, summary, failed) =
-        assemble_entries(&[local], &[remote], &ctx, false, &GitAttributes::default()).unwrap();
+        assemble_entries(&[local], &[remote], &ctx, false, &empty_attrs()).unwrap();
 
     assert_eq!(failed, 1);
     assert_eq!(summary.failed, 1);
@@ -278,7 +282,7 @@ fn assemble_entries_promotes_local_only_symlink_to_failed_with_mode_120000() {
         backend: Backend::Rest,
     };
     let (entries, summary, failed) =
-        assemble_entries(&[local], &[], &ctx, false, &GitAttributes::default()).unwrap();
+        assemble_entries(&[local], &[], &ctx, false, &empty_attrs()).unwrap();
 
     assert_eq!(failed, 1);
     assert_eq!(summary.failed, 1);
