@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 40
-- Completed: 39 / 40
+- Completed: 40 / 40
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -215,12 +215,13 @@
 
 ### Phase 5.12 — Audit & cleanup (병렬 sub-agent, 모든 task 후 마지막 sweep)
 
-- [~] **Z. 코드 스멜 audit + sibling test file 정리 (병렬 Explore sub-agent 6개)**
+- [x] **Z. 코드 스멜 audit + sibling test file 정리 (병렬 Explore sub-agent 6개)**
   - acceptance: 6 sub-agent로 코드베이스 audit 병렬 박음 — (1) Test 구조 (sibling test file / same file mod tests vs integration test 분류 / `#[cfg(test)]` 가드 일관) / (2) Module 구조 (`mod.rs` re-export only 패턴 / sub-module 분리 / file LOC 분포) / (3) Error handling (`Result` propagation / `failed_reason` enum 분류 / `?` + `Context` vs panic) / (4) Public API exposure (`pub` over-exposure / `pub(crate)`/`pub(super)` 가시성 정합) / (5) Rust 관용 위반 (`.clone()` 남용 / `&Vec<T>` vs `&[T]` / `&String` vs `&str` / `Vec::new()` + push vs `vec![]` macro / dead code) / (6) Panic escape hatch 우회 (`.expect("unreachable")` + `#[allow(clippy::expect_used)]` 같은 우회 패턴). audit 결과 `docs/research/code-smell-audit.md` 박음 (영역별 발견 list + 위반 위치).
   - **확정 fix 1건 즉시 박음** — `shared/gitattributes.rs` (296 LOC) → `shared/gitattributes/{mod.rs, parser.rs, classify.rs, matching.rs}` module 폴더 분할 + 각 sub-module에 `#[cfg(test)] mod tests` 박음 + `shared/gitattributes_tests.rs` + `shared/gitattributes_classify_tests.rs` 제거 (spec-architecture.md § 금지 패턴 정합).
   - 추가 fix는 audit list로 사람이 후행 task 박음 (CLAUDE.md ralph plan 모드 스킵 정책).
   - 검증: tarpaulin 80% 유지 + 257+ tests pass + Phase 6 hard gate 모두 deny active 유지.
   - spec: `docs/specs/spec-architecture.md` § LOC 임계 § 금지 패턴 + § 구조적 분리.
+  - 결과 (2026-05-09): audit 산출물 `docs/research/code-smell-audit.md` 박음 (commit `01a5eee` 시점 박힘 — 6 sub-agent: Test/Module/Error/Public-API/Rust-idiom/Panic-escape, finding 영역별 list + 후행 task 입력 9건 박음). **확정 fix 박힘** — `shared/gitattributes.rs` (301 LOC) → `shared/gitattributes/{mod.rs, parser.rs, classify.rs, matching.rs}` 4 file 분할. **mod.rs (29 LOC)**: re-export hub (`pub use classify::AttributeMatch; pub use matching::GitAttributes; pub use parser::RawAttribute`) + module-level 박은 (`#![allow(dead_code)]`). **parser.rs (175 LOC)**: `RawAttribute` (`pub`) + `LineRule` (`pub(super)`) + `parse_lines` (`pub(super)`) + `parse_one_line` (private) + `parse_attribute` (private) + 8 unit tests (parse_attribute set/unset/keyvalue/unspecified/dash-outranks-equals + parse_one_line negation+pattern-only skip + parse_lines blank+comment skip). **classify.rs (277 LOC)**: `AttributeMatch` (`pub`) + `classify_raw_attributes` (`pub(super)`) + `whitelist_match` (private) + `unsupported_name` (private) + 20 direct unit tests (5 whitelist + 8 unsupported + 7 precedence rule pin + last-wins). 직접 RawAttribute slice 박음 박은 박음 — fixture I/O 0. **matching.rs (290 LOC)**: `GitAttributes` (`pub` + `#[doc(hidden)]`) + `AttributesFile` (private) + `load`/`match_path`/`classify_path`/`is_empty` impl + walker/path helpers (`is_dot_git_dir`/`walk_err_to_gitless`/`relative_dir_forward_slash`/`strip_source_dir`) + 10 integration tests (load+match_path 기본 6 + 3-level depth 1 + classify_path 3-level integration 3). parser-overlap 4 tests (comment_and_blank, parses_set_unset_kv, negation_pattern, pattern_only) 박은 박음 박음 (parser.rs 박음 cover). 2-level depth test 박은 박음 박음 (3-level strictly stronger). **Sibling test file 제거** — `gitattributes_tests.rs` (162 LOC) + `gitattributes_classify_tests.rs` (279 LOC) 박음 (spec-architecture.md § 금지 패턴 정합). caller import path `crate::shared::gitattributes::{GitAttributes, AttributeMatch}` 박은 박음 (mod.rs re-export 박음 정합). bench `gitless_sync::shared::gitattributes::GitAttributes` 박은 박음 박음 (`pub use` 박음 정합). validation: cargo fmt clean (rustfmt 박은 3 cosmetic fix — assert_eq! line-break + trailing blank line) + clippy 0 warnings + xtask check-line-limits (53 + 5 within 300, max 290) + xtask check-cycles (0/0, 43 modules) + cargo machete clean + cargo test 295 lib + 41 integration + 49 xtask = **385 tests pass** (V1 baseline 383 → +2, gitattributes module 36 → 38 tests) + tarpaulin **90.66%** (942/1039 lines, V1 baseline 90.73% 대비 -0.06%, gitattributes module 박은 114/118 = 96.6% covered). 다른 task scope 침범 없음 (Cargo.toml/spec/CHANGELOG 박지 박음). 후행 task 9건 (sibling test 5건 + test helper dedup + failed_reason caller plumbing + exit code drift + visibility tightening + error From impl + dead_code narrow + init borderline + walkdir mapping unify) 박은 박음 audit 본문 § 7-2 박힘.
 
 ## 의존 순서
 
