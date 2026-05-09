@@ -45,7 +45,7 @@
 
 ### Phase 5.3 — encoding 변환 시도 (hash 입력 (b) 정책)
 
-- [ ] **E. 인코딩 라이브러리 조사 + 채택**
+- [~] **E. 인코딩 라이브러리 조사 + 채택**
   - acceptance: `encoding_rs` (Mozilla, Recommended) vs `chardet` 평가. UTF-8 → 다른 인코딩 detect 정확도 + Rust ecosystem 정합 + license. `docs/research/encoding-library-eval.md` 박음. 결정 박음.
   - spec: 없음 (research).
 
