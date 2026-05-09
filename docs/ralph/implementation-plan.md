@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (Phase 5.13 task DD 완료 → 잔여 0)
-- Total tasks: 43
-- Completed: 43 / 43
+- Last updated: 2026-05-09 (Phase 5.13.1 task EE 완료 → 잔여 6)
+- Total tasks: 50
+- Completed: 44 / 50
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -260,11 +260,12 @@
 
 > 4 sub-claude (overall + AA + CC + DD) clean-context 검증으로 surface된 follow-up 7건. med 3건 (EE/FF/GG) + low 4건 (HH/II/JJ/KK).
 
-- [~] **EE. encoding Failed entry의 `is_binary` schema 처리 명시 (med)**
+- [x] **EE. encoding Failed entry의 `is_binary` schema 처리 명시 (med)**
   - acceptance: UTF-16 BOM input은 NUL 다수 포함 → `is_binary == true` 분기 가능. 현재 `PreState::Failed`/`FileEntry`에 `is_binary` 필드 처리가 모호. 정책 결정: (a) `Failed` entry는 `is_binary` 필드 omit, 또는 (b) `is_binary` 필드 보존 + spec 명시. spec 본문에 명시 + `output.rs`/`compare.rs` round-trip 정합 unit test.
   - spec: `docs/specs/spec-output-schema.md` § Failed entry, `docs/specs/spec-domain-pitfalls.md` § Encoding
   - 검증: cargo fmt + clippy + check-line-limits + check-cycles + machete + test (407+ pass) + tarpaulin 80% 유지.
   - Files: `crates/gitless-sync/src/commands/scan/{compare.rs, output.rs}`, `docs/specs/spec-output-schema.md`, `docs/specs/spec-domain-pitfalls.md`.
+  - 결과 (2026-05-09): advisor BLOCKING fix — (a) is foreclosed (`output.rs::tests::V10FileEntry`의 `is_binary: bool` non-Optional + `v1_0_client_parses_v1_1_failed_lfs_entry_fields` lock test가 deserialize 시 missing field로 fail). **(b) 채택** + plumbing fix. 변경 4건 — (1) `pipeline/hash_pass.rs::PreState::Failed`에 `is_binary` 필드 추가 + struct doc comment에 "EE semantics" 박음 (encoding-failure만 measured, short-circuit 7 reason은 no-measurement default `false`). (2) `build_one_pre_entry` encoding arm은 `try_hash_local`의 `is_binary` 보존 + short-circuit/IO error arm은 `is_binary: false`. (3) `pipeline/finalize.rs::pre_entry_to_file::Failed` arm이 `PreState::Failed::is_binary` 읽기로 수정 (literal `false` 제거). (4) `failed_entry` test helper에 `is_binary: false` default 박음. spec 갱신 2건 — `spec-output-schema.md` § null 정책에 `is_binary` 정책 sub-section 5 entry 추가 (Hashed measured/local-only false / encoding-failure measured / short-circuit false / 호출자 해석 가이드) + § Acceptance Criteria § v1.1 신규에 2 lock 추가 (encoding `is_binary` 보존 + short-circuit/hash_io `is_binary: false`). `spec-domain-pitfalls.md` § Encoding에 `is_binary` 보존 cross-ref 추가. 테스트 추가 + 갱신 5건 — (1) `hash_pass::build_one_pre_entry_surfaces_encoding_failure_from_try_hash_local` 갱신 (UTF-16 BOM payload `is_binary == true` assert 추가). (2) `finalize::pre_entry_to_file_omits_lfs_pointer_for_non_lfs_failed_reasons` 갱신 (7 reason loop에 `assert!(!entry.is_binary)` 추가, name 그대로 유지 — wire-format invariants 통합 검증). (3) `finalize::pre_entry_to_file_preserves_is_binary_for_encoding_failure` 신규 (regression pin — `PreState::Failed { is_binary: true, failed_reason: Some(Encoding) }` → `entry.is_binary == true` 박음). (4)/(5) 기존 v1.0 backward-compat lock test 4건 (`output.rs::tests::v1_0_client_parses_*`)는 LfsPointer placeholder가 short-circuit Failed로 `is_binary: false` 그대로라 미수정 (자연 통과). validation: cargo fmt clean (rustfmt 5 cosmetic fix — assert!() 한 줄 압축 + helper signature 통합) + clippy 0 warnings + xtask check-line-limits (56 + 5 within 300, finalize.rs 295 LOC) + xtask check-cycles (0/0, 51 modules) + cargo machete clean + cargo test 316 lib + 43 integration + 49 xtask = **408 tests pass** (DD baseline 407 → +1 net: encoding regression pin) + tarpaulin **90.42%** (925/1023 lines, +0.01% change vs DD baseline 90.41%). 다른 task scope 침범 없음 (Cargo.toml/CHANGELOG 미변경, `Files` listed scope 정합).
 
 - [ ] **FF. encoding cascade 우선순위 spec 명시 (med)**
   - acceptance: 현재 `try_short_circuit_failed` cascade order (case_collision > nfd_collision > submodule > symlink > long_path > lfs_pointer/gitattributes_unsupported) + encoding은 cascade 외부 (hash_local raw read 시점). 다른 reason과 동시 surface 시 cascade reason 우선 + encoding은 cascade 패배. 의도된 동작인지 spec 명시 필요. 본문에 우선순위 정렬 + encoding 외부 이유 (raw read 시점 + cascade 진입 전) 명시. unit test: encoding + lfs_pointer 동시 fixture → lfs_pointer 우선 lock.
