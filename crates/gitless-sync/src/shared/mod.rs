@@ -5,3 +5,4 @@ pub mod github;
 pub mod hash;
 pub mod ignore;
 pub mod normalize;
+pub mod path;
