@@ -40,3 +40,7 @@ path = "src/main.rs"
 [[bench]]
 name = "gitattributes_match"
 harness = false
+
+[[bench]]
+name = "scan_scale"
+harness = false
