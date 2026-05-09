@@ -1,7 +1,7 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 6.1 종료, v0.2.0 release 직전)
+- Last updated: 2026-05-10 (Phase 6.1 종료, v0.2.1 release 직전 — v0.2.0은 ADR 0002 migration tag로 이미 사용)
 - Total tasks: 60
 - Completed: 60 / 60
 

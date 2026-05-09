@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 TBD — Phase 7+ 진입 시점 추가.
 
-## [0.2.0] - 2026-05-10
+## [0.2.1] - 2026-05-10
 
-> Phase 5 (도메인 함정 정리) + Phase 5.13/5.13.1/5.14 (follow-up) + Phase 6.1 (v0.2.x cleanup) 누적. 상세 task별 결과는 git history (`git log --grep="<task ID>"`) + `docs/ralph/implementation-plan.md`.
+> Phase 5 (도메인 함정 정리) + Phase 5.13/5.13.1/5.14 (follow-up) + Phase 6.1 (v0.2.x cleanup) 누적. v0.2.0은 ADR 0002 (gh subprocess migration) tag로 이미 사용. 본 release는 v0.2.x sub-phase patch increment. 상세 task별 결과는 git history (`git log --grep="<task ID>"`) + `docs/ralph/implementation-plan.md`.
 
 ### Added
 
