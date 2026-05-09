@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (Phase 5.14 task TT 완료, Phase 5 전체 종료)
-- Total tasks: 57
-- Completed: 57 / 57
+- Last updated: 2026-05-10 (Phase 6.1 진입 — v0.2.x cleanup)
+- Total tasks: 59
+- Completed: 57 / 59
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -362,6 +362,20 @@
   - Files: `docs/ralph/{prompt-plan.md, prompt-build.md, project-ops.md, guardrails.md}`. (implementation-plan.md 제외 — 본질적 verbose).
   - 결과 (2026-05-09): **LOC ≤ 200 게이트 자연 통과**: prompt-plan 56 / prompt-build 61 / project-ops 72 / guardrails 63 → 61 (max 72, all ≤ 200). **CLAUDE.md 중복 grep cross-check (advisor 권고 #2 mirror)**: `git grep "vertical slice"` / `"tarpaulin --engine llvm"` / `"ADR 000"` / `"G-01[0-9]"` / `"read-only"` / `"300 LOC"` 6 surface 검색 → substantive 중복 0건. surfaced 항목은 모두 reasonable cross-reference (prompt-build.md:22 "Follow the architecture in CLAUDE.md: vertical slice ..." 1-line implementation guidance + project-ops.md/prompt-build.md tarpaulin 명령어 reference + G-NNN cite 정합 — complementary, 압축 manufactured work 회피). **guardrails 압축 minimal (advisor 권고 #1 mirror)**: 2 entry fold만, 다른 entry는 이미 1-paragraph form (G-001~G-010/G-013) 또는 cited classification structure 보존 필수 (G-012 spec-only 면제 phrase는 prompt-build.md § 2/§ 3 verbatim cite + G-015 4 transient signal substring + permanent signal list + auto-recovery sub-paragraph는 prompt-build.md § 1/§ 3 cite). G-011: ADR 0003 confirmed 별도 line (4.86x speedup + abuse detection 0회) → 해결 paragraph 첫 sentence inline parenthetical (`(default, ADR 0003 2026-05-07 confirmed — M5a 측정 8 concurrent vs sequential 4.86x speedup + abuse detection 0회 발동)`)로 fold, audit trail 보존. G-016: post-recovery 별도 paragraph (영구 분류 + 사람이 LOC 압박 해소) → 해결 paragraph 끝 sentence로 fold. 본문 변경 net -2 LOC. 다른 11 entry (G-001/002/004/005/006/007/008/010/012/013/015) 본문 변경 0 — over-compression 회피. **CLAUDE.md G-017 stale ref follow-up flag (advisor 권고 #3 mirror)**: CLAUDE.md:42 "G-017"이 cite하는 entry는 guardrails.md에 부재 (G-001~G-016까지만). CLAUDE.md는 본 TT task `Files` scope 외 — Phase 5.14 follow-up (UU task 신규 또는 next session에서 OO 패턴 mirror로 CLAUDE.md G-017 line 정리 / 또는 guardrails에 G-017 신규 entry 작성 결정). validation: cargo fmt --check clean (G-016 mirror, bare `cargo fmt` 미사용) + cargo clippy 0 warnings + cargo xtask check-line-limits (56 + 5 within 300) + cargo xtask check-cycles (51 modules, 0 cycle / 0 cross-slice ref) + cargo machete clean + cargo test --workspace **410 tests pass** (318 lib + 43 integration + 49 xtask, SS baseline 그대로) + tarpaulin G-012 spec-only 일반화 면제 (`docs/ralph/*.md` doc-only 코드 변동 0, baseline 90.57% 유지 자동 통과). 다른 task scope 침범 없음 (CLAUDE.md/CHANGELOG/spec/code 미변경, `Files` listed scope 정합). Status counter Completed 56 → 57 (Phase 5 전체 종료, 57/57 task 모두 [x]).
 
+### Phase 6.1 — v0.2.x cleanup (박제 expiration 재검토 + CI 안정성)
+
+> Phase 5.14 종료 후 v0.2.0 release 직전 마무리. 사용자 우려 (clean-context §5-3 명시, roadmap § Open Questions) 처리.
+
+- [ ] **UU. Phase 6 박제 expiration 재검토 — cognitive_complexity vs LOC 300 proxy 중복**
+  - acceptance: Phase 6 박제 항목 `clippy::cognitive_complexity = 15` + `xtask check-line-limits ≤ 300` proxy 중복 정당성 재검토. clean-context §5-3 명시 ("Phase 7 진입 시 재검토 — proxy 두 개 동시 deny가 정당한지"). 결정 1건 — (a) 둘 다 유지 (orthogonal proxy: cognitive_complexity는 함수 단위 분기 복잡도, LOC는 file 단위 인지부하), (b) 한 쪽 제거 (proxy 중복 — 동일 인지부하 측정 frame, 1건만 deny). 합리적 판단으로 결정 + ADR-style narrative 작성 (`docs/adr/0010-cognitive-vs-loc-proxy.md` 신규 권장).
+  - 검증: 결정 + spec-architecture.md § LOC 임계 / § cognitive_complexity 갱신 + CLAUDE.md 박제 정책 갱신 (필요 시). validation pipeline 통과 (cargo fmt --check + clippy + check-line-limits + check-cycles + machete + test 410+ + tarpaulin 80%+).
+  - Files: `docs/adr/0010-cognitive-vs-loc-proxy.md` (신규), `docs/specs/spec-architecture.md`, `CLAUDE.md` (필요 시).
+
+- [ ] **VV. CI 안정성 1차 검증 — GitHub Actions Windows runner tarpaulin LLVM**
+  - acceptance: `.github/workflows/ci.yml` Windows runner에서 1회 CI run 성공 + tarpaulin LLVM 백엔드 안정성 1차 검증 (G-007 follow-up). roadmap § Open Questions "CI 플랫폼 — GitHub Actions Windows 러너에서 tarpaulin LLVM 백엔드 안정성 1차 검증 필요" 해소. tarpaulin LLVM 백엔드 함정 (non-zero exit code / thread safety) surface 시 G-018 신규 entry 작성. README.md CI badge 추가 (선택).
+  - 검증: 1회 GitHub Actions Windows run 성공 (commit push trigger) + tarpaulin coverage 80%+ 통과 + 사례 surface 시 G-018 entry 추가.
+  - Files: `.github/workflows/ci.yml` (필요 시 갱신), `README.md` (badge 선택), `docs/ralph/guardrails.md` (G-018 신규 시).
+
 ## 의존 순서
 
 ```
@@ -395,6 +409,7 @@ KK → {LL, MM} (cleanup — tmp/ 정리 + 외부 worktree 제거)
 {LL, MM} → NN (Phase 5.13.1 종료 후 Phase 5.14 진입)
 NN → OO (CLAUDE.md privacy 제거 후 slim)
 OO → {PP, QQ, RR, SS, TT} (CLAUDE.md slim 후 다른 md 병렬 audit)
+TT → {UU, VV} (Phase 5.14 종료 후 Phase 6.1 v0.2.x cleanup 진입)
 ```
 
 ralph build mode 진행 권장 순서:
@@ -414,3 +429,4 @@ ralph build mode 진행 권장 순서:
 14. EE → FF → GG → HH → II → JJ → KK (Phase 5.13.1 clean-context audit follow-up)
 15. LL → MM (cleanup — tmp/ + 외부 worktree)
 16. NN → OO → {PP, QQ, RR, SS, TT} (Phase 5.14 md 자료 audit — privacy + verbose)
+17. UU → VV (Phase 6.1 v0.2.x cleanup — 박제 expiration 재검토 + CI 안정성)
