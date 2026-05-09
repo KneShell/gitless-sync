@@ -154,4 +154,99 @@ mod tests {
     fn panics_when_both_shas_missing() {
         let _ = classify(None, None, Some(ts(100)), Some(ts(100)));
     }
+
+    // N-task audit (2026-05-09): `failed_reason` enum vs spec-error-contracts.md
+    // § Per-file Pitfall Reasons 정합 검증. `FailedReason` 5 variant
+    // serde snake_case round-trip + `LfsPointer` placeholder shape 박음.
+    // `hash_io` / `encoding` / `nfd_collision` / `gitattributes_unsupported`는
+    // enum 미박힘 (None special case 또는 enum-spec'd-but-unimplemented).
+
+    fn assert_failed_reason_round_trip(variant: FailedReason, expected: &str) {
+        let json = serde_json::to_string(&variant).unwrap();
+        assert_eq!(json, format!("\"{expected}\""));
+        let parsed: FailedReason = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, variant);
+    }
+
+    #[test]
+    fn failed_reason_case_collision_serializes_snake_case() {
+        assert_failed_reason_round_trip(FailedReason::CaseCollision, "case_collision");
+    }
+
+    #[test]
+    fn failed_reason_submodule_serializes_snake_case() {
+        assert_failed_reason_round_trip(FailedReason::Submodule, "submodule");
+    }
+
+    #[test]
+    fn failed_reason_symlink_serializes_snake_case() {
+        assert_failed_reason_round_trip(FailedReason::Symlink, "symlink");
+    }
+
+    #[test]
+    fn failed_reason_long_path_serializes_snake_case() {
+        assert_failed_reason_round_trip(FailedReason::LongPath, "long_path");
+    }
+
+    #[test]
+    fn failed_reason_lfs_pointer_serializes_snake_case() {
+        assert_failed_reason_round_trip(FailedReason::LfsPointer, "lfs_pointer");
+    }
+
+    fn sample_entry(failed_reason: Option<FailedReason>) -> FileEntry {
+        FileEntry {
+            path: "x".into(),
+            status: Status::Failed,
+            local_sha: None,
+            remote_sha: None,
+            local_mtime: None,
+            remote_last_commit_at: None,
+            is_binary: false,
+            mode: "100644".into(),
+            failed_reason,
+            lfs_pointer: None,
+        }
+    }
+
+    #[test]
+    fn failed_reason_none_is_skipped_in_serialized_entry() {
+        // v1.0 backward-compat: `hash_io` 동작은 None 박음, JSON에 key 자체 미노출.
+        let json = serde_json::to_value(sample_entry(None)).unwrap();
+        let obj = json.as_object().unwrap();
+        assert!(!obj.contains_key("failed_reason"));
+        assert!(!obj.contains_key("lfs_pointer"));
+    }
+
+    #[test]
+    fn failed_reason_some_is_emitted_in_serialized_entry() {
+        let json = serde_json::to_value(sample_entry(Some(FailedReason::Submodule))).unwrap();
+        assert_eq!(
+            json.as_object().unwrap().get("failed_reason"),
+            Some(&serde_json::Value::String("submodule".into()))
+        );
+    }
+
+    #[test]
+    fn lfs_pointer_placeholder_serializes_with_question_oid_and_zero_size() {
+        // spec-output-schema.md § v1.1 + spec-error-contracts.md § lfs_pointer
+        // 박음: scan은 blob fetch 안 함 → placeholder `{oid: "?", size: 0}`.
+        let placeholder = LfsPointer {
+            oid: "?".into(),
+            size: 0,
+        };
+        let json = serde_json::to_value(&placeholder).unwrap();
+        assert_eq!(json["oid"], serde_json::Value::String("?".into()));
+        assert_eq!(json["size"], serde_json::Value::Number(0.into()));
+    }
+
+    #[test]
+    fn lfs_pointer_round_trips_through_json() {
+        let placeholder = LfsPointer {
+            oid: "?".into(),
+            size: 0,
+        };
+        let json = serde_json::to_string(&placeholder).unwrap();
+        let parsed: LfsPointer = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, placeholder);
+    }
 }
