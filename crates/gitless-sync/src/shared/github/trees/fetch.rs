@@ -39,7 +39,11 @@ pub(crate) fn fetch_tree(
     }
 
     let body = parse_tree_body(&resp.stdout)?;
-    Ok(body.tree.iter().filter_map(classify_tree_entry).collect())
+    Ok(body
+        .tree
+        .into_iter()
+        .filter_map(classify_tree_entry)
+        .collect())
 }
 
 #[cfg(test)]
