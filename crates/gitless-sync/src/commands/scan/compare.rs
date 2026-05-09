@@ -11,6 +11,16 @@ pub enum Status {
     Failed,
 }
 
+/// Reason a path was promoted to [`Status::Failed`]. Maps to
+/// `failed_reason` in the v1.1 output schema (`spec-output-schema.md`).
+/// Omitted (`None`) is treated as `hash_io` for v1.0 backward-compat —
+/// don't set it explicitly for hash-IO failures.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum FailedReason {
+    CaseCollision,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct FileEntry {
     pub path: String,
@@ -24,6 +34,8 @@ pub struct FileEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_last_commit_at: Option<DateTime<Utc>>,
     pub is_binary: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failed_reason: Option<FailedReason>,
 }
 
 /// Classify a single path into one of the 4-state categories.
