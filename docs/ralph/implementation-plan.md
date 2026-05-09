@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 34
-- Completed: 25 / 34
+- Completed: 26 / 34
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -137,9 +137,10 @@
   - spec: `spec-output-schema.md`.
   - 결과 (2026-05-09): spec § 현재 상태에 § O-task audit (2026-05-09) section 박음 — 박힘 11건 (정합) + 미박힘 3건 (`encoding` / `nfd_collision` / `gitattributes_unsupported` task N drift mirror, fix scope follow-up) + Spec self-consistency hedge marker 2 line 박음 (§ 안정성 보장 enum 9 reason line 81 + § Acceptance Criteria § v1.1 신규 line 113) — 구현 5 variant + None special case = 6 cover 정합. `output.rs::tests` 신설 — v1.0 backward-compat lock test 5건 박음 (envelope / identical entry / failed-with-lfs entry / mode 박음 + failed_reason/lfs_pointer omit / failed_reason + lfs_pointer placeholder 박음). validation: cargo fmt clean + clippy 0 warnings + xtask check-line-limits (52 files within 300, output.rs 41 → 240) + xtask check-cycles (0/0) + cargo machete clean + cargo test 291 lib + 25 integration + 49 xtask = **365 tests pass** + tarpaulin **90.34%** (945/1046 lines, +0.00% change). 다른 task scope 침범 없음 (`compare.rs::FailedReason` enum 코드 변경 박지 않음, follow-up task 영역).
 
-- [~] **L1. spec-config.md `.gitattributes` 위치 정책 검증**
+- [x] **L1. spec-config.md `.gitattributes` 위치 정책 검증**
   - acceptance: spec 본문 박혀있음 (이미 Phase 5 spec 갱신). working tree 한정 + `.git/info/attributes` / global 미지원 정합 검증.
   - spec: `spec-config.md`.
+  - 결과 (2026-05-09): spec § `.gitattributes` 위치 정책 (Phase 5) ↔ K1 구현 (`shared/gitattributes.rs`) ↔ caller (`commands/scan/mod.rs::scan` line 93) 정합 audit. (1) § 현재 상태에 § L1-task audit (2026-05-09) section 박음 — 박힘 (정합) 4건 (working tree 한정 / `.git/info/attributes` 미지원 / global 미지원 / macro attributes 화이트리스트) + Drift surface 0건 (advisor BLOCKING fix 박음). (2) § 미지원 § macro attributes line trace 박음 — `[attr]binary`는 gitignore-style glob character class `{a,t,r}` + literal `binary`로 박혀 ignore crate `GitignoreBuilder::add_line` valid pattern 통과 + attributes 토큰은 K1.5 `Unsupported` variant 박음. **advisor BLOCKING fix**: 초기 audit에서 macro attribute graceful skip 미박힘을 drift surface로 박았으나 phantom drift (오류). 검증: glob `[abc]` character class는 POSIX glob 표준 + ignore crate 0.4.x 표준 지원. retract 후 § Drift surface section을 "0건, advisor BLOCKING fix"로 박음. (3) Cross-spec 정합 ✓ — spec-domain-pitfalls.md / spec-hash-and-normalize.md cross-ref line 정합. validation: cargo fmt clean + clippy 0 warnings + xtask check-line-limits (52 files within 300) + xtask check-cycles (0/0) + cargo machete clean + cargo test pass (코드 변경 0). 코드 변경 0 — baseline 유지 (G-012 spec-only 적용).
 
 ### Phase 5.9 — 보강 fixture
 
