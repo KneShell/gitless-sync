@@ -256,6 +256,47 @@
   - spec: `docs/specs/spec-architecture.md` § 금지 패턴 + § Module 폴더 단위 정책.
   - 결과 (2026-05-09): `commands/scan/pipeline.rs` (295 LOC) + 4 sibling test (`pipeline_tests.rs` 300 + `pipeline_tests_lfs.rs` 171 + `pipeline_tests_long_path.rs` 95 + `pipeline_tests_modes.rs` 69) sibling pattern 정리. `commands/scan/pipeline/{mod.rs, short_circuit.rs, hash_pass.rs, finalize.rs, orchestrator.rs}` 5 file 분할 (CC trees split + Z gitattributes split 패턴 mirror, 책임 단위 — test domain이 아니라 production responsibility). **mod.rs (20 LOC)**: re-export hub (`pub(crate) use orchestrator::{GitHubContext, assemble_entries};`) + 4 module declaration. **short_circuit.rs (282 LOC, leaf)**: `ClassifyContext<'a>` (`pub(super)`) + `try_short_circuit_failed` (`pub(super)`) + 11 unit tests (nfd/case/long_path × 2 + submodule + symlink-remote/local-only + LFS/unsupported gitattributes + no-circuit + cascade priority lock case_outranks_submodule). **hash_pass.rs (257 LOC)**: `PreState`/`PreEntry` (`pub(super)`) + `build_pre_entries` (`pub(super)`) + `build_one_pre_entry` (private) + 4 unit tests (unreadable hash io / mode default for local-only / encoding failure surface from `try_hash_local` `Some(FailedReason::Encoding)` / normal hashed). **finalize.rs (240 LOC)**: `extract_commit_paths`/`finalize_entries` (`pub(super)`) + `pre_entry_to_file` (private) + 5 unit tests (extract_commit_paths skips identical/local-only/remote-only/Failed + LfsPointer placeholder propagation + non-LFS reasons omit lfs_pointer 7 variant loop + Identical preserves "100755" mode + finalize_entries summary aggregate mixed). **orchestrator.rs (203 LOC, top)**: `GitHubContext` + `assemble_entries` (`pub(crate)` for re-export reach to scan parent) + 3 integration tests (identical end-to-end skips Commits API, LFS filter end-to-end pointer placeholder propagation, hash io error end-to-end propagates `failed_reason: None`). **acyclic dependency**: short_circuit (leaf) → hash_pass → finalize → orchestrator (top). hash_pass → short_circuit (ClassifyContext + try_short_circuit_failed) + finalize → hash_pass (PreEntry/PreState) + orchestrator → short_circuit/hash_pass/finalize (all). xtask check-cycles 0 cycles + 0 cross-slice refs (51 modules). **Visibility fix**: 초기에 `pub(super)` 시도 → E0603 (orchestrator items 보이지 않음, item visibility = pipeline + re-export visibility = scan = `min(pipeline, scan) = pipeline`). CC trees 패턴 mirror — orchestrator items `pub(crate)` + `pub(crate) use` re-export로 fix. **advisor 권고 적용 5건**: (1) AA plumbing variants 새 test home — Encoding (hash_pass, build_one_pre_entry test) + NfdCollision (short_circuit, nfd_collision_promotes test) + GitattributesUnsupported (short_circuit, gitattributes_unsupported_attribute_promotes_to_failed_reason test). (2) 통합 coverage 보존 — orchestrator.rs에 3 integration tests 유지 (pre_entry_to_file 필드 propagation 검증). (3) LfsPointer는 tempdir 필요 — `GitAttributes::load(dir.path())` 사용. (4) Cascade priority lock — `case_collision_outranks_submodule_when_both_match` test. (5) Visibility — pub(crate) trees 패턴 적용. **caller import path 호환 유지**: `use self::pipeline::{GitHubContext, assemble_entries};` (commands/scan/mod.rs:29 unchanged). validation: cargo fmt clean (rustfmt auto-format — 4 cosmetic fix: `expect("...")` line-break + import 알파벳 정렬 + assert_eq! tuple format) + clippy 0 warnings (6 doc-markdown backtick + 3 match-wildcard fix — `_ => panic!(...)` → `PreState::Hashed { .. } => panic!(...)`) + xtask check-line-limits (56 + 5 within 300, max ~282) + xtask check-cycles (0 cycles, 0 cross-slice refs, 51 modules — CC baseline 47 → +4) + cargo machete clean + cargo test 315 lib + 43 integration + 49 xtask = **407 tests pass** (CC baseline 397 → +10 lib net: short_circuit 11 + hash_pass 4 + finalize 5 + orchestrator 3 = 23 new − 13 sibling deleted) + tarpaulin **90.41%** (924/1022 lines, CC baseline 90.53%/927/1024 대비 -0.12% / -3 lines covered). 5 production sub-module 자체 cover: short_circuit 16/16 (100%) + hash_pass 23/23 (100%) + orchestrator 17/17 (100%) + finalize 38/39 (97.4%) = 94/95 = 98.9%. 다른 task scope 침범 없음 (Cargo.toml/CHANGELOG/spec 미변경, `Files` listed scope 정합).
 
+### Phase 5.13.1 — clean-context audit follow-up
+
+> 4 sub-claude (overall + AA + CC + DD) clean-context 검증으로 surface된 follow-up 7건. med 3건 (EE/FF/GG) + low 4건 (HH/II/JJ/KK).
+
+- [ ] **EE. encoding Failed entry의 `is_binary` schema 처리 명시 (med)**
+  - acceptance: UTF-16 BOM input은 NUL 다수 포함 → `is_binary == true` 분기 가능. 현재 `PreState::Failed`/`FileEntry`에 `is_binary` 필드 처리가 모호. 정책 결정: (a) `Failed` entry는 `is_binary` 필드 omit, 또는 (b) `is_binary` 필드 보존 + spec 명시. spec 본문에 명시 + `output.rs`/`compare.rs` round-trip 정합 unit test.
+  - spec: `docs/specs/spec-output-schema.md` § Failed entry, `docs/specs/spec-domain-pitfalls.md` § Encoding
+  - 검증: cargo fmt + clippy + check-line-limits + check-cycles + machete + test (407+ pass) + tarpaulin 80% 유지.
+  - Files: `crates/gitless-sync/src/commands/scan/{compare.rs, output.rs}`, `docs/specs/spec-output-schema.md`, `docs/specs/spec-domain-pitfalls.md`.
+
+- [ ] **FF. encoding cascade 우선순위 spec 명시 (med)**
+  - acceptance: 현재 `try_short_circuit_failed` cascade order (case_collision > nfd_collision > submodule > symlink > long_path > lfs_pointer/gitattributes_unsupported) + encoding은 cascade 외부 (hash_local raw read 시점). 다른 reason과 동시 surface 시 cascade reason 우선 + encoding은 cascade 패배. 의도된 동작인지 spec 명시 필요. 본문에 우선순위 정렬 + encoding 외부 이유 (raw read 시점 + cascade 진입 전) 명시. unit test: encoding + lfs_pointer 동시 fixture → lfs_pointer 우선 lock.
+  - spec: `docs/specs/spec-classification.md` § cascade 우선순위 (신규 섹션), `docs/specs/spec-domain-pitfalls.md` § Encoding 정책 (cross-ref 추가).
+  - 검증: cargo fmt + clippy + check-line-limits + check-cycles + machete + test (407+ pass) + tarpaulin 80% 유지.
+  - Files: `docs/specs/spec-classification.md`, `docs/specs/spec-domain-pitfalls.md`, `crates/gitless-sync/src/commands/scan/pipeline/short_circuit.rs` (cascade priority lock test 추가).
+
+- [ ] **GG. pipeline LFS negative case 회귀 가드 추가 (med)**
+  - acceptance: DD 분할에서 누락된 negative case — `pipeline_tests_lfs.rs::assemble_entries_does_not_promote_path_without_filter_lfs_match` (`.gitattributes`에 `text=auto`만 + LFS pointer-style content → no-promote, `try_short_circuit_failed` returns None) 회귀 가드. 현재 `no_short_circuit_returns_none_for_plain_path`는 빈 attrs 케이스라 `.gitattributes` 존재 + LFS filter 미스 회귀를 대체 불가. `short_circuit.rs::tests`에 동일 시나리오 1건 추가.
+  - 검증: cargo fmt + clippy + check-line-limits + check-cycles + machete + test (408+ pass) + tarpaulin 80% 유지.
+  - Files: `crates/gitless-sync/src/commands/scan/pipeline/short_circuit.rs`.
+
+- [ ] **HH. `hash_pass.rs` `PreState` multi-line 복원 (low)**
+  - acceptance: `hash_pass.rs:624` `#[rustfmt::skip]` + `PreState` enum 단일라인 압축 carry over는 AA에서 `pipeline.rs` 300 LOC gate 회피용 임시 hack이었음. DD에서 분할 후 `hash_pass.rs`는 257 LOC라 LOC 압력 해소 → `#[rustfmt::skip]` 제거 + normal multi-line struct로 복원.
+  - 검증: cargo fmt clean (skip 제거 후 자동 multi-line) + clippy + check-line-limits + check-cycles + machete + test (407+ pass) + tarpaulin 80% 유지.
+  - Files: `crates/gitless-sync/src/commands/scan/pipeline/hash_pass.rs`.
+
+- [ ] **II. `hash_local.rs` `TextDecodeResult::Unknown` arm YAGNI 제거 (low)**
+  - acceptance: `try_hash_local`의 `TextDecodeResult::Unknown` 매치 arm은 본인 주석에 "decode.rs Windows-1252 cover로 effectively unreachable" 명시 — fireable 케이스가 `Utf16Bom` 하나뿐. YAGNI 정합으로 `Unknown` arm 제거 (또는 `unreachable!()`로 명시). 단순화.
+  - 검증: cargo fmt + clippy + check-line-limits + check-cycles + machete + test (407+ pass) + tarpaulin 80% 유지.
+  - Files: `crates/gitless-sync/src/commands/scan/hash_local.rs`.
+
+- [ ] **JJ. `classify.rs::make_remote` clone trade-off 결정 (low)**
+  - acceptance: CC 분할에서 `classify.rs::make_remote(&TreeEntry)`가 `entry.sha.clone()` + `entry.mode.clone()` 도입 — 원본은 `for entry in body.tree` ownership move였음. 결정: (a) `make_remote(entry: TreeEntry)` ownership move 복원 (테스트 fixture 박음 정합 시), 또는 (b) doc comment로 trade-off 명시 (테스트 reuse 의도). 둘 중 정합한 쪽 적용.
+  - 검증: cargo fmt + clippy + check-line-limits + check-cycles + machete + test (407+ pass) + tarpaulin 80% 유지.
+  - Files: `crates/gitless-sync/src/shared/github/trees/classify.rs`, `crates/gitless-sync/src/shared/github/trees/fetch.rs` (caller 정합 시).
+
+- [ ] **KK. `try_hash_local` encoding failure early return (low)**
+  - acceptance: `try_hash_local` encoding failure (`Some(FailedReason::Encoding)`) 분기 시에도 `prepare_for_hash` + `blob_hash` 비용 그대로 발생 (early return 없음). 기능 영향 0이나 미세 비효율 — `Some(reason)` 시 hash skip + early return으로 수정.
+  - 검증: cargo fmt + clippy + check-line-limits + check-cycles + machete + test (407+ pass) + tarpaulin 80% 유지.
+  - Files: `crates/gitless-sync/src/commands/scan/hash_local.rs`.
+
 ## 의존 순서
 
 ```
@@ -284,6 +325,7 @@ V1 → Z (모든 task 완료 후 audit + cleanup sweep)
 Z → AA (audit 발견 + 사용자 지적 plumbing 3건)
 Z → CC (sibling test trees 정리)
 {AA, Z} → DD (pipeline module 분할은 AA의 enum 변경 수용 + Z sibling 정책 정합)
+DD → {EE, FF, GG, HH, II, JJ, KK} (clean-context audit follow-up — DD 분할 결과 위에서 cleanup + spec 명시)
 ```
 
 ralph build mode 진행 권장 순서:
@@ -300,3 +342,4 @@ ralph build mode 진행 권장 순서:
 11. U → V → V1 (CI + 완료 박스 + CHANGELOG)
 12. Z (audit + cleanup, 모든 task 후 마지막 sweep — 병렬 sub-agent)
 13. AA → CC → DD (Phase 5.13 plumbing follow-up + sibling cleanup)
+14. EE → FF → GG → HH → II → JJ → KK (Phase 5.13.1 clean-context audit follow-up)
