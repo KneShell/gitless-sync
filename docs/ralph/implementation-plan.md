@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 34
-- Completed: 0 / 34
+- Completed: 1 / 34
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -17,7 +17,7 @@
 
 ### Phase 5.1 — vault 운영 데이터 분석 + fact check (우선순위 입력)
 
-- [~] **A. vault scan 재실행 + drift 근원 분석 + 검증 필요 fact check**
+- [x] **A. vault scan 재실행 + drift 근원 분석 + 검증 필요 fact check**
   - acceptance: KneShell/gitless-sync 또는 사용자 vault repo (356+ files)에 대해 `cargo run -- scan` 재실행. drift/failed/local_only_changed/remote_only_changed 분류. 각 drift entry에 대해 함정 (NFD/case/encoding/submodule/symlink/empty/permission/.gitattributes/BOM/LFS/long_path/.gitignore) 중 어느 것이 원인인지 분석. **검증 필요 fact check sub-step**: encoding_rs binary size (cargo-bloat), git core NUL byte heuristic 정확 N (git source), Windows NTFS NFD 파일 생성 검증 (실험). `docs/research/phase5-vault-baseline.md` 박음.
   - spec: 없음 (research artifact).
 
