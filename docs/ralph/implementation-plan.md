@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 40
-- Completed: 38 / 40
+- Completed: 39 / 40
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -208,9 +208,10 @@
   - spec: 없음 (docs).
   - 결과 (2026-05-09): CLAUDE.md § Current State 박스 갱신 — Phase 5 완료 박스 박음 (Phase 6 박스 패턴 mirror) + 다음 세션 진입점 갱신 (V1/Z 잔여 → vault scale 1000+ path / Phase 7+). roadmap.md § Phase 5 section CONFIRMED → COMPLETED 갱신 + Phase 6 박스 패턴 mirror로 결과 박스 박음 (8 함정 + 신규 함정 BOM/LFS pointer/long path / NFC 정규화 walker+remote / case_collision 3 시나리오 / encoding_rs detect-only / .gitattributes 5 module 폴더 + 화이트리스트 5 entry + 7 분기 helper / schema 1.0→1.1 / T 117 files 0 drift / W REGRESSION 0건 / U CI 4 게이트). 박힌 baseline: 38 task ralph 자율 본진 종료 (V1 CHANGELOG + Z audit sweep 잔여) / 383 tests pass / tarpaulin 90.73% / 사람 개입 0회 (advisor BLOCKING fix 다수는 self-correct). advisor 권고 박음 4건: V1/Z 잔여 명시 (Z는 audit이 아니라 실제 코드 변경 — gitattributes 296 LOC module 폴더 분할 박힘) / 카운트 산식 38/40 정확 / 사람 개입 0회 + advisor BLOCKING fix self-correct 박은 metric 분리 / baseline 383·90.73% 박음. validation: cargo fmt --check clean (코드 변경 0 — G-012 spec-only 일반화 적용, baseline 유지 자동 통과 — clippy/test/check-line-limits/check-cycles/machete/tarpaulin 박은 코드 0 박은 박은 baseline 그대로). 다른 task scope 침범 없음.
 
-- [~] **V1. CHANGELOG.md v0.2 박음**
+- [x] **V1. CHANGELOG.md v0.2 박음**
   - acceptance: `CHANGELOG.md` 신규 박힘 (이미 Phase 5 docs 갱신에서 박힘). v0.2 entry 박음 — Phase 5 함정 처리 + spec 변경 + breaking changes (schema_version 1.1 minor bump 박힘, 호환).
   - spec: 없음 (docs).
+  - 결과 (2026-05-09): `[Unreleased]` Phase 5 in progress section을 `[0.2.0] - 2026-05-09` entry로 promote. 박힌 actual state 박음 — 12 함정 (8 핵심 NFD/case/encoding/submodule/symlink/empty/permission/.gitattributes + 신규 4 BOM/LFS/long_path + .gitignore 정책 명시) + schema 1.1 minor bump (mode + failed_reason + lfs_pointer 필드, v1.0 backward-compat lock 5건) + 새 deps (`unicode-normalization` + `encoding_rs` Apache-2.0/MIT, cargo-bloat .text 0 KiB attribution) + Changed 3 entry (`prepare_for_hash` 시그니처 / `status="failed"` 의미 확장 9 reasons / default LF normalize policy `.gitattributes` conditional) + Verified 4 entry (T vault dogfood / W regression / 383 tests / 90.73% tarpaulin) + Known limitations 3 entry (`failed_reason` enum-spec'd-but-unimplemented 3건 caller plumbing follow-up / `.gitattributes` module 폴더 분할 미박힘 → Z task / vault scale 1000+ path mtime cache 재검토 v0.3+). **advisor BLOCKING fix #1**: V 박스의 future-state 문구 (`shared/case_collision.rs` / `shared/long_path.rs` / `shared/path.rs`) 그대로 mirror 박지 않고 actual path (`commands/scan/case_collision.rs` / `commands/scan/long_path.rs` / `commands/scan/walker.rs` vertical slice 정합) 박음. **advisor BLOCKING fix #2**: V 박스의 ".gitattributes 5 module 폴더 (mod/parser/classify/matching)" Z 후 future state — Known limitations에 명시 hedge 박음 ("module 폴더 분할 미박힘, sibling test file 위반 1건, Z task에서 정리"). 화이트리스트 5 entry + 7 분기 helper는 actual (코드 박힘)이라 그대로 박음. **advisor 권고 #3**: [0.1.0] inconsistency surface 박지 않음 (V task scope, V1 scope 외). **advisor 권고 #4**: 새 [Unreleased] "TBD — Phase 5 audit sweep (task Z) + Phase 7+ 진입 시점" 박음. validation: cargo fmt --check clean + clippy 0 warnings + xtask check-line-limits (52 + 5 within 300) + xtask check-cycles (0/0) + cargo machete clean + cargo test 293 lib + 41 integration + 49 xtask = **383 tests pass** (S baseline 유지) + tarpaulin baseline 유지 (G-012 spec-only 면제 일반화 적용 — 코드 변경 0 → 변동 0, 90.73% 그대로). 다른 task scope 침범 없음.
 
 ### Phase 5.12 — Audit & cleanup (병렬 sub-agent, 모든 task 후 마지막 sweep)
 
