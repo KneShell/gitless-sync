@@ -77,7 +77,7 @@
 
 ### Phase 5.5 — 빈 파일 실파일 검증
 
-- [ ] **I. 빈 파일 실파일 fixture + integration test**
+- [~] **I. 빈 파일 실파일 fixture + integration test**
   - acceptance: integration test fixture로 실제 0-byte 파일 박음. `blob_hash(&[])` == git empty blob constant 확인. local empty file ↔ remote empty blob → `Status::Identical`.
   - spec: `spec-hash-and-normalize.md` § Acceptance.
 
