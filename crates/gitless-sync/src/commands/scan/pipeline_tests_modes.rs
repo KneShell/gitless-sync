@@ -11,6 +11,7 @@ use tempfile::TempDir;
 use super::*;
 use crate::commands::scan::test_helpers::mtime;
 use crate::shared::gh::MockGhClient;
+use crate::shared::gitattributes::GitAttributes;
 use crate::shared::hash::blob_hash;
 
 #[test]
@@ -44,7 +45,8 @@ fn assemble_entries_keeps_identical_when_only_mode_differs_executable() {
         branch: "main",
         backend: Backend::Rest,
     };
-    let (entries, summary, failed) = assemble_entries(&[local], &[remote], &ctx, false).unwrap();
+    let (entries, summary, failed) =
+        assemble_entries(&[local], &[remote], &ctx, false, &GitAttributes::default()).unwrap();
 
     assert_eq!(failed, 0);
     assert_eq!(summary.identical, 1);

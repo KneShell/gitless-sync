@@ -8,6 +8,7 @@ use tempfile::TempDir;
 
 use super::*;
 use crate::shared::gh::MockGhClient;
+use crate::shared::gitattributes::GitAttributes;
 
 #[test]
 fn assemble_entries_promotes_remote_reserved_name_to_failed_with_long_path_reason() {
@@ -32,7 +33,8 @@ fn assemble_entries_promotes_remote_reserved_name_to_failed_with_long_path_reaso
         branch: "main",
         backend: Backend::Rest,
     };
-    let (entries, summary, failed) = assemble_entries(&[], &[remote], &ctx, false).unwrap();
+    let (entries, summary, failed) =
+        assemble_entries(&[], &[remote], &ctx, false, &GitAttributes::default()).unwrap();
 
     assert_eq!(failed, 1);
     assert_eq!(summary.failed, 1);
@@ -64,7 +66,8 @@ fn assemble_entries_promotes_oversized_remote_path_to_failed_with_long_path_reas
         branch: "main",
         backend: Backend::Rest,
     };
-    let (entries, summary, failed) = assemble_entries(&[], &[remote], &ctx, false).unwrap();
+    let (entries, summary, failed) =
+        assemble_entries(&[], &[remote], &ctx, false, &GitAttributes::default()).unwrap();
 
     assert_eq!(failed, 1);
     assert_eq!(summary.failed, 1);
