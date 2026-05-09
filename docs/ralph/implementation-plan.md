@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (Phase 5.13.1 task JJ [~] in progress)
+- Last updated: 2026-05-09 (Phase 5.13.1 task JJ 완료 → 잔여 1)
 - Total tasks: 50
-- Completed: 48 / 50
+- Completed: 49 / 50
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -292,10 +292,11 @@
   - Files: `crates/gitless-sync/src/commands/scan/hash_local.rs`.
   - 결과 (2026-05-09): `try_hash_local` match에서 `TextDecodeResult::Unknown`을 encoding failure side에서 `None` side로 이동 (`Utf8 | Detected | Unknown => None`). exhaustive matching 보존, `_` wildcard 회피, panic path 0 (`unreachable!()` 채택 X — YAGNI 정합으로 invariant assertion 추가 회피). 도메인 효과 0 — `Unknown`은 `decode.rs` Windows-1252 shortlist cover로 logically unreachable이므로 unreachable branch에서의 `Some(Encoding) → None` 전환은 관측 불가. doc comment 갱신 — "neither UTF-8 nor decodable by the `try_decode_text` shortlist" 표현 제거 후 "carry a UTF-16 BOM (out of scope for v0.2; see `spec-hash-and-normalize.md` § BOM). `Unknown` is logically unreachable per `decode.rs` (Windows-1252 covers all bytes)" 직접 명시. 5 existing tests 모두 unchanged pass — `try_hash_local_surfaces_utf16_bom_as_encoding_failure` 여전히 `Some(Encoding)` assert (Utf16Bom 분기 정합), `try_hash_local_marks_binary` 여전히 `None` assert (Detected 분기 정합). decode.rs scope 외 — 본 task는 `hash_local.rs` only. **advisor 권고 mirror**: option (b) 채택 (vs `unreachable!()` option (a) / `_` wildcard option (c)) — 단순화 + 안전 + exhaustive 동시 만족. validation: cargo fmt --check clean (G-016 mirror, bare `cargo fmt` 미사용) + clippy 0 warnings + xtask check-line-limits (56 + 5 within 300, hash_local.rs 120 LOC) + xtask check-cycles (0/0, 51 modules) + cargo machete clean + cargo test 318 lib + 43 integration + 49 xtask = **410 tests pass** (HH baseline 그대로) + tarpaulin **90.52%** (926/1023 lines, +0.00% change vs HH baseline 90.52%).
 
-- [~] **JJ. `classify.rs::make_remote` clone trade-off 결정 (low)**
+- [x] **JJ. `classify.rs::make_remote` clone trade-off 결정 (low)**
   - acceptance: CC 분할에서 `classify.rs::make_remote(&TreeEntry)`가 `entry.sha.clone()` + `entry.mode.clone()` 도입 — 원본은 `for entry in body.tree` ownership move였음. 결정: (a) `make_remote(entry: TreeEntry)` ownership move 복원 (테스트 fixture 박음 정합 시), 또는 (b) doc comment로 trade-off 명시 (테스트 reuse 의도). 둘 중 정합한 쪽 적용.
   - 검증: cargo fmt + clippy + check-line-limits + check-cycles + machete + test (407+ pass) + tarpaulin 80% 유지.
   - Files: `crates/gitless-sync/src/shared/github/trees/classify.rs`, `crates/gitless-sync/src/shared/github/trees/fetch.rs` (caller 정합 시).
+  - 결과 (2026-05-09): **option (a) ownership move 복원** 채택 — 테스트 8건 모두 `entry()` helper로 새 `TreeEntry` 1회 생성 + 단일 `classify_tree_entry` 호출 패턴 (reuse 0건), acceptance criterion "테스트 fixture 박음 정합 시" 정확 매핑. 변경 2건 — (1) `classify.rs::classify_tree_entry(entry: TreeEntry)` ownership 인자 + 본문은 `matches!`로 supported-arm 분류 후 move (NLL borrow 해제 필요로 match-arm을 `if matches! ... return Some(make_remote(entry))` + post-check `entry.entry_type == "blob"` 패턴으로 재작성, 의미 동등). `make_remote(entry: TreeEntry)`도 ownership move + struct literal에서 `entry.sha`/`entry.mode` 직접 move (clone 0건, `to_nfc(&entry.path)` borrow는 함수 호출 끝에서 해제 후 sha/mode field move — Rust struct literal 좌→우 evaluation order 정합). doc comment에 ownership move 의도 박제 (matches! arm + post-check 패턴 + clone 회피 근거). (2) `fetch.rs::fetch_tree`의 `body.tree.iter().filter_map(...)` → `body.tree.into_iter().filter_map(...)`. line width 100자 초과로 rustfmt가 5-line vertical wrap 적용 (3 line → 5 line, fetch.rs 187 → 191 LOC, 300 게이트 안). 8 unit tests in classify.rs는 `&entry(...)` → `entry(...)` 호출 갱신 (8 callsite). 의미 변동 0 — 같은 path/sha/mode 검증, fetch 통합 8 tests 그대로 통과 (mode-arm 라우팅 정합). **성능 효과**: 10K-file tree 기준 entry당 sha (40 byte) + mode (6 byte) String clone 2건 회피 — small allocation 20K건 절약, 도메인 기능 영향 0. validation: cargo fmt --check clean (G-016 mirror, bare `cargo fmt` 미사용 — fetch.rs 1줄 wrap drift surface 후 explicit edit 적용) + clippy 0 warnings + xtask check-line-limits (56 + 5 within 300, classify.rs 159 / fetch.rs 191) + xtask check-cycles (0/0, 51 modules) + cargo machete clean + cargo test 318 lib + 43 integration + 49 xtask = **410 tests pass** (II baseline 410 그대로 — pure refactor, 도메인 기능 0 변경) + tarpaulin **90.58%** (933/1030 lines, +0.06% / +7 covered vs II baseline 90.52%/926/1023 — clone fields 제거로 라인 자연 변동, classify.rs 14/14 + fetch.rs 13/13 + parse.rs 6/6 = trees module 33/33 = 100%). 다른 task scope 침범 없음 (Cargo.toml/CHANGELOG/spec 미변경, `Files` listed scope 정합).
 
 - [ ] **KK. `try_hash_local` encoding failure early return (low)**
   - acceptance: `try_hash_local` encoding failure (`Some(FailedReason::Encoding)`) 분기 시에도 `prepare_for_hash` + `blob_hash` 비용 그대로 발생 (early return 없음). 기능 영향 0이나 미세 비효율 — `Some(reason)` 시 hash skip + early return으로 수정.

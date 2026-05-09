@@ -34,25 +34,33 @@ pub struct RemoteFile {
 ///
 /// Anything else drops. A `blob` with an unsupported mode emits a stderr
 /// warning so the caller can audit the skip (G-010).
-pub(super) fn classify_tree_entry(entry: &TreeEntry) -> Option<RemoteFile> {
-    match (entry.entry_type.as_str(), entry.mode.as_str()) {
-        ("blob", "100644" | "100755" | "120000") | ("commit", "160000") => Some(make_remote(entry)),
-        ("blob", other_mode) => {
-            eprintln!(
-                "warning: skipping {} (mode {} unsupported in v0.1)",
-                entry.path, other_mode
-            );
-            None
-        }
-        _ => None,
+///
+/// Takes `entry` by value so `make_remote` can move `sha` and `mode`
+/// into the [`RemoteFile`] without cloning. `path` is borrowed only long
+/// enough for `to_nfc` to canonicalize it. The `matches!` arm runs the
+/// scrutinee borrow to completion before the move, then we re-inspect
+/// `entry.entry_type` for the `blob`-with-unsupported-mode warning.
+pub(super) fn classify_tree_entry(entry: TreeEntry) -> Option<RemoteFile> {
+    if matches!(
+        (entry.entry_type.as_str(), entry.mode.as_str()),
+        ("blob", "100644" | "100755" | "120000") | ("commit", "160000")
+    ) {
+        return Some(make_remote(entry));
     }
+    if entry.entry_type == "blob" {
+        eprintln!(
+            "warning: skipping {} (mode {} unsupported in v0.1)",
+            entry.path, entry.mode
+        );
+    }
+    None
 }
 
-fn make_remote(entry: &TreeEntry) -> RemoteFile {
+fn make_remote(entry: TreeEntry) -> RemoteFile {
     RemoteFile {
         path: to_nfc(&entry.path),
-        sha: entry.sha.clone(),
-        mode: entry.mode.clone(),
+        sha: entry.sha,
+        mode: entry.mode,
     }
 }
 
@@ -72,7 +80,7 @@ mod tests {
 
     #[test]
     fn classifies_blob_regular_carries_mode_and_sha() {
-        let rf = classify_tree_entry(&entry("README.md", "100644", "blob", "sha1")).unwrap();
+        let rf = classify_tree_entry(entry("README.md", "100644", "blob", "sha1")).unwrap();
         assert_eq!(rf.path, "README.md");
         assert_eq!(rf.mode, "100644");
         assert_eq!(rf.sha, "sha1");
@@ -83,7 +91,7 @@ mod tests {
         // Phase 5 task J: executables flow through the normal hash path;
         // `compare.rs` decides Identical/Drift on content, the mode bit
         // is reported in v1.1 JSON.
-        let rf = classify_tree_entry(&entry("exec.sh", "100755", "blob", "s3")).unwrap();
+        let rf = classify_tree_entry(entry("exec.sh", "100755", "blob", "s3")).unwrap();
         assert_eq!(rf.path, "exec.sh");
         assert_eq!(rf.mode, "100755");
         assert_eq!(rf.sha, "s3");
@@ -96,7 +104,7 @@ mod tests {
         // `Status::Failed` + `failed_reason: "symlink"`. We do not follow
         // the link — the blob contents are the target path.
         let rf =
-            classify_tree_entry(&entry("link/to/elsewhere", "120000", "blob", "feedface")).unwrap();
+            classify_tree_entry(entry("link/to/elsewhere", "120000", "blob", "feedface")).unwrap();
         assert_eq!(rf.path, "link/to/elsewhere");
         assert_eq!(rf.mode, "120000");
         assert_eq!(rf.sha, "feedface");
@@ -108,7 +116,7 @@ mod tests {
         // surface their pointer commit `sha` so `compare.rs` can promote
         // to `Status::Failed` + `failed_reason: "submodule"`.
         let rf =
-            classify_tree_entry(&entry("vendor/lib", "160000", "commit", "deadbeefcafe")).unwrap();
+            classify_tree_entry(entry("vendor/lib", "160000", "commit", "deadbeefcafe")).unwrap();
         assert_eq!(rf.path, "vendor/lib");
         assert_eq!(rf.mode, "160000");
         assert_eq!(rf.sha, "deadbeefcafe");
@@ -119,7 +127,7 @@ mod tests {
         // Belt-and-suspenders: a `blob` with a mode git itself does not
         // emit (e.g. `100664`) routes through the unsupported-mode warn
         // branch and is dropped.
-        assert!(classify_tree_entry(&entry("weird", "100664", "blob", "s2")).is_none());
+        assert!(classify_tree_entry(entry("weird", "100664", "blob", "s2")).is_none());
     }
 
     #[test]
@@ -127,14 +135,14 @@ mod tests {
         // A `type: "commit"` entry that lacks the `160000` mode bit is
         // ignored — only the canonical submodule shape promotes through.
         // Defends against malformed responses.
-        assert!(classify_tree_entry(&entry("weird", "100644", "commit", "s2")).is_none());
+        assert!(classify_tree_entry(entry("weird", "100644", "commit", "s2")).is_none());
     }
 
     #[test]
     fn drops_tree_type_directory_entry() {
         // Recursive=1 still includes one `tree` row per sub-directory.
         // We only want files, so directories drop without a warning.
-        assert!(classify_tree_entry(&entry("src", "040000", "tree", "tsha")).is_none());
+        assert!(classify_tree_entry(entry("src", "040000", "tree", "tsha")).is_none());
     }
 
     #[test]
@@ -144,7 +152,7 @@ mod tests {
         // response carries NFD. We canonicalize to NFC so the comparison
         // key aligns with the walker's NFC output.
         let nfd_path = "\u{1100}\u{1161}.txt";
-        let rf = classify_tree_entry(&entry(nfd_path, "100644", "blob", "s1")).unwrap();
+        let rf = classify_tree_entry(entry(nfd_path, "100644", "blob", "s1")).unwrap();
         assert_ne!(rf.path, nfd_path);
         assert_eq!(rf.path, "\u{AC00}.txt");
     }
