@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 34
-- Completed: 19 / 34
+- Completed: 20 / 34
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -105,7 +105,7 @@
   - acceptance: `.gitattributes`에 `binary` 명시된 file은 NUL byte 휴리스틱 무시 + raw bytes 해시. unit test (NUL byte 0개 binary fixture).
   - spec: `spec-hash-and-normalize.md` § Normalize 규칙.
 
-- [~] **K4. `.gitattributes` 우선순위 정합 검증**
+- [x] **K4. `.gitattributes` 우선순위 정합 검증**
   - acceptance: project root `.gitattributes` < sub-directory `.gitattributes` < line-level pattern 마지막 매칭 winner 정합. unit test로 검증 (3-level fixture).
   - spec: `spec-hash-and-normalize.md` § `.gitattributes` 파서.
 

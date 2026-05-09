@@ -138,3 +138,24 @@ fn pattern_only_line_without_attributes_is_skipped() {
     let attrs = GitAttributes::load(dir.path()).unwrap();
     assert!(attrs.match_path("notes.txt").is_empty());
 }
+
+#[test]
+fn three_level_match_path_preserves_root_to_deepest_order() {
+    // K4: root + `a/` + `a/b/` each contribute one rule for the same path;
+    // raw accumulation must be shallowest first, deepest last so the
+    // K1.5 reducer's last-wins lands on the deepest file. classify_path
+    // hides the order, so this asserts the underlying invariant.
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join(".gitattributes"), "*.txt text=auto\n").unwrap();
+    let lvl2 = dir.path().join("a");
+    fs::create_dir(&lvl2).unwrap();
+    fs::write(lvl2.join(".gitattributes"), "*.txt eol=lf\n").unwrap();
+    let lvl3 = lvl2.join("b");
+    fs::create_dir(&lvl3).unwrap();
+    fs::write(lvl3.join(".gitattributes"), "*.txt eol=crlf\n").unwrap();
+    let attrs = GitAttributes::load(dir.path()).unwrap();
+    assert_eq!(
+        attrs.match_path("a/b/notes.txt"),
+        vec![kv("text", "auto"), kv("eol", "lf"), kv("eol", "crlf")]
+    );
+}

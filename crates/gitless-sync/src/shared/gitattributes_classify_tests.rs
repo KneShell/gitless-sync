@@ -232,3 +232,47 @@ fn classify_deeper_gitattributes_contributes_to_reduction() {
     let attrs = GitAttributes::load(dir.path()).unwrap();
     assert_eq!(attrs.classify_path("docs/notes.txt"), AttributeMatch::EolLf);
 }
+
+// K4: root < sub-dir < line-level precedence, exercised on a 3-level fixture
+// (root + `a/` + `a/b/`) so the depth ordering can't collapse with 2 levels.
+
+#[test]
+fn classify_three_level_depth_uses_deepest_winner() {
+    // root says text=auto, a/ says eol=lf, a/b/ says eol=crlf; deepest wins.
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join(".gitattributes"), "*.txt text=auto\n").unwrap();
+    let lvl2 = dir.path().join("a");
+    fs::create_dir(&lvl2).unwrap();
+    fs::write(lvl2.join(".gitattributes"), "*.txt eol=lf\n").unwrap();
+    let lvl3 = lvl2.join("b");
+    fs::create_dir(&lvl3).unwrap();
+    fs::write(lvl3.join(".gitattributes"), "*.txt eol=crlf\n").unwrap();
+    let attrs = GitAttributes::load(dir.path()).unwrap();
+    assert_eq!(
+        attrs.classify_path("a/b/notes.txt"),
+        AttributeMatch::EolCrlf
+    );
+}
+
+#[test]
+fn classify_three_level_with_line_level_last_match_wins() {
+    // The deepest .gitattributes has two lines matching the same path; the
+    // last line wins on top of the depth ordering.
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join(".gitattributes"), "*.txt text=auto\n").unwrap();
+    let lvl2 = dir.path().join("a");
+    fs::create_dir(&lvl2).unwrap();
+    fs::write(lvl2.join(".gitattributes"), "*.txt eol=lf\n").unwrap();
+    let lvl3 = lvl2.join("b");
+    fs::create_dir(&lvl3).unwrap();
+    fs::write(
+        lvl3.join(".gitattributes"),
+        "*.txt eol=lf\n*.txt eol=crlf\n",
+    )
+    .unwrap();
+    let attrs = GitAttributes::load(dir.path()).unwrap();
+    assert_eq!(
+        attrs.classify_path("a/b/notes.txt"),
+        AttributeMatch::EolCrlf
+    );
+}
