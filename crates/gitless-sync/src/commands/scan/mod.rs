@@ -8,6 +8,7 @@ pub mod commits;
 pub mod compare;
 pub mod graphql;
 pub mod hash_local;
+pub mod lfs;
 pub mod long_path;
 pub mod output;
 pub mod pipeline;
@@ -28,6 +29,7 @@ use self::status_filter::parse_status_filter;
 use crate::shared::config;
 use crate::shared::error::GitlessError;
 use crate::shared::gh::GhClient;
+use crate::shared::gitattributes::GitAttributes;
 use crate::shared::github;
 use crate::shared::ignore::IgnoreMatcher;
 
@@ -87,6 +89,7 @@ pub fn build_report<C: GhClient + Sync>(
 
     let remote_files = github::fetch_tree(client, &repo, &branch)?;
     let local_files = walker::walk(local_root, &matcher)?;
+    let gitattr = GitAttributes::load(local_root)?;
 
     if args.verbose >= 1 {
         eprintln!(
@@ -108,7 +111,7 @@ pub fn build_report<C: GhClient + Sync>(
         backend: args.backend,
     };
     let (mut entries, summary, failed_count) =
-        assemble_entries(&local_files, &remote_files, &ctx, args.keep_bom)?;
+        assemble_entries(&local_files, &remote_files, &ctx, args.keep_bom, &gitattr)?;
 
     if let Some(filter) = parse_status_filter(args.status.as_deref())? {
         entries.retain(|e| filter.contains(&e.status));

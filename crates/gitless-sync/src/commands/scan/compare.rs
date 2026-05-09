@@ -22,6 +22,17 @@ pub enum FailedReason {
     Submodule,
     Symlink,
     LongPath,
+    LfsPointer,
+}
+
+/// LFS pointer companion for a [`Status::Failed`] entry whose
+/// `failed_reason` is [`FailedReason::LfsPointer`]. `scan` does not fetch
+/// blobs and emits the placeholder `{oid: "?", size: 0}`; `diff` (later)
+/// parses the actual pointer text. See `spec-output-schema.md` § v1.1.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LfsPointer {
+    pub oid: String,
+    pub size: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -40,6 +51,8 @@ pub struct FileEntry {
     pub mode: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failed_reason: Option<FailedReason>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lfs_pointer: Option<LfsPointer>,
 }
 
 /// Classify a single path into one of the 4-state categories.
