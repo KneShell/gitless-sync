@@ -137,7 +137,7 @@
   - spec: `spec-output-schema.md`.
   - 결과 (2026-05-09): spec § 현재 상태에 § O-task audit (2026-05-09) section 박음 — 박힘 11건 (정합) + 미박힘 3건 (`encoding` / `nfd_collision` / `gitattributes_unsupported` task N drift mirror, fix scope follow-up) + Spec self-consistency hedge marker 2 line 박음 (§ 안정성 보장 enum 9 reason line 81 + § Acceptance Criteria § v1.1 신규 line 113) — 구현 5 variant + None special case = 6 cover 정합. `output.rs::tests` 신설 — v1.0 backward-compat lock test 5건 박음 (envelope / identical entry / failed-with-lfs entry / mode 박음 + failed_reason/lfs_pointer omit / failed_reason + lfs_pointer placeholder 박음). validation: cargo fmt clean + clippy 0 warnings + xtask check-line-limits (52 files within 300, output.rs 41 → 240) + xtask check-cycles (0/0) + cargo machete clean + cargo test 291 lib + 25 integration + 49 xtask = **365 tests pass** + tarpaulin **90.34%** (945/1046 lines, +0.00% change). 다른 task scope 침범 없음 (`compare.rs::FailedReason` enum 코드 변경 박지 않음, follow-up task 영역).
 
-- [ ] **L1. spec-config.md `.gitattributes` 위치 정책 검증**
+- [~] **L1. spec-config.md `.gitattributes` 위치 정책 검증**
   - acceptance: spec 본문 박혀있음 (이미 Phase 5 spec 갱신). working tree 한정 + `.git/info/attributes` / global 미지원 정합 검증.
   - spec: `spec-config.md`.
 
