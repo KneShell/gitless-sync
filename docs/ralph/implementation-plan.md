@@ -1,7 +1,7 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (Phase 5.14 task SS 완료)
+- Last updated: 2026-05-09 (Phase 5.14 task TT 시작)
 - Total tasks: 57
 - Completed: 56 / 57
 
@@ -356,7 +356,7 @@
   - Files: `docs/specs/*.md`.
   - 결과 (2026-05-09): unscoped `git grep` 검증 — admin/dasgut 머신 user 둘 다 repo-wide 0건 (RR precedent 정합 — dasgut 머신 user 동시 일반화). privacy 위반 1건 (`spec-domain-pitfalls.md:197`)은 RR 패턴 mirror 적용 — vault 절대 경로 + 머신 user 둘 다 `<vault path>` placeholder + "머신 user ≠ vault user" narrative로 일반화. `iCloud~md~obsidian` repo-wide 잔존은 RR result text 잔재(별도 task scope, narrative artifact) + 본 SS task description 본문 narrative 잔존만 — 둘 다 result narrative artifact, spec/research scope 0건 (advisor 지적 — result text는 반드시 by-reference, 원본 verbatim quote 금지). **각 spec file LOC ≤ 300 통과**: `spec-github-api.md` 316 → **299 LOC** (advisor 권고 3 cut: § 현재 상태 6 ADR bullets → 1 paragraph collapse / GraphQL alias batching args vec → inline prose / Backend 선택 + 병렬 호출 정책 blockquote header redundant ADR cross-ref 제거, GraphQL backend blockquote 1건 retain은 결정 동기 narrative). 다른 9 spec file 모두 baseline ≤ 300 자연 통과 (max 247). **Audit narrative 삭제** (advisor 권고 — implementation-plan §L1/N/O 결과 paragraph에 이미 존재, duplicate 방지 위해 spec에서 delete만): `spec-config.md` § L1-task audit 18 LOC → 71 → **52 LOC**. `spec-error-contracts.md` § N-task audit 25 LOC → 233 → **207 LOC**. `spec-output-schema.md` § O-task audit 21 LOC → 149 → **127 LOC**. 코드 cross-ref + drift surface는 이미 implementation-plan §L1/N/O 결과 본문에 retain — spec에는 결정 근거만 남기는 acceptance criterion 정합. spec-architecture.md (137 LOC) audit 패턴 grep 0건 (advisor blind spot 점검 통과). validation: cargo fmt --check clean (G-016 mirror, doc-only 변동 0) + cargo clippy 0 warnings + cargo xtask check-line-limits (56 + 5 within 300) + cargo xtask check-cycles (51 modules, 0 cycle / 0 cross-slice ref) + cargo machete clean + cargo test --workspace **410 tests pass** (318 lib + 43 integration + 49 xtask, RR baseline 410 그대로) + tarpaulin G-012 spec-only 일반화 면제 (코드 변동 0, baseline 유지 자동 통과). 다른 task scope 침범 없음 (Cargo.toml/CHANGELOG/CLAUDE.md/code 미변경). Status counter Completed 55 → 56 + Last updated 갱신.
 
-- [ ] **TT. docs/ralph/* audit (verbose + 중복)**
+- [~] **TT. docs/ralph/* audit (verbose + 중복)**
   - acceptance: docs/ralph/* (prompt-plan / prompt-build / project-ops / guardrails / implementation-plan) audit — CLAUDE.md와 중복 박힌 spec 본문 정리 (prompt-build.md § 0 Orientation의 CLAUDE.md / spec-architecture.md 명시는 retain). guardrails.md G-001~G-016 entry는 압축 — 각 entry 1 paragraph 이내. implementation-plan.md는 task 자체가 본질이라 verbose retain (감축 대상 아님).
   - 검증: prompt-plan/prompt-build/project-ops/guardrails 각 LOC ≤ 200. CLAUDE.md와 중복 0건 확인 (`git grep` cross-check).
   - Files: `docs/ralph/{prompt-plan.md, prompt-build.md, project-ops.md, guardrails.md}`. (implementation-plan.md 제외 — 본질적 verbose).
