@@ -4,7 +4,7 @@
 >
 > **Update (2026-05-08, task S 완료)**: production `expect` 2건 모두 `Config` map_err로 fix → baseline 위반 0건 도달. § Baseline Violation Count + § 위반 위치 표 갱신. task T (warn → deny 전환) 즉시 진행 가능.
 >
-> **Update (2026-05-08, task T 완료)**: workspace lint `unwrap_used`/`expect_used`/`panic` warn → **deny** 전환. `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 233 tests pass + tarpaulin 87.77%. 향후 production 위반은 `-D warnings` 의존 없이 빌드 fail로 박힘.
+> **Update (2026-05-08, task T 완료)**: workspace lint `unwrap_used`/`expect_used`/`panic` warn → **deny** 전환. `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 233 tests pass + tarpaulin 87.77%. 향후 production 위반은 `-D warnings` 의존 없이 빌드 fail로 차단된다.
 
 ## Panic Escape Hatch — `unwrap_used` / `expect_used` / `panic`
 
@@ -42,7 +42,7 @@
 | 2 | `crates/gitless-sync/src/commands/scan/mod.rs:415` | `rayon::ThreadPoolBuilder::new().num_threads(MAX_COMMITS_CONCURRENCY).build().expect("rayon thread pool build")` + `#[allow(clippy::expect_used)]` | `.build().map_err(\|e\| GitlessError::Config(format!("rayon thread pool build failed: {e}")))?` (allow 제거). spec § Config "환경 문제" 정합 — gh CLI 미설치 매핑과 동일 카테고리. |
 
 **선택 근거** (advisor §1 reconcile + spec-architecture.md § Panic escape hatch):
-- Row 1 (serialize)은 spec table이 `unreachable!()` 또는 `Err(...)` 둘 다 안전한 alternative로 박음. `Config` map_err는 Row 2와 일관 + 미래 schema 변경 시 silent panic 차단.
+- Row 1 (serialize)은 spec table이 `unreachable!()` 또는 `Err(...)` 둘 다 안전한 alternative로 명시. `Config` map_err는 Row 2와 일관 + 미래 schema 변경 시 silent panic 차단.
 - Row 2 (rayon)는 baseline 표가 명시적으로 `Config` 권고. exit 1 (Config) = "기타" 환경 실패 매핑 일관.
 - 두 Row 모두 `Io(io::Error::other(...))` 합성 대안은 기각 — `Io` spec은 "로컬 디렉토리 walk / 파일 read 시 IO 실패"로 도메인 좁고, 두 케이스 모두 IO 아닌 in-memory/system 자원 실패.
 
@@ -65,7 +65,7 @@ crates/gitless-sync/src/shared/ignore.rs            — #[cfg(test)] @ 68
 ### 다음 단계
 
 - **task S**: ✅ 완료 (2026-05-08). production `expect` 2건 → `Config` map_err로 fix + `#[allow]` 제거. baseline 위반 0건 도달.
-- **task T**: ✅ 완료 (2026-05-08). workspace lint warn → deny 전환 박음. `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 233 tests pass + tarpaulin 87.77%. Phase 6.3 panic 검출 trilogy (R → S → T) 완결.
+- **task T**: ✅ 완료 (2026-05-08). workspace lint warn → deny 전환 적용. `cargo clippy --workspace --all-targets -- -D warnings` 통과 + 233 tests pass + tarpaulin 87.77%. Phase 6.3 panic 검출 trilogy (R → S → T) 완결.
 
 ## File Split Metrics — Pre-Split Baseline (2026-05-08, task M)
 
@@ -126,7 +126,7 @@ Top-level `use` 합계: **67** (across 14 files; `commands/mod.rs` / `lib.rs` / 
 - Production `panic`: **0**
 - Total production 위반: **0건** (task T deny 전환 완료, `cargo clippy --workspace --all-targets -- -D warnings` 통과)
 
-### Post-Split Comparison (placeholder — task J 직후 박음)
+### Post-Split Comparison (placeholder — task J 직후 추가)
 
 F-I 4 task + Q error 분리 + P tests 분리 완료 후 동일 표를 본 section 아래 누적. 비교 항목:
 
@@ -136,4 +136,4 @@ F-I 4 task + Q error 분리 + P tests 분리 완료 후 동일 표를 본 sectio
 - LOC > 300 file 수 (목표 0)
 - Fan-out 분포 (sub-module 분리로 각 file fan-out 감소 예상, 대신 file 수 자체 증가)
 - Cycle / cross-slice (변화 없이 0 유지 — task N에서 step별 검증)
-- Panic 위반 (변화 없이 0 유지 — workspace lint deny 박혀 빌드가 차단)
+- Panic 위반 (변화 없이 0 유지 — workspace lint deny로 빌드가 차단)

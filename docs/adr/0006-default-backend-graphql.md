@@ -21,7 +21,7 @@ REST backend를 통째 제거하지 않는 이유는 두 가지다. (a) v0.1/v0.
 - `--backend graphql` (default, 명시 불필요)
 - `--backend rest` (explicit fallback, 운영 이슈 시 수동 지정)
 
-clap default 변경은 P3b에서 `#[arg(default_value_t = Backend::Graphql)]`로 박음. v0.1 stub error("GraphQL backend not implemented")는 P3a에서 본체 박힌 후 P3b에서 제거.
+clap default 변경은 P3b에서 `#[arg(default_value_t = Backend::Graphql)]`로 적용. v0.1 stub error("GraphQL backend not implemented")는 P3a에서 본체 추가 후 P3b에서 제거.
 
 REST backend는 deprecated가 아니라 explicit fallback으로 유지. 별도 deprecation 정책 없음. 향후 GraphQL이 1년 이상 안정 운영 + sufficient telemetry 시 ADR 분기 가능성.
 

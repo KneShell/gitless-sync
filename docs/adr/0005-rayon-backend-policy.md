@@ -33,7 +33,7 @@ backend별로 정책을 분기한다.
   - GraphQL = alias batching only, request 단위는 순차 (ADR 0005)
 - `MAX_COMMITS_CONCURRENCY` 상수 활성 범위가 REST에 한정됨을 명시.
 
-### 코드 (P3a, P3b에서 박음)
+### 코드 (P3a, P3b에서 작성)
 - `commands/scan/graphql.rs`는 rayon 의존 0. `paths.chunks(GRAPHQL_BATCH_SIZE).flat_map(...)` 단순 for/map.
 - `commands/scan/github.rs` (REST)의 `fetch_commit_dates_parallel`은 rayon ThreadPool 패턴 그대로.
 - `commands/scan/mod.rs`에서 backend enum match로 분기 — REST 분기만 rayon install.

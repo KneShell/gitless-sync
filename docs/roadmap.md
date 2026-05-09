@@ -24,7 +24,7 @@
 
 ## Phase 4 — 성능 최적화 (COMPLETED, 2026-05-07)
 
-> **2026-05-07 완료.** ADR 0005/0006/0007/0008 박힘 + 0009 obsolete cascade. 측정 raw data는 commit history + `docs/ralph/implementation-plan.md` git log + `CLAUDE.md` § Current State 박스.
+> **2026-05-07 완료.** ADR 0005/0006/0007/0008 확정 + 0009 obsolete cascade. 측정 raw data는 commit history + `docs/ralph/implementation-plan.md` git log + `CLAUDE.md` § Current State 박스.
 >
 > - GraphQL batching 도입 — `--backend graphql` default 전환 (ADR 0006), REST는 `--backend rest` explicit fallback. GraphQL backend는 rayon 미사용 (ADR 0005, alias batching 자체가 병렬). batch 200 confirmed (ADR 0007).
 > - mtime cache 도입 → 측정 → 제거. P6c speedup ≈ 1.0x noise floor → ADR 0008 제거 결정 + ADR 0009 obsolete cascade.
@@ -52,7 +52,7 @@
 
 > 사용자 stance: SonarLint 패턴의 quality gate 강화. 현재 hard gate(test ≥80% / fmt / clippy / deny / audit)에 **코드 구조·복잡도 게이트** 추가.
 >
-> 결론 박제 (2026-05-08, vague 4건 + clean-context 외부 시각 5건 + 추가 panic 검출). 상세 task list는 `docs/ralph/implementation-plan.md` (A~T 20 task), 아키텍처 룰 spec은 `docs/specs/spec-architecture.md`.
+> 결론 확정 (2026-05-08, vague 4건 + clean-context 외부 시각 5건 + 추가 panic 검출). 상세 task list는 `docs/ralph/implementation-plan.md` (A~T 20 task), 아키텍처 룰 spec은 `docs/specs/spec-architecture.md`.
 
 ### Step 1 — clippy 룰 강화 — COMPLETED (2026-05-07)
 
@@ -91,7 +91,7 @@ LOC 임계 300줄 (사용자 취향, 인지부하 임계, 박제 with Phase 진�
 - **vertical slice 유지** (사용자 취향 박제) + **cross-slice 직접 ref 금지** (현재 위반 1건: `diff/mod.rs:7 → scan::github` → github.rs를 shared로 이전, task A).
 - **slice 안 의존 그래프 acyclic** 강제 (`cargo-modules` CLI 1회 호출, task E).
 - **slice-internal directional discipline**: orchestrator(`mod.rs`) → domain(`compare.rs/output.rs`) → IO(`walker.rs/github.rs/graphql.rs`). naming convention + `pub(crate)`/`pub(super)` 가시성으로 자연 강제. (이전 "mini-layer 단방향" naming 모순 — clean-context §3-2 fix로 rename, "horizontal layer 축소판" 인상 회피.)
-- **horizontal layer 영구 제외** (CLI/Domain/IO 전체 분층 안 박음).
+- **horizontal layer 영구 제외** (CLI/Domain/IO 전체 분층 채택 안 함).
 - **manifest X** (clean-context §4 격하 — 18 files 프로젝트에 deviation 거의 없음, naming convention으로 충분).
 
 ### Step 4 — 외부 cargo 도구 도입 — CONFIRMED (2026-05-08)
@@ -104,7 +104,7 @@ LOC 임계 300줄 (사용자 취향, 인지부하 임계, 박제 with Phase 진�
 
 `cargo-udeps` 제외 (machete와 중복 + nightly 필요, MSRV 1.95 stable과 충돌).
 
-이미 박힌 도구: `cargo-tarpaulin` (coverage ≥80%), `cargo-deny` (license/supply chain), `cargo-audit` (security).
+이미 사용 중인 도구: `cargo-tarpaulin` (coverage ≥80%), `cargo-deny` (license/supply chain), `cargo-audit` (security).
 
 ### Step 5 — 영구 제외
 
@@ -117,7 +117,7 @@ LOC 임계 300줄 (사용자 취향, 인지부하 임계, 박제 with Phase 진�
 
 ### clean-context 외부 시각 보강 (2026-05-08)
 
-vague 4건 결론 박은 후 메모리 차단된 fresh session으로 5개 각도 비판 받음. 5건 다 채택:
+vague 4건 결론 확정 후 메모리 차단된 fresh session으로 5개 각도 비판 받음. 5건 다 채택:
 - §3-1 — Step 2 enforcement 무조건문 재작성 (deferred escape hatch 제거).
 - §4 D·E 격하 — Tarjan SCC + manifest 빼고 cargo-modules CLI 한 줄로.
 - §2 면제 카테고리 5종 — doc 면제 + error/tests 구조적 분리 + mod.rs re-export 자연 통과 + xtask self-apply.
@@ -131,18 +131,18 @@ vague 4건 결론 박은 후 메모리 차단된 fresh session으로 5개 각도
 >
 > 결과:
 > - 8 함정 (NFD/case/encoding/submodule/symlink/empty/permission/.gitattributes) 모두 정확 hash 재현 또는 detect-only 처리 + 신규 함정 BOM (UTF-8 strip + UTF-16 detect) / git LFS pointer / Windows long path 추가.
-> - NFC 정규화 walker + remote tree 양쪽 박힘. case_collision 3 시나리오 detect (canonical/diagonal/local-both).
+> - NFC 정규화 walker + remote tree 양쪽 적용. case_collision 3 시나리오 detect (canonical/diagonal/local-both).
 > - encoding_rs 다중 인코딩 변환 시도 후 detect-only (`failed_reason: "encoding"` caller plumbing은 follow-up).
 > - `.gitattributes` 5 module 폴더 (mod/parser/classify/matching) + 화이트리스트 5 entry (text=auto / binary / eol=lf / eol=crlf / LfsPointer) + 7 분기 helper.
-> - schema_version 1.0 → 1.1 (`mode` + `failed_reason` + `lfs_pointer` 필드, v1.0 backward-compat lock test 박힘).
+> - schema_version 1.0 → 1.1 (`mode` + `failed_reason` + `lfs_pointer` 필드, v1.0 backward-compat lock test 추가).
 > - T (vault dogfood KneShell/gitless-sync@main): 117 files / 81 identical / 36 local_only_changed / 0 drift / 0 failed (false drift 0건).
 > - W (v0.1 baseline regression diff): REGRESSION 0건 (envelope schema_version + mode field 정확화만, 121/121 path binary delta 0).
-> - U (CI gate `.github/workflows/ci.yml`, Windows runner): fmt-check / clippy / test --workspace / tarpaulin --fail-under 80 박음.
+> - U (CI gate `.github/workflows/ci.yml`, Windows runner): fmt-check / clippy / test --workspace / tarpaulin --fail-under 80 추가.
 > - 신규 spec: `docs/specs/spec-domain-pitfalls.md`. 신규 research: phase5-vault-baseline / phase5-vault-after / phase5-regression / phase5-gitattributes-bench / phase5-scan-scale-bench / encoding-library-eval.
 
 > 사용자 stance: 도메인 함정 정확 처리. 검증 환경 Windows 1차 + 실용 근사 (raw bytes injection + NTFS 실파일 fixture 둘 다 가능). 완료 기준 = implement + vault dogfooding 통과 + 회귀 0건.
 >
-> 결론 박제 (2026-05-09, vague 4건 + clean-context 외부 시각 5건 + fact check 6건). 상세 task list는 `docs/ralph/implementation-plan.md` (40 task A~Z+), spec은 `docs/specs/spec-domain-pitfalls.md`.
+> 결론 확정 (2026-05-09, vague 4건 + clean-context 외부 시각 5건 + fact check 6건). 상세 task list는 `docs/ralph/implementation-plan.md` (40 task A~Z+), spec은 `docs/specs/spec-domain-pitfalls.md`.
 
 ### 8 함정 처리 정책 매핑
 
@@ -166,7 +166,7 @@ vague 4건 결론 박은 후 메모리 차단된 fresh session으로 5개 각도
 
 ### 사용자 vault 운영 데이터 (우선순위 입력)
 
-Phase 5 첫 task로 vault scan 재실행 + drift 근원 분석. 결과 `docs/research/phase5-vault-baseline.md` 박음. 이 데이터로 8 함정 우선순위 박음.
+Phase 5 첫 task로 vault scan 재실행 + drift 근원 분석. 결과 `docs/research/phase5-vault-baseline.md` 작성. 이 데이터로 8 함정 우선순위 결정.
 
 ## v0.1 시점 미결 (Open Questions)
 

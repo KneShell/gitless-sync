@@ -34,8 +34,8 @@ pub(crate) trait GhClient {
 설계 근거:
 
 - `GhResponse`에 `headers` / `duration` 등 추가 필드는 yagni. v0.1 매핑은 `exit_code` + `stderr` substring + `stdout` JSON으로 충분.
-- `&[&str]`은 lifetime juggling, `IntoIterator<Item = impl AsRef<str>>` generic은 `dyn GhClient` trait object를 깬다. `&[String]`이 호출 측 `format!` 결과를 `vec![...]`에 박기 가장 자연.
-- `api()`는 raw `GhResponse`를 transparent 반환한다. `exit_code`/`stderr` → `GitlessError` 매핑은 호출 측(`fetch_*`) 책임. 매핑 표는 `spec-error-contracts.md` (M1) 한 곳에만 박는다.
+- `&[&str]`은 lifetime juggling, `IntoIterator<Item = impl AsRef<str>>` generic은 `dyn GhClient` trait object를 깬다. `&[String]`이 호출 측 `format!` 결과를 `vec![...]`에 담기 가장 자연.
+- `api()`는 raw `GhResponse`를 transparent 반환한다. `exit_code`/`stderr` → `GitlessError` 매핑은 호출 측(`fetch_*`) 책임. 매핑 표는 `spec-error-contracts.md` (M1) 한 곳에만 명시.
 
 ### `RealGhClient` (production)
 
@@ -47,7 +47,7 @@ pub(crate) trait GhClient {
 ### `MockGhClient` (테스트)
 
 - 인자별 응답을 HashMap 또는 클로저로 stub.
-- 단위 테스트 + 통합 테스트 모두 `MockGhClient` inject. mockito 호출 0회. v0.1 ureq baseline 시기에 박혀 있던 mockito 시나리오는 모두 `MockGhClient` stub 응답으로 재작성.
+- 단위 테스트 + 통합 테스트 모두 `MockGhClient` inject. mockito 호출 0회. v0.1 ureq baseline 시기에 사용된 mockito 시나리오는 모두 `MockGhClient` stub 응답으로 재작성.
 
 ### `main.rs` entry pattern
 
@@ -90,7 +90,7 @@ v0.1 ureq baseline 시그니처에서 `token` 인자 제거 + `client: &impl GhC
 #### `fetch_last_commit_at`
 
 - 호출: `gh api -X GET repos/{owner}/{repo}/commits -F sha={branch} -F path={path} -F per_page=1`
-- `-X GET` prepend은 필수 (G-017): `gh`는 `-F` 플래그가 하나라도 있으면 method를 POST로 자동 전환한다. commits endpoint는 GET 전용이라 POST 시 404 반환. path 인자 앞에 `-X GET`를 박아 method를 명시적으로 GET으로 고정.
+- `-X GET` prepend은 필수 (G-017): `gh`는 `-F` 플래그가 하나라도 있으면 method를 POST로 자동 전환한다. commits endpoint는 GET 전용이라 POST 시 404 반환. path 인자 앞에 `-X GET`을 명시해 method를 GET으로 고정.
 - args 빌드 예:
   ```rust
   vec![
@@ -108,7 +108,7 @@ v0.1 ureq baseline 시그니처에서 `token` 인자 제거 + `client: &impl GhC
 
 ### 에러 매핑 (위임)
 
-매핑 표는 `spec-error-contracts.md` (M1)에 한 곳에만 박는다. 본 spec은 매핑 종류만 명시:
+매핑 표는 `spec-error-contracts.md` (M1)에 한 곳에만 명시. 본 spec은 매핑 종류만 정의:
 
 - 인증 실패 → `GitlessError::AuthFailed` (exit 2)
 - Rate Limit → `GitlessError::RateLimitExceeded { reset_at }` (exit 3)
@@ -120,7 +120,7 @@ v0.1 ureq baseline 시그니처에서 `token` 인자 제거 + `client: &impl GhC
 
 ### Backend 선택
 
-> **갱신 (ADR 0006, 2026-05-07)**: default backend `rest` → `graphql` 전환. v0.1 stub은 obsolete (P3a에서 본체 박힘). GraphQL backend 본체 정의는 본 spec § GraphQL backend.
+> **갱신 (ADR 0006, 2026-05-07)**: default backend `rest` → `graphql` 전환. v0.1 stub은 obsolete (P3a에서 본체 구현됨). GraphQL backend 본체 정의는 본 spec § GraphQL backend.
 
 - `--backend graphql` (default): § GraphQL backend 정의대로 `fetch_last_commit_at_batch` 진입점. 인증·rate limit·재시도 모두 gh 위임 (ADR 0001 일관).
 - `--backend rest` (explicit fallback): 본 spec § fetch_tree / fetch_blob / fetch_last_commit_at + § 병렬 호출 정책 (REST 분기) 그대로 동작. v0.1/v0.2 자산 보존, GraphQL 운영 이슈(rate limit, alias batching 응답 정합성, partial errors 등) 발생 시 즉시 fallback (ADR 0006 § Decision).
@@ -208,11 +208,11 @@ GraphQL string literal 내부의 `path_quoted`는 다음 escape:
 - `\n` → `\\n`
 - 기타 control character는 v0.1 비목표 (path에 control char 들어오면 graceful 실패 acceptable).
 
-`{branch}` / `{owner}` / `{name}` 인자는 도구 진입 시 검증된 값이라 추가 escape 불필요 (`-f query=...`에 raw 박음). path는 walker에서 `\` → `/` 정규화된 상대경로라 GraphQL 측 escape만 처리.
+`{branch}` / `{owner}` / `{name}` 인자는 도구 진입 시 검증된 값이라 추가 escape 불필요 (`-f query=...`에 raw 사용). path는 walker에서 `\` → `/` 정규화된 상대경로라 GraphQL 측 escape만 처리.
 
 #### Timestamp 필드 — `committedDate` 사용 (`authoredDate` 금지)
 
-REST `commits[].commit.committer.date`는 commit이 repository에 박힌 시점이다. GraphQL 측 등가 필드는 `committedDate`로 동일.
+REST `commits[].commit.committer.date`는 commit이 repository에 기록된 시점이다. GraphQL 측 등가 필드는 `committedDate`로 동일.
 
 `authoredDate`는 commit author date라 cherry-pick / rebase / squash 시 committer date와 달라진다. cross-backend 정합성(P9 dogfooding `--backend rest` ↔ `--backend graphql`)을 깨므로 사용 금지.
 
@@ -249,11 +249,11 @@ GraphQL 응답에는 `data`와 `errors[]`가 공존할 수 있다 — 일부 ali
 
 #### batch size 변경 정책
 
-batch size 변경 시 본 § GraphQL backend + ADR 0007 동시 갱신 (P6a raw data → P7a ADR 0007 박힘, batch 200 default confirmed). 단위 테스트의 chunk 분할 시나리오 (300 paths → 200+100 등)도 결정값에 정렬.
+batch size 변경 시 본 § GraphQL backend + ADR 0007 동시 갱신 (P6a raw data → P7a ADR 0007 확정, batch 200 default confirmed). 단위 테스트의 chunk 분할 시나리오 (300 paths → 200+100 등)도 결정값에 정렬.
 
 변경 트리거 (ADR 0007 § 향후 재평가 트리거):
 - secondary rate limit (점수 기반) 발생 시 batch size 하향 + ADR 0007 갱신.
-- vault scale (수백~천 path) 측정에서 batch 100 vs 200 식별 가능한 차이 surface 시 raw data 박고 재결정.
+- vault scale (수백~천 path) 측정에서 batch 100 vs 200 식별 가능한 차이 surface 시 raw data 기록 후 재결정.
 
 ### 병렬 호출 정책 (Latency)
 
@@ -312,5 +312,5 @@ batch size 변경 시 본 § GraphQL backend + ADR 0007 동시 갱신 (P6a raw d
 - `[AUTO]` `errors[].extensions.code == "INTERNAL_SERVER_ERROR"` 또는 fallthrough 코드 → `GitlessError::Http(stderr/errors[] 원문)`.
 - `[AUTO]` 응답에 `data` 부분 결과 + `errors[]` 비어 있지 않음 → 통째 fail (data 무시, errors 매핑 후 반환).
 - `[AUTO]` 200 paths batch alias mangling: `a0` ~ `a199` 안전 매핑 + 응답 → path 역매핑 정합 (한 path 누락 0).
-- `[AUTO]` path에 `"` / `\\` / `\n` 포함 시 GraphQL string escape 적용 (실제 호출 인자에 escape 형태 박힘).
+- `[AUTO]` path에 `"` / `\\` / `\n` 포함 시 GraphQL string escape 적용 (실제 호출 인자에 escape 형태 전달).
 - `[AUTO]` `committedDate` 필드를 사용해 timestamp 추출 (`authoredDate` 사용 0). cross-backend P9 dogfooding `--backend rest` ↔ `--backend graphql` 결과 ScanReport 동일 검증.

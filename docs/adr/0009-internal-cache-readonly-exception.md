@@ -9,7 +9,7 @@
 
 ## Context
 
-ADR 0001 § D2와 ADR 0004는 read-only 본성을 다음과 같이 박았다:
+ADR 0001 § D2와 ADR 0004는 read-only 본성을 다음과 같이 정의했다:
 - ADR 0001: "도구는 파일·원격을 절대 수정하지 않는다. write 작업은 Claude Code가 `gh`로 직접 처리하므로 별도 push 도구를 만들지 않는다."
 - ADR 0004: "도구는 파일을 작성하지 않는다. 사용자가 shell redirect로 영구 파일을 생성한다."
 
@@ -44,14 +44,14 @@ cache 위치는 repo+branch별 파일 분리 — `<user-cache>/gitless-sync/<own
 - 기존 "도구는 파일·원격을 절대 수정하지 않는다" 표현은 그대로 유지(원칙 표현). 명확화 줄이 부속.
 
 ### `spec-config.md` § cache (P2에서 추가)
-- cache 위치 / 파일명 sanitize 룰 / JSON 형식 / lifecycle / graceful fallback 박음.
+- cache 위치 / 파일명 sanitize 룰 / JSON 형식 / lifecycle / graceful fallback 명시.
 - ADR 0009 cross-ref. 사용자 .gitignore 박을 필요 0 명시.
 
 ### `Cargo.toml` (P4에서 추가)
 - `dirs = "5"` (또는 최신 안정) 추가. `Cargo.lock` 갱신.
 - 라이선스: MIT. `deny.toml`에 화이트리스트 갱신 필요 가능성 — P8 cargo deny check에서 surface.
 
-### 코드 (P4에서 박음)
+### 코드 (P4에서 작성)
 - `crates/gitless-sync/src/shared/cache.rs` 신규. `Cache::load`, `Cache::save`, `Cache::lookup`, `Cache::insert`, `cache_path`.
 - scan 진입점에서 cache load → walk + hash 시 lookup → scan 종료 직전 save. fail graceful.
 
