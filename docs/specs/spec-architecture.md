@@ -93,6 +93,23 @@ LOC 300 게이트 통과 위해 test 분리 시도 금지, **production 자체�
 - Phase 6 Step 2: F-I 4 task 분할 + Q error 분리 + P tests 분리 직후 baseline 위반 0건 도달 시 즉시 deny 전환.
 - **enforcement 시점 deferred 금지** (clean-context §3-1 fix).
 
+## Function-level complexity gates
+
+Phase 6 Step 1 박제 (2026-05-07). 박제 expiration 재검토: ADR 0010 (2026-05-10, 둘 다 유지 결정 — Phase 7+ 진입 시 재검토).
+
+| 룰 | granularity | 임계값 | enforcement |
+|---|---|---|---|
+| `clippy::cognitive_complexity` | function | 15 | `Cargo.toml` workspace lint deny + `clippy.toml` |
+| `clippy::too_many_lines` | function | 60 | `Cargo.toml` workspace lint deny + `clippy.toml` |
+| `xtask check-line-limits` | file | 300 | `cargo xtask check-line-limits` deny |
+
+직교성 — 셋 다 인지부하 frame이지만 서로 다른 escape hatch 차단. cog_comp는 함수 단위 branching 깊이 (짧지만 dense), too_many_lines는 함수 단위 LOC (길지만 flat), LOC 300은 file 단위 sprawl (잘 분리된 짧은 함수가 모여 file 비대화). 한 쪽 제거 시 다른 쪽이 못 잡는 패턴이 통과 — 결정 근거 + 사례 박제는 ADR 0010.
+
+### 면제 카테고리
+
+- **test 코드**: `#[cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]` 면제는 panic 검출 lint 한정. cog_comp / too_many_lines는 test 코드도 그대로 적용 — 모놀리식 test 회피 (task R 사례).
+- **doc-heavy file**: LOC 300은 doc comment ≥ 50% 시 자연 면제 (`xtask check-line-limits` 50% 룰).
+
 ## Panic escape hatch 차단
 
 ### 단계적 도입 (warn → fix → deny)
