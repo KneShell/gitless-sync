@@ -139,6 +139,3 @@ crates/gitless-sync/src/
 - **Layer 정의** (2026-05-08): vertical slice + cross-slice 직접 ref 금지 + slice 안 acyclic + slice-internal directional discipline (orchestrator → domain → IO, naming convention + `pub(crate)`/`pub(super)` 가시성).
 - **panic escape hatch 차단** (2026-05-08): production 코드 `unwrap_used`/`expect_used`/`panic` 단계적 deny (warn → fix → deny). tests는 `#[cfg_attr(test, allow(...))]` 자연 면제.
 - **Event 기반 layer 통신 영구 제외** (2026-05-08): 도메인에 cross-feature 런타임 통신 0. 참조 방향성 보호는 Layer 정의로 강제.
-
-### 메모리 환경
-이 프로젝트는 obsidian vault(`C:\Users\admin\iCloudDrive\iCloud~md~obsidian`)와 별개의 auto memory 폴더를 사용한다. vault에 쌓인 사용자 컨텍스트(프로필·재무·자기성찰 등)는 여기서 자동 로드되지 않는다. 정상 동작이며, 글로벌 `~/.claude/CLAUDE.md`(Monday 페르소나 + Universal Rules)만 양쪽에서 공통이다.

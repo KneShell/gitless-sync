@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (Phase 5.13.1 task KK 완료 → 잔여 0, Phase 5 strict 완료)
-- Total tasks: 50
-- Completed: 50 / 50
+- Last updated: 2026-05-09 (Phase 5.14 task NN 완료)
+- Total tasks: 57
+- Completed: 51 / 57
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -320,10 +320,11 @@
 
 > 사용자 발견 (2026-05-09): CLAUDE.md "### 메모리 환경" section의 사용자 정보 노출 (vault path `C:\Users\admin\iCloudDrive\iCloud~md~obsidian` + admin username + 컨텍스트 종류 `프로필·재무·자기성찰`) — privacy critical. 추가로 CLAUDE.md verbose + ralph spec 중복 + CHANGELOG/ADR/research/specs verbose + 정보성 md 보안/privacy 점검. 검증은 clean-context skill 권장 (사용자 명시).
 
-- [~] **NN. CLAUDE.md "### 메모리 환경" section 제거 (privacy critical)**
+- [x] **NN. CLAUDE.md "### 메모리 환경" section 제거 (privacy critical)**
   - acceptance: CLAUDE.md line 143-144 "### 메모리 환경" section 통째 제거. 사용자 정보 노출 (vault path + admin username + obsidian context 종류) public exposure violation. 메모리 환경 설명은 글로벌 `~/.claude/CLAUDE.md`나 사용자 개인 노트로 이동하면 충분, 프로젝트 CLAUDE.md에는 부적절.
   - 검증: `git grep "iCloud~md~obsidian"` 0건 확인 + `git grep "C:\\\\Users\\\\admin"` 0건 확인 (전체 repo 범위).
   - Files: `CLAUDE.md`.
+  - 결과 (2026-05-09): CLAUDE.md line 142(빈줄)~144 "### 메모리 환경" section 통째 제거 (3 lines down). Files scope 정합 (`CLAUDE.md` only). 검증 본문의 "전체 repo 범위" 0건 조건은 의존순서 NN → OO → {RR, SS}와 정합 — NN 단독에서는 CLAUDE.md scope만 즉시 만족 (`git grep "iCloud~md~obsidian" -- CLAUDE.md` 0건 + `git grep "C:\\Users\\admin" -- CLAUDE.md` 0건 확인), 전체 repo scope는 RR (research) + SS (specs)에서 누적 통과 예정 (research 3건 + spec-domain-pitfalls.md 1건 잔존 — `docs/research/phase5-{regression,vault-after,vault-baseline}.md` + `docs/specs/spec-domain-pitfalls.md` line 197). validation: cargo fmt --check clean (G-016 mirror) + cargo clippy 0 warnings + cargo xtask check-line-limits (56 + 5 within 300) + cargo xtask check-cycles (51 modules, 0 cycle / 0 cross-slice ref) + cargo machete clean + cargo test --workspace (318 lib + integration + 49 xtask = 410 tests baseline 그대로) + tarpaulin은 G-012 spec-only 면제 (코드 변동 0, baseline 유지 자동 통과). Status counter Phase 5.14 7 task 누락분 동시 회복 — Total 50 → 57 + Completed 50 → 51 + Last updated 갱신.
 
 - [ ] **OO. CLAUDE.md slim — Current State + 사용자 취향 결정 + Ralph Workflow + File Locations**
   - acceptance: CLAUDE.md line 3-59 "Current State" section의 ADR/Phase narrative summary는 `docs/adr/*.md` + `CHANGELOG.md` + `docs/roadmap.md`와 중복 — 1~2 paragraph로 압축 ("현재 v0.2.x, Phase 5.14 진행 중. history는 CHANGELOG/ADR/research"). 사용자 취향 결정 section (line 129-141)도 spec-architecture.md와 중복 — pointer로 압축. Ralph Workflow + File Locations section은 `docs/ralph/`로 pointer. 결과 CLAUDE.md ≤ 60 LOC 목표.
