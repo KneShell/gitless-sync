@@ -22,6 +22,7 @@ fn assemble_entries_marks_unreadable_local_as_failed() {
     let remote = RemoteFile {
         path: "ghost.md".to_string(),
         sha: "remote-sha".to_string(),
+        mode: "100644".to_string(),
     };
 
     let mut mock = MockGhClient::new();
@@ -59,6 +60,7 @@ fn assemble_entries_skips_commits_for_identical() {
     let remote = RemoteFile {
         path: "ok.md".to_string(),
         sha: sha.clone(),
+        mode: "100644".to_string(),
     };
 
     // No commits stub; if assemble_entries hits the Commits API anyway, it
@@ -93,10 +95,12 @@ fn assemble_entries_promotes_case_collision_to_failed_with_reason() {
     let lower = RemoteFile {
         path: "foo.txt".to_string(),
         sha: blob_hash(b"x"),
+        mode: "100644".to_string(),
     };
     let upper = RemoteFile {
         path: "Foo.txt".to_string(),
         sha: "remote-upper-sha".to_string(),
+        mode: "100644".to_string(),
     };
 
     let mock = MockGhClient::new();
@@ -125,4 +129,72 @@ fn assemble_entries_promotes_case_collision_to_failed_with_reason() {
     let lower_entry = entries.iter().find(|e| e.path == "foo.txt").unwrap();
     assert_eq!(lower_entry.status, Status::Identical);
     assert!(lower_entry.failed_reason.is_none());
+}
+
+#[test]
+fn assemble_entries_promotes_remote_submodule_to_failed_with_reason() {
+    // Remote tree carries a submodule (`mode: "160000"`, type=commit). Phase
+    // 5 task G short-circuits this BEFORE try_hash_local — even if a local
+    // file shadows the same path, hashing it against a commit-pointer SHA is
+    // meaningless. Result: Status::Failed + failed_reason: submodule, mode
+    // bit "160000" carried into the v1.1 JSON, no Commits API call needed.
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("vendor-lib"), "shadow content").unwrap();
+    let local = LocalFile {
+        relative_path: "vendor/lib".to_string(),
+        absolute_path: dir.path().join("vendor-lib"),
+        mtime: mtime(1_700_000_000),
+    };
+    let remote = RemoteFile {
+        path: "vendor/lib".to_string(),
+        sha: "deadbeefcafe".to_string(),
+        mode: "160000".to_string(),
+    };
+
+    // No commits stub — submodule short-circuit must not invoke Commits API.
+    let mock = MockGhClient::new();
+    let ctx = GitHubContext {
+        client: &mock,
+        repo: "o/r",
+        branch: "main",
+        backend: Backend::Rest,
+    };
+    let (entries, summary, failed) = assemble_entries(&[local], &[remote], &ctx, false).unwrap();
+
+    assert_eq!(failed, 1);
+    assert_eq!(summary.failed, 1);
+    assert_eq!(entries.len(), 1);
+    let entry = &entries[0];
+    assert_eq!(entry.path, "vendor/lib");
+    assert_eq!(entry.status, Status::Failed);
+    assert_eq!(entry.failed_reason, Some(FailedReason::Submodule));
+    assert_eq!(entry.mode, "160000");
+    assert_eq!(entry.remote_sha.as_deref(), Some("deadbeefcafe"));
+    assert!(entry.local_sha.is_none());
+}
+
+#[test]
+fn assemble_entries_carries_mode_for_local_only_files() {
+    // Local-only paths (no remote tree entry) inherit the default "100644"
+    // mode bit, ensuring v1.1 schema invariant "every file row carries mode"
+    // (spec-output-schema.md § v1.1 acceptance).
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("local.md"), "x").unwrap();
+    let local = LocalFile {
+        relative_path: "local.md".to_string(),
+        absolute_path: dir.path().join("local.md"),
+        mtime: mtime(1_700_000_000),
+    };
+
+    let mock = MockGhClient::new();
+    let ctx = GitHubContext {
+        client: &mock,
+        repo: "o/r",
+        branch: "main",
+        backend: Backend::Rest,
+    };
+    let (entries, summary, _) = assemble_entries(&[local], &[], &ctx, false).unwrap();
+
+    assert_eq!(summary.local_only_changed, 1);
+    assert_eq!(entries[0].mode, "100644");
 }
