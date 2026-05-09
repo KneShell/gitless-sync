@@ -366,7 +366,7 @@
 
 > Phase 5.14 종료 후 v0.2.0 release 직전 마무리. 사용자 우려 (clean-context §5-3 명시, roadmap § Open Questions) 처리.
 
-- [ ] **UU. Phase 6 박제 expiration 재검토 — cognitive_complexity vs LOC 300 proxy 중복**
+- [~] **UU. Phase 6 박제 expiration 재검토 — cognitive_complexity vs LOC 300 proxy 중복**
   - acceptance: Phase 6 박제 항목 `clippy::cognitive_complexity = 15` + `xtask check-line-limits ≤ 300` proxy 중복 정당성 재검토. clean-context §5-3 명시 ("Phase 7 진입 시 재검토 — proxy 두 개 동시 deny가 정당한지"). 결정 1건 — (a) 둘 다 유지 (orthogonal proxy: cognitive_complexity는 함수 단위 분기 복잡도, LOC는 file 단위 인지부하), (b) 한 쪽 제거 (proxy 중복 — 동일 인지부하 측정 frame, 1건만 deny). 합리적 판단으로 결정 + ADR-style narrative 작성 (`docs/adr/0010-cognitive-vs-loc-proxy.md` 신규 권장).
   - 검증: 결정 + spec-architecture.md § LOC 임계 / § cognitive_complexity 갱신 + CLAUDE.md 박제 정책 갱신 (필요 시). validation pipeline 통과 (cargo fmt --check + clippy + check-line-limits + check-cycles + machete + test 410+ + tarpaulin 80%+).
   - Files: `docs/adr/0010-cognitive-vs-loc-proxy.md` (신규), `docs/specs/spec-architecture.md`, `CLAUDE.md` (필요 시).
