@@ -11,28 +11,6 @@
 - `SCHEMA_VERSION = "1.1"` 상수 정의 (Phase 5에서 갱신).
 - `serialize(report, pretty)` 함수 구현 완료.
 
-### O-task audit (2026-05-09)
-
-본 spec과 실 구현(`commands/scan/output.rs` / `commands/scan/compare.rs` / `commands/scan/pipeline.rs::pre_entry_to_file`) 정합 검증. 구현 vs 미구현 + drift surface — fix는 본 task scope 안 항목만 처리. 외 drift는 follow-up task로 분리.
-
-**구현 정합**:
-- `SCHEMA_VERSION = "1.1"` 상수 — `output.rs::SCHEMA_VERSION` 정의됨.
-- `ScanReport` 7 v1.0 필드 (`schema_version` / `scanned_at` / `repo` / `branch` / `local_root` / `summary` / `files`) — `output.rs::ScanReport` line 18~27 정의됨. `files: Option<Vec<FileEntry>>` + `#[serde(skip_serializing_if = "Option::is_none")]` → `--summary-only` 시 자동 omit.
-- `FileEntry` v1.0 필드 (`path` / `status` / `local_sha` / `remote_sha` / `local_mtime` / `remote_last_commit_at` / `is_binary`) — `compare.rs::FileEntry` line 39~56 정의됨. v1.0 Optional 필드는 모두 `#[serde(skip_serializing_if = "Option::is_none")]` 적용.
-- `FileEntry` v1.1 신규 필드 — `mode: String` (Option 아님 — 모든 entry 항상 포함) + `failed_reason: Option<FailedReason>` + `lfs_pointer: Option<LfsPointer>` 모두 `#[serde(skip_serializing_if = "Option::is_none")]` 적용 → v1.0 호출자 backward-compat (필드 부재 시 v1.0 baseline 동작).
-- `Status` 5 variant + serde `rename_all = "snake_case"` — `compare.rs::Status` line 4~12 정의됨 (Phase 5에서 새 status 미추가 정합).
-- `LfsPointer { oid: String, size: u64 }` 정의됨 — `compare.rs::LfsPointer` line 32~36.
-- 모든 `Status::Failed` entry가 mode 포함 (`pipeline.rs::pre_entry_to_file` line 217~228). Hashed entry도 mode 포함 (line 250~261).
-- Hashed 분기 `failed_reason: None / lfs_pointer: None` 정합 (`pipeline.rs` line 259~260) → 비-Failed entry는 v1.1 신규 필드 omit 정합.
-- `failed_reason == "lfs_pointer"` 한정 `lfs_pointer` 필드 포함 — `pipeline.rs` line 226 `lfs::placeholder_pointer_for(failed_reason)` + `lfs.rs::placeholder_pointer_for` 구현됨 (`Some(LfsPointer { oid: "?", size: 0 })` for `LfsPointer` reason, `None` 외). `pipeline_tests_lfs.rs` line 87~130 검증 통과.
-- spec § acceptance line 117 `mode == "100755"` + content 동일 → `Status::Identical` — `pipeline_tests_modes.rs::assemble_entries_keeps_identical_when_only_mode_differs_executable` 검증됨.
-
-**구현 정합 (Phase 5.13 task AA, 2026-05-09)**:
-- `failed_reason` 9 reason 모두 구현 — `compare.rs::FailedReason` 8 variant (`CaseCollision / Submodule / Symlink / LongPath / LfsPointer / Encoding / NfdCollision / GitattributesUnsupported`) + `None` special case (`hash_io` v1.0 baseline) = 9 cover.
-- `encoding` plumbing — `commands/scan/hash_local.rs::try_hash_local`가 raw read 1회 + `try_decode_text` 결과 분기 (`Utf16Bom { .. }` / `Unknown` → `Some(FailedReason::Encoding)`).
-- `nfd_collision` plumbing — `commands/scan/nfd_collision.rs::detect`가 walker output `&[LocalFile]` group-by NFC key count ≥ 2 (HashMap dedup 전).
-- `gitattributes_unsupported` plumbing — `pipeline::try_short_circuit_failed`의 `.gitattributes` match arm이 `AttributeMatch::Unsupported { .. }` → `FailedReason::GitattributesUnsupported`.
-
 ## 작업 범위
 
 ### 스키마 v1.1 (전체)

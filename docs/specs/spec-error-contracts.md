@@ -13,32 +13,6 @@ read-only CLI라도 호출자(특히 AI)가 안정적으로 다룰 수 있도록
 - 각 GitHub API / IO 호출 지점에서 `GitlessError` variant 매핑 + partial failure 누적 로직 모두 구현 (ADR 0002 마이그레이션 완료, 2026-05-07).
 - **gh CLI 최소 버전 floor**: `gh >= 2.40.0` (2023-12-07 릴리스). 근거: 멀티 계정 인증(`gh auth switch`/`gh auth status` 정비)이 도입된 시점으로 토큰/호스트 해석이 안정적. `gh api`의 `-F`/`-f`/recursive query는 그 전부터 안정이었으나 인증 측 안정성을 floor로 잡는다 [source: https://github.com/cli/cli/releases/tag/v2.40.0]. 현재 최신은 v2.92.0 (2026-04-28) 기준 [source: https://github.com/cli/cli/releases].
 
-### N-task audit (2026-05-09)
-
-본 spec과 실 구현(`shared/error/core.rs` / `shared/error/network.rs` / `shared/github/error_map.rs` / `commands/scan/compare.rs`) 정합 검증. 구현 vs 미구현 + drift surface — fix는 본 task scope 안 항목만 처리. 외 drift는 follow-up task로 분리.
-
-**구현 정합**:
-- `GitlessError` 7 variant (`Config / AuthFailed / RateLimitExceeded / TreesTruncated / Http / Io / PartialFailure`) — `core.rs::GitlessError` line 11~33 정의됨.
-- gh stderr substring 매칭 (`Bad credentials` / `secondary rate limit` / `API rate limit exceeded` / fallthrough) — `shared/github/error_map.rs::map_gh_error` line 9~20 구현. 우선순위 정합 (auth → secondary → primary → Http).
-- GraphQL error mapping (`RATE_LIMITED` / `UNAUTHENTICATED` / fallthrough) — `error/network.rs::map_graphql_error` line 39~50 구현. `NOT_FOUND` + 그 외 fallthrough Http 매핑.
-- `FailedReason` 8 variant — `compare.rs::FailedReason` 정의 (`CaseCollision / Submodule / Symlink / LongPath / LfsPointer / Encoding / NfdCollision / GitattributesUnsupported`). Phase 5.13 task AA에서 `Encoding / NfdCollision / GitattributesUnsupported` 3 variant 추가 + `pipeline.rs::try_short_circuit_failed` cascade 매핑.
-- `LfsPointer` placeholder `{oid: "?", size: 0}` — `compare.rs::LfsPointer` line 33~36 + `commands/scan/lfs.rs::placeholder_pointer_for` 구현.
-- 호출자 import path 호환: `use crate::shared::error::{GitlessError, GraphqlError, map_graphql_error};` — `error/mod.rs` line 13~14 re-export 정합.
-
-**구현 정합 (Phase 5.13 task AA, 2026-05-09)**:
-- `failed_reason: "encoding"` — `commands/scan/hash_local.rs::try_hash_local`이 raw bytes 1회 read → `try_decode_text` 결과가 `Utf16Bom { .. }` 또는 `Unknown`이면 `Some(FailedReason::Encoding)` 반환 → `pipeline.rs::build_one_pre_entry`가 `PreState::Failed`로 격상. hash 입력은 항상 raw bytes (b-policy 정합).
-- `failed_reason: "nfd_collision"` — `commands/scan/nfd_collision.rs::detect`가 walker output `&[LocalFile]`을 group-by relative_path count ≥ 2 detect (HashMap dedup 전). `pipeline::try_short_circuit_failed` cascade 첫 분기에서 surface.
-- `failed_reason: "gitattributes_unsupported"` — `pipeline::try_short_circuit_failed`의 `.gitattributes` match arm이 `AttributeMatch::Unsupported { .. }` → `Some((mode(), FailedReason::GitattributesUnsupported))`. `prepare_for_hash`는 v0.1 default fall-through 그대로 (defensive — caller가 short-circuit으로 surface).
-
-**Drift surface (코드 fix follow-up — 본 task scope 밖)**:
-- `Http` exit code: 본 spec § Exit Code 매핑 line 58 정의 `1` vs `error/core.rs::exit_code()` line 49 구현 `3`. spec acceptance line ("5xx fallthrough → 도구 exit code 1") vs 코드 drift. ureq 시절 잔재 의심 (ADR 0002 마이그레이션 spec 갱신 시점에 코드 미반영 가능). 본 task fix 안 함 — code change는 다른 task scope (`error/core.rs` 변경은 task Q phase 6 영역).
-
-**Spec self-consistency fix (본 task에서 처리)**:
-- § Acceptance Criteria 의 `error_code` 양식 inconsistency: 일부 `"CONFIG"` / `"HTTP"` (suffix 없음) vs 다른 `"AUTH_FAILED"` / `"RATE_LIMIT_EXCEEDED"` / `"TREES_TRUNCATED"` (suffix 포함). `error_code()` 메서드 결과는 모두 `_ERROR` / `_FAILED` / `_EXCEEDED` suffix 일관 (`core.rs::error_code()` line 56~66) — `"CONFIG_ERROR"` / `"HTTP_ERROR"` / `"AUTH_FAILED"` / `"RATE_LIMIT_EXCEEDED"` / `"TREES_TRUNCATED"` / `"IO_ERROR"` / `"PARTIAL_FAILURE"`. 본 task에서 spec acceptance line 갱신 — `"CONFIG"` → `"CONFIG_ERROR"` + `"HTTP"` → `"HTTP_ERROR"`. **spec § stderr 출력 형식 line 134~140의 1:1 매핑 원칙(`error_code`는 `GitlessError` enum과 1:1 매핑 (`error_code()` 메서드 결과))과 정합**.
-
-**Spec 잔재 hedge (follow-up)**:
-- § Module Layout `format_graphql_errors` re-export — `error/mod.rs` line 14 미선언 (module-internal helper). spec text 잔재 또는 코드 plumbing gap. 본 task fix 안 함 — spec 본문은 retain (helper 자체는 구현됨, re-export 변경은 호출 site 영향 없음).
-
 ## 작업 범위
 
 ### Module Layout (Q, 2026-05-08)

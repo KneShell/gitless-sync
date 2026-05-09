@@ -194,7 +194,7 @@ macOS/Linux runner 추가는 별도 phase. 현재 Windows runner 그대로.
 
 ### task A 측정 결과 (2026-05-09)
 
-- **vault 부재**: 머신 환경(`C:\Users\dasgut`)에서 vault path(`C:\Users\admin\iCloudDrive\iCloud~md~obsidian`) 접근 불가. dogfood target은 KneShell/gitless-sync 자체 repo (92 files) 한정 — Rust 프로젝트라 함정 surface ~0건 예상 + 실제로 그렇게 측정됨.
+- **vault 부재**: 본 머신은 vault path(`<vault path>`) 접근 불가 (머신 user ≠ vault user). dogfood target은 KneShell/gitless-sync 자체 repo (92 files) 한정 — Rust 프로젝트라 함정 surface ~0건 예상 + 실제로 그렇게 측정됨.
 - **측정 결과**: 92 files (90 identical / 2 local_only_changed / 0 drift / 0 failed). 2건 local_only_changed는 scan 자체 stdout/stderr redirect race noise (도메인 함정 아님).
 - **함정 0건 surface**: KneShell/gitless-sync는 NFD path / `.gitattributes` / LFS / submodule / symlink / 비-UTF-8 / Windows long path 모두 결여 — 함정 surface 측정 부적절.
 - **상세**: `docs/research/phase5-vault-baseline.md`.
