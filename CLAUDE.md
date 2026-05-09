@@ -4,7 +4,7 @@
 git이 없는 로컬 디렉토리를 GitHub repo와 단방향으로 비교해 드리프트를 정량 보고하는 read-only AI 친화 CLI. iCloud 동기화 디렉토리처럼 git 사용 자체가 불가능한 환경에서 "평행우주 드리프트"를 막기 위한 도구. 도구는 사실(4분류 JSON)만 제공하고 결정은 호출자(사람 또는 AI)에게 맡긴다.
 
 ## Current State
-v0.2.x — Phase 5 (도메인 함정 정리) 본진 종료, Phase 5.14 (md 자료 audit) 진행 중. 상세 history는 `CHANGELOG.md` + `docs/adr/*.md` + `docs/research/*.md` + `docs/ralph/implementation-plan.md`.
+v0.2.x — Phase 5 (도메인 함정 정리 + Phase 5.13/5.13.1 follow-up + Phase 5.14 md 자료 audit) 종료. 다음 Phase 7+ 진입 직전. 상세 history는 `CHANGELOG.md` + `docs/adr/*.md` + `docs/research/*.md` + `docs/ralph/implementation-plan.md`.
 
 ## Key Constraints
 - **OS**: Windows 1차. macOS/Linux는 부수효과로 지원, 검증은 Windows 기준.

@@ -59,3 +59,7 @@
 ## G-016: validation은 `cargo fmt --check`, 절대 bare `cargo fmt` 아님
 - **문제**: `cargo fmt`는 silent-rewrite (인플레이트만 하고 exit 0). LOC 게이트 직전 1~2줄 여유인 file은 bare `cargo fmt` 통과 + `cargo fmt --check` 실패 동시 발생 가능. 다음 iteration이 `cargo fmt --check` 돌리는 순간 fmt drift surface + 자동 fix 시 LOC 게이트 위반 cascade. 사례 (2026-05-09): GG task에서 `assert_promoted(result.as_ref(), "100644", FailedReason::GitattributesUnsupported);` 1줄 작성 (`fn_call_width=60` 초과) → bare fmt가 silent inflate 안 함 → GG가 fmt clean 보고 → 다음 iteration HH가 `--check`로 4줄 wrap 필요 검출 → 298 + 4 = 302 LOC > 300 게이트.
 - **해결**: **validation step 1은 무조건 `cargo fmt --check`**, 절대 `cargo fmt` 단독 아님. project-ops.md § Full Validation Pipeline § 1 "cargo fmt --check" 정확 mirror. fmt fix는 별도 step (drift detect → 수정 → 재검증). LOC 게이트 직전 file (≥ 290 LOC) 작업 시 `fn_call_width=60` 초과 호출 의심 grep으로 사전 검증. 본 G로 [!] 마크된 task는 § 1 [!] auto-recovery의 영구 분류상 영구 (사람이 LOC 압박 해소 — file 분할 / 압축 / 리팩토링 후 task reset).
+
+## G-017: `gh -F` 인자가 commits API GET → POST 자동 전환
+- **문제**: `gh api -F` (또는 `--field`) 인자는 request body field로 처리되어 gh 기본 동작상 method가 POST로 자동 전환된다. commits API GET 호출에 `-F path=...` 형태로 path 전달하면 GitHub이 `405 Method Not Allowed` 응답. M5a 측정 직전 `fetch_last_commit_at`이 본 함정에 발현 (M2d task, commit `082748a`로 fix).
+- **해결**: GET 의도 명시 — `-X GET` prepend 또는 `-f path=...` (`-f` 소문자 = query string, `-F` 대문자 = form body) 사용. `fetch_last_commit_at`은 `-X GET` 명시 필수. 검증: 본 G로 [!] 마크된 task는 § 1 [!] auto-recovery 영구 분류 (사람이 gh 명령 검증 후 task reset).
