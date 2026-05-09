@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 34
-- Completed: 2 / 34
+- Completed: 3 / 34
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -25,7 +25,7 @@
   - acceptance: vault 분석 결과로 함정 우선순위 박음. spec-domain-pitfalls.md § "v0.1 baseline 영향"에 박음.
   - spec: `docs/specs/spec-domain-pitfalls.md`.
 
-- [~] **A2. `.gitignore` 무시 정책 spec 명시**
+- [x] **A2. `.gitignore` 무시 정책 spec 명시**
   - acceptance: spec-classification.md § `.gitignore` 무시 정책 박혀있음 (이미 Phase 5 spec 갱신에서 박힘). spec-ignore-policy.md 갱신해 scan 범위 명시. unit test 박음 — `target/`, `node_modules/`, custom `.gitignore` ignored path 검증.
   - spec: `docs/specs/spec-classification.md` § `.gitignore` 무시 정책 + `docs/specs/spec-ignore-policy.md`.
 
