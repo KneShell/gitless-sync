@@ -8,6 +8,7 @@ pub mod commits;
 pub mod compare;
 pub mod graphql;
 pub mod hash_local;
+pub mod long_path;
 pub mod output;
 pub mod pipeline;
 pub mod status_filter;
