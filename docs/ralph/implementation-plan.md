@@ -320,7 +320,7 @@
 
 > 사용자 발견 (2026-05-09): CLAUDE.md "### 메모리 환경" section의 사용자 정보 노출 (vault path `C:\Users\admin\iCloudDrive\iCloud~md~obsidian` + admin username + 컨텍스트 종류 `프로필·재무·자기성찰`) — privacy critical. 추가로 CLAUDE.md verbose + ralph spec 중복 + CHANGELOG/ADR/research/specs verbose + 정보성 md 보안/privacy 점검. 검증은 clean-context skill 권장 (사용자 명시).
 
-- [ ] **NN. CLAUDE.md "### 메모리 환경" section 제거 (privacy critical)**
+- [~] **NN. CLAUDE.md "### 메모리 환경" section 제거 (privacy critical)**
   - acceptance: CLAUDE.md line 143-144 "### 메모리 환경" section 통째 제거. 사용자 정보 노출 (vault path + admin username + obsidian context 종류) public exposure violation. 메모리 환경 설명은 글로벌 `~/.claude/CLAUDE.md`나 사용자 개인 노트로 이동하면 충분, 프로젝트 CLAUDE.md에는 부적절.
   - 검증: `git grep "iCloud~md~obsidian"` 0건 확인 + `git grep "C:\\\\Users\\\\admin"` 0건 확인 (전체 repo 범위).
   - Files: `CLAUDE.md`.
