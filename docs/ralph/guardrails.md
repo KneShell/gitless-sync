@@ -63,3 +63,7 @@
 ## G-017: `gh -F` 인자가 commits API GET → POST 자동 전환
 - **문제**: `gh api -F` (또는 `--field`) 인자는 request body field로 처리되어 gh 기본 동작상 method가 POST로 자동 전환된다. commits API GET 호출에 `-F path=...` 형태로 path 전달하면 GitHub이 `405 Method Not Allowed` 응답. M5a 측정 직전 `fetch_last_commit_at`이 본 함정에 발현 (M2d task, commit `082748a`로 fix).
 - **해결**: GET 의도 명시 — `-X GET` prepend 또는 `-f path=...` (`-f` 소문자 = query string, `-F` 대문자 = form body) 사용. `fetch_last_commit_at`은 `-X GET` 명시 필수. 검증: 본 G로 [!] 마크된 task는 § 1 [!] auto-recovery 영구 분류 (사람이 gh 명령 검증 후 task reset).
+
+## G-018: cross-platform cfg gate — Windows-only `use` import는 cfg gate 필수
+- **문제**: `tests/scan_errors.rs:13`처럼 top-level `use std::fs;`가 file에 위치하고 본 import 사용처는 `#[cfg(windows)]` block (Scenario 15 partial failure) 한정인 케이스. Windows runner는 통과 (use 사용됨), Linux runner는 unused import error (clippy `-D warnings` deny). 사례 (2026-05-10): WW (commit `b33d8ab`) Linux runner 전환 1차 시도 CI run `25613144744` failed. fix: scan_errors.rs:13 `use std::fs;` → `#[cfg(windows)]\nuse std::fs;`.
+- **해결**: Windows-only `use` 또는 `mod`는 `#[cfg(windows)] use ...;` gate 필수. cross-platform `use`는 top-level 그대로. 사전 검증 옵션: (a) Linux cross-build (Windows host에서 `cargo clippy --target x86_64-unknown-linux-gnu --workspace --all-targets -- -D warnings`, 단 std target 추가 + linker 설정 필요라 setup cost 큼). (b) push trigger CI 1회로 검출 (real signal, 본 사례 채택). Windows-only `#[cfg]` block 신규 추가 시 import도 동일 cfg gate 동시 적용.

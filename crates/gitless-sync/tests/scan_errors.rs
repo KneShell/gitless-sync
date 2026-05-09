@@ -10,6 +10,7 @@
 
 mod common;
 
+#[cfg(windows)]
 use std::fs;
 
 use tempfile::TempDir;
