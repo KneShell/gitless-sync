@@ -12,6 +12,11 @@ pub struct LocalFile {
     pub relative_path: String,
     pub absolute_path: PathBuf,
     pub mtime: DateTime<Utc>,
+    /// `true` when this entry is a symbolic link (lstat-detected, target not
+    /// followed). Phase 5 task H surfaces these so `pipeline.rs` can promote
+    /// the path to `Status::Failed` + `failed_reason: "symlink"`
+    /// (`spec-domain-pitfalls.md` § Symlink).
+    pub is_symlink: bool,
 }
 
 /// Walk `root` and return every file that survives the ignore matcher.
@@ -19,10 +24,13 @@ pub struct LocalFile {
 /// `relative_path` is normalized to forward slashes (G-004) and then to
 /// Unicode NFC so the comparison key matches GitHub's tree/blob paths even
 /// when the local filesystem stores names in NFD (macOS APFS/HFS+). See
-/// `spec-domain-pitfalls.md` § Path 정규화. Symlinks, directories, and
-/// ignored entries are excluded; ignored directories are pruned via a probe
-/// path so we don't descend into them (so `node_modules/` does not get
-/// walked).
+/// `spec-domain-pitfalls.md` § Path 정규화. Directories and ignored entries
+/// are excluded; ignored directories are pruned via a probe path so we
+/// don't descend into them (so `node_modules/` does not get walked).
+/// Symlinks are surfaced with `is_symlink: true` so `pipeline.rs` can mark
+/// them `Status::Failed` + `failed_reason: "symlink"` (Phase 5 task H —
+/// `WalkDir::follow_links(false)` keeps lstat semantics, no link target
+/// resolution).
 ///
 /// # Errors
 /// Returns [`GitlessError::Io`] when the underlying walk reports an I/O failure
@@ -50,7 +58,9 @@ pub fn walk(root: &Path, matcher: &IgnoreMatcher) -> Result<Vec<LocalFile>, Gitl
     for entry in walker {
         let entry = entry.map_err(|e| walkdir_to_io(&e))?;
 
-        if !entry.file_type().is_file() {
+        let file_type = entry.file_type();
+        let is_symlink = file_type.is_symlink();
+        if !file_type.is_file() && !is_symlink {
             continue;
         }
 
@@ -70,6 +80,7 @@ pub fn walk(root: &Path, matcher: &IgnoreMatcher) -> Result<Vec<LocalFile>, Gitl
             relative_path: rel,
             absolute_path: entry.path().to_path_buf(),
             mtime,
+            is_symlink,
         });
     }
 
@@ -224,7 +235,11 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn skips_symlinks_on_unix() {
+    fn captures_symlinks_on_unix_with_is_symlink_flag() {
+        // Phase 5 task H: walker now emits symlink entries with
+        // `is_symlink: true` so `pipeline.rs` can promote them to
+        // `Status::Failed` + `failed_reason: "symlink"`. The link target is
+        // not followed (`WalkDir::follow_links(false)`).
         use std::os::unix::fs::symlink;
 
         let dir = TempDir::new().unwrap();
@@ -234,7 +249,21 @@ mod tests {
         let files = walk(dir.path(), &matcher_for(&dir)).unwrap();
         let n = names(&files);
 
-        assert_eq!(n, vec!["real.txt".to_string()]);
+        assert_eq!(n.len(), 2);
+        assert!(n.contains(&"real.txt".to_string()));
+        assert!(n.contains(&"link.txt".to_string()));
+
+        let link = files
+            .iter()
+            .find(|f| f.relative_path == "link.txt")
+            .unwrap();
+        assert!(link.is_symlink, "symlink entry must carry is_symlink=true");
+
+        let real = files
+            .iter()
+            .find(|f| f.relative_path == "real.txt")
+            .unwrap();
+        assert!(!real.is_symlink, "regular file must carry is_symlink=false");
     }
 
     #[test]

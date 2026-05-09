@@ -61,6 +61,7 @@ mod tests {
             relative_path: name.to_string(),
             absolute_path: PathBuf::from(name),
             mtime: Utc.timestamp_opt(0, 0).unwrap(),
+            is_symlink: false,
         }
     }
 

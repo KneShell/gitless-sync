@@ -61,9 +61,10 @@ fn fetch_tree_returns_blob_entries_only() {
 
 #[test]
 fn fetch_tree_skips_unsupported_modes() {
-    // Phase 5 task G admits submodule (`160000`, type=commit). H/J will
-    // extend symlink (`120000`) and executable (`100755`); for now they
-    // remain skipped with the existing unsupported-mode warning.
+    // Phase 5 task G admits submodule (`160000`, type=commit). Task H now
+    // admits symlink (`120000`, type=blob). J will extend executable
+    // (`100755`); for now it remains skipped with the existing
+    // unsupported-mode warning.
     let body = r#"{
         "sha": "root",
         "tree": [
@@ -78,12 +79,39 @@ fn fetch_tree_skips_unsupported_modes() {
     mock.stub(tree_args("o/r", "main"), ok_resp(body.as_bytes()));
 
     let files = fetch_tree(&mock, "o/r", "main").unwrap();
-    assert_eq!(files.len(), 2);
+    assert_eq!(files.len(), 3);
     assert_eq!(files[0].path, "ok.md");
     assert_eq!(files[0].mode, "100644");
-    assert_eq!(files[1].path, "submod");
-    assert_eq!(files[1].mode, "160000");
-    assert_eq!(files[1].sha, "s4");
+    assert_eq!(files[1].path, "link");
+    assert_eq!(files[1].mode, "120000");
+    assert_eq!(files[1].sha, "s3");
+    assert_eq!(files[2].path, "submod");
+    assert_eq!(files[2].mode, "160000");
+    assert_eq!(files[2].sha, "s4");
+}
+
+#[test]
+fn fetch_tree_carries_symlink_mode_and_target_blob_sha() {
+    // Symlinks report `type: "blob"` + `mode: "120000"` and the `sha`
+    // points to a blob whose contents are the link target path. Phase 5
+    // task H surfaces both through `RemoteFile` so `compare.rs` can
+    // promote the path to `Status::Failed` + `failed_reason: "symlink"`
+    // while preserving the mode bit (spec-domain-pitfalls.md § Symlink).
+    let body = r#"{
+        "sha":"root",
+        "tree":[
+            {"path":"link/to/elsewhere","mode":"120000","type":"blob","sha":"feedface"}
+        ],
+        "truncated":false
+    }"#;
+    let mut mock = MockGhClient::new();
+    mock.stub(tree_args("o/r", "main"), ok_resp(body.as_bytes()));
+
+    let files = fetch_tree(&mock, "o/r", "main").unwrap();
+    assert_eq!(files.len(), 1);
+    assert_eq!(files[0].path, "link/to/elsewhere");
+    assert_eq!(files[0].mode, "120000");
+    assert_eq!(files[0].sha, "feedface");
 }
 
 #[test]

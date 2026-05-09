@@ -76,14 +76,13 @@ fn build_pre_entries(
         .collect()
 }
 
-/// Compose one [`PreEntry`]. Short-circuits in priority order:
-///   1. `collisions.contains(path)` → `FailedReason::CaseCollision`
-///   2. `remote.mode == "160000"` → `FailedReason::Submodule`
-///      (content compare vs a commit-pointer SHA is meaningless)
-///   3. local present + hash ok → `Hashed`
-///   4. local present + hash err → `Failed { failed_reason: None }`
+/// Compose one [`PreEntry`]. Defers the failed-short-circuit cascade to
+/// [`try_short_circuit_failed`] so the cascade stays in one place and this
+/// function fits the 60-line clippy gate. Order after short-circuit:
+///   1. local present + hash ok → `Hashed`
+///   2. local present + hash err → `Failed { failed_reason: None }`
 ///      (v1.0 `hash_io` default, no explicit reason)
-///   5. local absent → `Hashed { local_sha: None }` (remote-only)
+///   3. local absent → `Hashed { local_sha: None }` (remote-only)
 fn build_one_pre_entry(
     path: &str,
     local: Option<&LocalFile>,
@@ -92,32 +91,21 @@ fn build_one_pre_entry(
     collisions: &HashSet<String>,
 ) -> PreEntry {
     let remote_sha = remote.map(|r| r.sha.clone());
-    let mode = remote.map_or_else(|| "100644".to_string(), |r| r.mode.clone());
     let local_mtime = local.map(|lf| lf.mtime);
 
-    if collisions.contains(path) {
+    if let Some((mode, reason)) = try_short_circuit_failed(path, local, remote, collisions) {
         return PreEntry {
             path: path.to_string(),
             mode,
             state: PreState::Failed {
                 remote_sha,
                 local_mtime,
-                failed_reason: Some(FailedReason::CaseCollision),
+                failed_reason: Some(reason),
             },
         };
     }
 
-    if remote.is_some_and(|r| r.mode == "160000") {
-        return PreEntry {
-            path: path.to_string(),
-            mode,
-            state: PreState::Failed {
-                remote_sha,
-                local_mtime,
-                failed_reason: Some(FailedReason::Submodule),
-            },
-        };
-    }
+    let mode = remote.map_or_else(|| "100644".to_string(), |r| r.mode.clone());
 
     let state = match local {
         Some(lf) => match try_hash_local(&lf.absolute_path, keep_bom) {
@@ -149,6 +137,35 @@ fn build_one_pre_entry(
         mode,
         state,
     }
+}
+
+/// Cascade of failed short-circuits. Returns `Some((mode, reason))` for the
+/// first matching condition or `None` to fall through to the normal hash
+/// path. Order matters — see priority list:
+///   1. case collision (cross-set case mismatch detected upstream)
+///   2. submodule (`remote.mode == "160000"`)
+///   3. symlink (`remote.mode == "120000"` or `local.is_symlink`)
+///
+/// Submodule and symlink force their canonical mode bit into the result so
+/// local-only symlinks (no remote entry to copy mode from) still report
+/// `mode: "120000"` per `spec-output-schema.md` § v1.1.
+fn try_short_circuit_failed(
+    path: &str,
+    local: Option<&LocalFile>,
+    remote: Option<&RemoteFile>,
+    collisions: &HashSet<String>,
+) -> Option<(String, FailedReason)> {
+    if collisions.contains(path) {
+        let mode = remote.map_or_else(|| "100644".to_string(), |r| r.mode.clone());
+        return Some((mode, FailedReason::CaseCollision));
+    }
+    if remote.is_some_and(|r| r.mode == "160000") {
+        return Some(("160000".to_string(), FailedReason::Submodule));
+    }
+    if remote.is_some_and(|r| r.mode == "120000") || local.is_some_and(|lf| lf.is_symlink) {
+        return Some(("120000".to_string(), FailedReason::Symlink));
+    }
+    None
 }
 
 /// Pass 2 input: keep only paths whose SHA differs on both sides.
