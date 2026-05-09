@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 34
-- Completed: 22 / 34
+- Completed: 23 / 34
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -122,9 +122,10 @@
   - spec: `spec-hash-and-normalize.md`.
   - 결과 (2026-05-09): K1~K4 + K1.5 구현 vs spec 정합 audit 5 drift 박음 + 수정. (1) `현재 상태` section 박힌 K-task 박힘 marker 박음 (K1/K2/K3/K4/K1.5 박힘 + commands/scan 경로 + decode.rs 경로 박음). (2) `Lifetime 계약` section signature 4 인자 박음 (`path: &str` 추가, 구현 정합). (3) Acceptance criterion `Unsupported → Status::Failed` 매핑 박음 — K1.5 classifier scope만 cover, caller-side `pipeline.rs` 단락 plumbing은 follow-up. (4) `Arc<GitAttributes>` rayon worker 공유 criterion 박음 — sequential `.iter().map()` 현실 + 1000+ path scale에서 활성화 가능 박음. (5) BOM `호출 지점` section path 오류(`shared/normalize.rs` → `shared/decode.rs`) + caller mapping 미구현 명시. validation: cargo fmt clean (spec-only, G-012 적용). 코드 변경 0 — baseline 유지.
 
-- [~] **M. spec-classification.md path 정규화 정합**
+- [x] **M. spec-classification.md path 정규화 정합**
   - acceptance: spec 본문에 NFC 정규화 + case-sensitive 정책 박혀있음 (이미 Phase 5 spec 갱신). 4분류 판정 정합 검증.
   - spec: `spec-classification.md`.
+  - 결과 (2026-05-09): spec § 판정 로직 의사코드 vs `compare.rs::classify` 구현 정합 (5 status branch: Identical/LocalOnlyChanged/RemoteOnlyChanged/Drift + Failed) 검증 통과 + NFC 정규화 boundary 양쪽 박힘 (`walker.rs::relative_path` line 92 + `shared/github/trees.rs` line 63/75/87 — 3 mode) 검증 통과 + case_collision symmetric detect (canonical/diagonal/local-both 3 시나리오, `case_collision.rs::detect`) 검증 통과. 1 drift surface + fix: § Path 정규화 § edge case의 `nfd_collision`이 spec 박혀있는데 `FailedReason` enum + `pipeline.rs` 매핑 미박힘 — spec-domain-pitfalls.md "99%/1%" hedge 표현 mirror로 § edge case에 hedge 박음 ("Phase 5 후속, task N 박힌 후 implement task로 박음"). § 현재 상태에 audit verification 박음 (NFC 박힘 line + case_collision 박힘 line). **cross-task carryover**: spec-error-contracts.md § Per-file Pitfall Reasons 표 line 162에 `nfd_collision` 박혀있음 — task N에서 동일 drift hit 예상 (enum-spec'd-but-unimplemented align 또는 enum variant 박음 결정은 task N scope). validation: cargo fmt clean (spec-only, G-012 적용). 코드 변경 0 — baseline 유지.
 
 - [ ] **N. spec-error-contracts.md 함정별 reason 매핑**
   - acceptance: `failed_reason` enum 9 값 (이미 Phase 5 spec 갱신) 정합 검증. unit test 박음.
