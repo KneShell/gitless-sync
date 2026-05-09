@@ -60,6 +60,7 @@ fn pre_entry_to_file(
             remote_sha,
             local_mtime,
             failed_reason,
+            is_binary,
         } => {
             summary.failed += 1;
             *failed_count += 1;
@@ -70,7 +71,7 @@ fn pre_entry_to_file(
                 remote_sha,
                 local_mtime,
                 remote_last_commit_at: None,
-                is_binary: false,
+                is_binary,
                 mode,
                 lfs_pointer: lfs::placeholder_pointer_for(failed_reason),
                 failed_reason,
@@ -139,6 +140,7 @@ mod tests {
                 remote_sha: Some("remote-sha".to_string()),
                 local_mtime: Some(mtime(1_700_000_000)),
                 failed_reason: reason,
+                is_binary: false,
             },
         }
     }
@@ -197,8 +199,10 @@ mod tests {
 
     #[test]
     fn pre_entry_to_file_omits_lfs_pointer_for_non_lfs_failed_reasons() {
-        // case_collision-promoted entry must NOT carry an `lfs_pointer` —
-        // the placeholder is reserved for `failed_reason: lfs_pointer` only.
+        // Wire-format invariants for short-circuit Failed: `lfs_pointer`
+        // is reserved for `failed_reason: lfs_pointer`; `is_binary` is
+        // the no-measurement default `false` (EE — short-circuit bails
+        // before any local read).
         for reason in [
             FailedReason::CaseCollision,
             FailedReason::Submodule,
@@ -214,9 +218,32 @@ mod tests {
             let entry = pre_entry_to_file(pre, &HashMap::new(), &mut summary, &mut failed);
             assert!(
                 entry.lfs_pointer.is_none(),
-                "non-LFS reason {reason:?} must not carry lfs_pointer"
+                "{reason:?} carries lfs_pointer"
             );
+            assert!(!entry.is_binary, "{reason:?} flips is_binary");
         }
+    }
+
+    #[test]
+    fn pre_entry_to_file_preserves_is_binary_for_encoding_failure() {
+        // EE: encoding-failure preserves `try_hash_local`'s NUL heuristic
+        // (UTF-16 BOM has embedded NULs → `is_binary: true` survives).
+        let pre = PreEntry {
+            path: "u16.txt".to_string(),
+            mode: "100644".to_string(),
+            state: PreState::Failed {
+                remote_sha: None,
+                local_mtime: Some(mtime(1_700_000_000)),
+                failed_reason: Some(FailedReason::Encoding),
+                is_binary: true,
+            },
+        };
+        let mut summary = Summary::default();
+        let mut failed = 0usize;
+        let entry = pre_entry_to_file(pre, &HashMap::new(), &mut summary, &mut failed);
+        assert_eq!(entry.status, Status::Failed);
+        assert_eq!(entry.failed_reason, Some(FailedReason::Encoding));
+        assert!(entry.is_binary, "encoding failure must keep is_binary");
     }
 
     #[test]

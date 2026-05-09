@@ -108,6 +108,12 @@
   - 로컬 only 파일: `remote_sha=null`, `remote_last_commit_at=null`.
   - identical 파일: 정상 SHA + 시간.
   - failed 파일: `local_sha`, `remote_sha`, `local_mtime`, `remote_last_commit_at` 모두 가능 (failed_reason에 따라). `mode`는 가능하면 포함 (remote tree mode 가용 시).
+- `is_binary` 정책 (Phase 5.13.1 task EE 명시):
+  - 의미 — local bytes의 NUL byte 휴리스틱 측정값.
+  - `Hashed` (Identical / LocalOnlyChanged / RemoteOnlyChanged / Drift) entry: local read가 일어난 경우 측정값. 로컬 파일이 없는 remote-only 경우 `false` (no measurement, default).
+  - `Failed` entry — `failed_reason == "encoding"`만 measured: hash IO read는 성공했고 normalize 시도가 인코딩 실패 (UTF-16 BOM 등)로 격하된 경로 → `try_hash_local`의 NUL 휴리스틱 결과 그대로 보존 (raw-bytes hash policy 정합).
+  - `Failed` entry — 그 외 reason (`submodule` / `symlink` / `long_path` / `case_collision` / `nfd_collision` / `lfs_pointer` / `gitattributes_unsupported` / `hash_io`): local read 전 short-circuit 또는 IO error → 측정 없음, 항상 `false`.
+  - 호출자는 `is_binary == true` + `failed_reason == "encoding"` 조합을 "raw bytes에 NUL 포함된 비-UTF-8 텍스트" 신호로 해석 가능. 그 외 Failed entry의 `is_binary == false`는 정보 부재의 default — true 의미를 추론하면 안 됨.
 
 ### `--summary-only` 출력
 위 JSON에서 `files` 필드 자체를 제거 (`null`이 아니라 omit). 다른 필드는 유지.
@@ -139,3 +145,5 @@
 - `[AUTO]` `Status` 외 entry (Identical / LocalOnlyChanged 등)는 `failed_reason` 필드 omit.
 - `[AUTO]` `mode == "100755"` + content 동일 → `Status::Identical` (mode 차이는 drift로 판정 안 함, spec-domain-pitfalls.md § 실행 권한).
 - `[AUTO]` v1.0 호출자가 v1.1 JSON 파싱 시 추가 필드 무시 + 기존 필드 정상 동작 (backward-compat 검증).
+- `[AUTO]` `failed_reason == "encoding"` entry는 `try_hash_local`의 NUL 휴리스틱 결과(`is_binary`)를 wire JSON에 보존. UTF-16 BOM 입력 (`FF FE` 또는 `FE FF` + payload)은 NUL 포함 → `is_binary: true` 유지 (Phase 5.13.1 task EE regression pin).
+- `[AUTO]` `failed_reason` 가 `"submodule"` / `"symlink"` / `"long_path"` / `"case_collision"` / `"nfd_collision"` / `"lfs_pointer"` / `"gitattributes_unsupported"` 또는 `null` (`hash_io`)인 entry는 short-circuit 또는 IO error로 local read 전 격하 → `is_binary: false` (no measurement default, Phase 5.13.1 task EE).

@@ -16,9 +16,20 @@ use crate::shared::github::RemoteFile;
 /// Per-path intermediate state — either short-circuited (no hash, fail
 /// reason already locked in) or hashed (caller will classify against
 /// remote sha + commit timestamp in [`super::finalize`]).
+/// Per-path intermediate state — either short-circuited (no hash, fail
+/// reason already locked in) or hashed (caller will classify against
+/// remote sha + commit timestamp in [`super::finalize`]).
+///
+/// `is_binary` semantics (spec-output-schema.md § null 정책 + EE):
+/// reflects the local-bytes NUL heuristic when a local read occurred. For
+/// `Failed`, that means only the `Encoding` arm — every other Failed reason
+/// short-circuits before any local read, so `is_binary: false` is the only
+/// honest value (no measurement). `Hashed` always has a measured value;
+/// the `local: None` arm (remote-only path) carries `false` for the same
+/// "no measurement" reason.
 #[rustfmt::skip]
 pub(super) enum PreState {
-    Failed { remote_sha: Option<String>, local_mtime: Option<DateTime<Utc>>, failed_reason: Option<FailedReason> },
+    Failed { remote_sha: Option<String>, local_mtime: Option<DateTime<Utc>>, failed_reason: Option<FailedReason>, is_binary: bool },
     Hashed { local_sha: Option<String>, remote_sha: Option<String>, local_mtime: Option<DateTime<Utc>>, is_binary: bool },
 }
 
@@ -57,10 +68,14 @@ fn build_one_pre_entry(
     let local_mtime = local.map(|lf| lf.mtime);
 
     if let Some((mode, reason)) = try_short_circuit_failed(path, local, remote, cctx) {
+        // Short-circuited Failed reasons (submodule/symlink/long_path/
+        // case_collision/nfd_collision/lfs_pointer/gitattributes_unsupported)
+        // bail before any local read → no NUL measurement → `false`.
         let state = PreState::Failed {
             remote_sha,
             local_mtime,
             failed_reason: Some(reason),
+            is_binary: false,
         };
         return PreEntry {
             path: path.to_string(),
@@ -72,10 +87,15 @@ fn build_one_pre_entry(
     let mode = remote.map_or_else(|| "100644".to_string(), |r| r.mode.clone());
     let state = match local {
         Some(lf) => match try_hash_local(&lf.absolute_path, keep_bom, cctx.gitattr, path) {
-            Ok((_, _, Some(reason))) => PreState::Failed {
+            // Encoding-failure arm: a local read happened, so `is_binary`
+            // carries the real NUL heuristic from `try_hash_local` (UTF-16
+            // BOM input has embedded NULs → `true`). Preserved through the
+            // Failed state so wire JSON keeps the measurement (EE).
+            Ok((_, is_binary, Some(reason))) => PreState::Failed {
                 remote_sha,
                 local_mtime,
                 failed_reason: Some(reason),
+                is_binary,
             },
             Ok((sha, is_binary, None)) => PreState::Hashed {
                 local_sha: Some(sha),
@@ -84,11 +104,13 @@ fn build_one_pre_entry(
                 is_binary,
             },
             Err(err) => {
+                // hash IO error → no successful read → no measurement.
                 eprintln!("warning: failed to hash {path}: {err}");
                 PreState::Failed {
                     remote_sha,
                     local_mtime,
                     failed_reason: None,
+                    is_binary: false,
                 }
             }
         },
@@ -214,8 +236,17 @@ mod tests {
 
         let pre = build_one_pre_entry("u16.txt", Some(&local), None, false, &cctx);
         match pre.state {
-            PreState::Failed { failed_reason, .. } => {
+            PreState::Failed {
+                failed_reason,
+                is_binary,
+                ..
+            } => {
                 assert_eq!(failed_reason, Some(FailedReason::Encoding));
+                // EE: encoding-failure arm preserves the NUL heuristic from
+                // `try_hash_local`. UTF-16 BOM input has embedded NULs so the
+                // measurement is `true` (no information lost on the way to
+                // wire JSON).
+                assert!(is_binary, "encoding failure must preserve is_binary=true");
             }
             PreState::Hashed { .. } => panic!("expected PreState::Failed with Encoding reason"),
         }

@@ -100,6 +100,8 @@ pub fn prepare_for_hash(
 
 **Hash 입력 정책 (b)**: detect 성공해도 hash 입력은 **원본 raw bytes**. UTF-8로 변환된 bytes 사용 안 함 — git core가 raw bytes 보존하기 때문 [source: https://www.codestudy.net/blog/how-to-determine-if-git-handles-a-file-as-binary-or-as-text/]. detect는 `failed_reason` 마크 + 사용자 정보 제공 용도만.
 
+**`is_binary` 보존 (Phase 5.13.1 task EE)**: encoding-failure 격하는 local read가 이미 일어난 경로 (`try_hash_local` 본체) — UTF-16 BOM 입력의 NUL 휴리스틱 측정값(`is_binary == true`)을 wire JSON `Status::Failed` entry에 그대로 보존. 다른 함정(submodule/symlink/long_path/case_collision/nfd_collision/lfs_pointer/gitattributes_unsupported)은 short-circuit으로 local read 없이 격하되어 `is_binary == false` (no measurement). 자세한 정책은 `spec-output-schema.md` § null 정책 § `is_binary` 정책 참조.
+
 ### Submodule / Symlink
 
 - Trees mode `160000` (submodule) / `120000` (symlink) entry는 v0.1 비목표 (skip + warning, G-010).
