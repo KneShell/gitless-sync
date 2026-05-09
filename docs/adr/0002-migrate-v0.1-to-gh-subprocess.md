@@ -40,7 +40,7 @@ ADR 0001은 Phase 4 GraphQL batching부터 `gh api graphql` subprocess 채택을
 - G-003(Commits API 호출 비용)와 G-011(rayon 8 concurrent abuse 회피)는 gh가 내부적으로 retry/backoff/abuse detection을 처리하므로 도구 책임 종료. 다만 병렬 subprocess spawn 비용 vs 순차 호출 시간 trade-off는 측정해 rayon 유지/제거 결정 — 별도 task.
 
 ### 에러 매핑
-- `GitlessError::AuthFailed` / `RateLimitExceeded` / `Http(...)` / `TreesTruncated` variant는 gh 종료 코드 + stderr 파싱으로 재매핑. 구체 매핑 표는 마이그레이션 task 진행 중 `spec-error-contracts.md`에 박는다.
+- `GitlessError::AuthFailed` / `RateLimitExceeded` / `Http(...)` / `TreesTruncated` variant는 gh 종료 코드 + stderr 파싱으로 재매핑. 구체 매핑 표는 마이그레이션 task 진행 중 `spec-error-contracts.md`에 작성한다.
 
 ### 의존성 안내
 - README에 `gh` CLI(>= 2.x) 사전 설치 요구사항 명시. gh 미설치 시 명확한 에러 (`GitlessError::Config("gh CLI not found in PATH; install from https://cli.github.com/")`).

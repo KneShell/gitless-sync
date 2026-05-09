@@ -39,18 +39,18 @@ crates/gitless-sync/src/
 
 방향: `orchestrator → domain → IO`. domain은 IO를 import하지 않음.
 
-강제 메커니즘: naming convention + `pub(crate)`/`pub(super)` 가시성. **manifest 박지 않음** (yagni — 18 files 프로젝트에 deviation 거의 없음, clean-context §4 격하).
+강제 메커니즘: naming convention + `pub(crate)`/`pub(super)` 가시성. **manifest 도입 안 함** (yagni — 18 files 프로젝트에 deviation 거의 없음, clean-context §4 격하).
 
 ### Module 폴더 단위 정책 (sub-module 분할)
 
-Module 폴더 (예: `shared/gitattributes/`, `shared/error/`)는 **단일 책임 묶음** — vertical slice 박은 directional discipline 적용 X. 같은 도메인의 file 분할이라 mediator 강제는 oversize.
+Module 폴더 (예: `shared/gitattributes/`, `shared/error/`)는 **단일 책임 묶음** — vertical slice의 directional discipline 적용 X. 같은 도메인의 file 분할이라 mediator 강제는 oversize.
 
-- **`mod.rs`**: re-export hub 또는 thin orchestrator. LOC 게이트 안 박힘 (300줄 자연 통과).
+- **`mod.rs`**: re-export hub 또는 thin orchestrator. LOC 게이트 통과 (300줄 자연 통과).
 - **sub-module 간 sibling cross-ref 허용**: `use super::parser::Rule;` 같은 직접 참조. Rust 관용 정합.
-- **acyclic 강제**: Phase 6 `cargo xtask check-cycles` 게이트가 sub-module 단위에도 자연 박힘 — cycle 0 보장.
-- **directional discipline 적용 X**: orchestrator/domain/IO 분류는 vertical slice 단위 정책. module 폴더는 단일 책임이라 sub-module 간 같은 layer 박는 게 자연.
+- **acyclic 강제**: Phase 6 `cargo xtask check-cycles` 게이트가 sub-module 단위에도 자연 적용 — cycle 0 보장.
+- **directional discipline 적용 X**: orchestrator/domain/IO 분류는 vertical slice 단위 정책. module 폴더는 단일 책임이라 sub-module 간 같은 layer 자연.
 
-근거: `std`/`tokio`/`serde` 등 큰 crate도 sub-module 간 sibling cross-ref 자연 박음. mediator 강제하면 mod.rs 비대화 + Phase 6 LOC 300 게이트 위반 위험.
+근거: `std`/`tokio`/`serde` 등 큰 crate도 sub-module 간 sibling cross-ref 자연 사용. mediator 강제하면 mod.rs 비대화 + Phase 6 LOC 300 게이트 위반 위험.
 
 ### Horizontal layer 영구 제외
 
@@ -66,7 +66,7 @@ CLI/Domain/IO 전체 분층은 채택 안 함. vertical slice 박제와 충돌 +
 ### 면제 카테고리
 
 - **doc comment heavy 모듈**: `///` API 문서가 LOC 자연 평장. 모듈 명시 면제.
-- **mod.rs re-export only**: 자연 통과 (re-export만 박힌 mod.rs는 30~50줄 안). 별도 면제 정책 불필요.
+- **mod.rs re-export only**: 자연 통과 (re-export만 포함된 mod.rs는 30~50줄 안). 별도 면제 정책 불필요.
 
 ### 구조적 분리 (면제 X)
 
@@ -75,18 +75,18 @@ CLI/Domain/IO 전체 분층은 채택 안 함. vertical slice 박제와 충돌 +
 
 ### 금지 패턴 — sibling test file
 
-`production_module.rs` 옆에 `production_module_tests.rs` 같은 sibling test file **박지 마라**. Rust 관용 위반:
+`production_module.rs` 옆에 `production_module_tests.rs` 같은 sibling test file **사용 금지**. Rust 관용 위반:
 
 - unit test = same file `#[cfg(test)] mod tests` (private item 접근 + 컴파일 시점 분리)
 - integration test = `tests/` 별도 crate (public API만 접근)
-- sibling `_tests.rs`는 위 둘 다 어긴 패턴 — Rust ecosystem에 거의 안 박혀있음
+- sibling `_tests.rs`는 위 둘 다 어긴 패턴 — Rust ecosystem에 거의 없음
 
-LOC 300 게이트 통과 위해 test 분리 박지 말고, **production 자체를 module 폴더로 분할**:
+LOC 300 게이트 통과 위해 test 분리 시도 금지, **production 자체를 module 폴더로 분할**:
 - `foo.rs` (296 LOC) → `foo/{mod.rs, parser.rs, classify.rs, matching.rs}` 4 file
-- 각 sub-module에 `#[cfg(test)] mod tests` 박음
+- 각 sub-module에 `#[cfg(test)] mod tests` 추가
 - LOC 게이트 자연 통과 + Rust 관용 정합 + production 폴더 noise 0
 
-위반 사례 (2026-05-09): `shared/gitattributes_tests.rs` + `shared/gitattributes_classify_tests.rs` (task K1.5 시점 박음). task Z에서 정리.
+위반 사례 (2026-05-09): `shared/gitattributes_tests.rs` + `shared/gitattributes_classify_tests.rs` (task K1.5 시점 발생). task Z에서 정리.
 
 ### Enforcement
 
@@ -109,13 +109,13 @@ LOC 300 게이트 통과 위해 test 분리 박지 말고, **production 자체�
 
 ### Enforcement 단계
 
-- **Phase 6 Step 1.5 (task R)**: workspace lint warn 박음. baseline 위반 카운트 측정 → `docs/research/phase6-baseline.md`.
+- **Phase 6 Step 1.5 (task R)**: workspace lint warn 적용. baseline 위반 카운트 측정 → `docs/research/phase6-baseline.md`.
 - **task S**: 위반 1건씩 `?` + `anyhow::Context`로 대체.
 - **task T**: baseline 위반 0건 도달 시 warn → deny 전환.
 
 ## 외부 도구
 
-| 도구 | 목적 | 박힘 시점 |
+| 도구 | 목적 | 도입 시점 |
 |---|---|---|
 | `cargo-modules` | 의존 그래프 + cycle 검출 | Phase 6 Step 3 |
 | `cargo-public-api` | API 변경 추적 (분할 회귀 가드) | Phase 6 Step 4 |
@@ -134,4 +134,4 @@ Phase 5+ (도메인 함정 진입) 또는 1000+ path scale에서 비동기 필�
 
 ## 박제 expiration
 
-모든 박제 항목 (검증·토론 대상 X 포함) Phase 진입마다 재검토. clean-context 외부 시각 §5-1 self-correcting 메커니즘. transitive constraint 누적 차단 — 박제가 다음 Phase 결정의 근거로 굳어 검증 임계를 올리는 패턴 막음.
+모든 박제 항목 (검증·토론 대상 X 포함) Phase 진입마다 재검토. clean-context 외부 시각 §5-1 self-correcting 메커니즘. transitive constraint 누적 차단 — 박제가 다음 Phase 결정의 근거로 굳어 검증 임계를 올리는 패턴 차단.

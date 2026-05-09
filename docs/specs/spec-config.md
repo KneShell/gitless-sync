@@ -11,14 +11,14 @@
 
 spec § `.gitattributes` 위치 정책 (Phase 5) ↔ K1 구현 (`shared/gitattributes.rs`) ↔ caller (`commands/scan/mod.rs::scan`) 정합 audit.
 
-**박힘 (정합)**:
-- working tree 한정 — `gitattributes.rs:76 GitAttributes::load(root)`가 `WalkDir::new(root)`로 root 진입점 박음. caller `commands/scan/mod.rs:93`에서 `Arc::new(GitAttributes::load(local_root)?)` 박음 — vault local root 1회 (spec-hash-and-normalize.md § Lifetime 계약 정합). `pub fn load(root: &Path)` 시그니처는 root 외부 진입점을 컴파일러 차원에서 차단.
-- `.git/info/attributes` 미지원 — `gitattributes.rs:81 is_dot_git_dir`가 `.git` 디렉토리 자체를 `WalkDir::filter_entry`로 skip. unit test `gitattributes_tests.rs::dot_git_directory_is_skipped` (line 110-117)에서 `.git/.gitattributes` 박힌 case 무시 검증 박힘.
-- global `~/.gitconfig` / `~/.config/git/attributes` 미지원 — 구현에 `home_dir` / `HOME` / `XDG_CONFIG_HOME` / `gitconfig` ref **0건** (Grep 검증). `dirs` crate / `std::env::home_dir` 박지 않음 — 자동 미지원.
-- macro attributes pattern 매칭만 — line-level 매칭은 박음. attribute level은 K1.5 화이트리스트 외 attribute를 `AttributeMatch::Unsupported { attribute_name }` variant로 박음 (`gitattributes.rs:164 classify_raw_attributes` + `gitattributes.rs:186 whitelist_match`).
+**구현 정합**:
+- working tree 한정 — `gitattributes.rs:76 GitAttributes::load(root)`가 `WalkDir::new(root)`로 root 진입점을 강제. caller `commands/scan/mod.rs:93`에서 `Arc::new(GitAttributes::load(local_root)?)` 호출 — vault local root 1회 (spec-hash-and-normalize.md § Lifetime 계약 정합). `pub fn load(root: &Path)` 시그니처는 root 외부 진입점을 컴파일러 차원에서 차단.
+- `.git/info/attributes` 미지원 — `gitattributes.rs:81 is_dot_git_dir`가 `.git` 디렉토리 자체를 `WalkDir::filter_entry`로 skip. unit test `gitattributes_tests.rs::dot_git_directory_is_skipped` (line 110-117)에서 `.git/.gitattributes` 케이스 무시 검증.
+- global `~/.gitconfig` / `~/.config/git/attributes` 미지원 — 구현에 `home_dir` / `HOME` / `XDG_CONFIG_HOME` / `gitconfig` ref **0건** (Grep 검증). `dirs` crate / `std::env::home_dir` 사용 안 함 — 자동 미지원.
+- macro attributes pattern 매칭만 지원 — line-level 매칭은 통과. attribute level은 K1.5 화이트리스트 외 attribute를 `AttributeMatch::Unsupported { attribute_name }` variant로 분류 (`gitattributes.rs:164 classify_raw_attributes` + `gitattributes.rs:186 whitelist_match`).
 
 **Drift surface (0건, advisor BLOCKING fix)**:
-- 초기 audit에서 macro attribute *정의 line* (`[attr]binary -text -diff -merge`) graceful skip 미박힘을 drift surface로 박았으나 — advisor BLOCKING fix로 phantom drift 박음 (오류). 정확 trace: `[attr]binary`는 gitignore-style glob character class (`[abc]` 형식) — `{a,t,r}` 문자 집합 + literal `binary`로 박혀 ignore crate `GitignoreBuilder::add_line`가 valid glob pattern으로 통과. attributes 토큰(`-text -diff -merge`)은 K1.5 화이트리스트 외라 `AttributeMatch::Unsupported { attribute_name: "text" }` (첫 unsupported, `classify_raw_attributes:172`)로 박음. **0 drift** — spec § 미지원 § macro attributes line ("pattern 매칭만 박음") ↔ K1 구현 정확 정합.
+- 초기 audit에서 macro attribute *정의 line* (`[attr]binary -text -diff -merge`) graceful skip 누락을 drift surface로 기록했으나 — advisor BLOCKING fix로 phantom drift 정정 (오류). 정확 trace: `[attr]binary`는 gitignore-style glob character class (`[abc]` 형식) — `{a,t,r}` 문자 집합 + literal `binary`로 분류되어 ignore crate `GitignoreBuilder::add_line`가 valid glob pattern으로 통과. attributes 토큰(`-text -diff -merge`)은 K1.5 화이트리스트 외라 `AttributeMatch::Unsupported { attribute_name: "text" }` (첫 unsupported, `classify_raw_attributes:172`)로 분류. **0 drift** — spec § 미지원 § macro attributes line ("pattern 매칭만 지원") ↔ K1 구현 정확 정합.
 
 **Spec self-consistency (정합)**:
 - spec-domain-pitfalls.md § `.gitattributes` 화이트리스트 § 파서 line 정합 ("working tree 한정 (.gitattributes 파일). `.git/info/attributes` / global 미지원 (spec-config.md § `.gitattributes` 위치)").
@@ -55,9 +55,9 @@ ignore = ["dist/", "*.tmp"]
 **미지원** (Phase 5 영구 비목표):
 - `.git/info/attributes` — local git config, working tree 외부.
 - global `~/.gitconfig` 또는 `~/.config/git/attributes` — user-level, working tree 외부.
-- macro attributes 정의 (예: `[attr]binary -text -diff -merge`) — pattern 매칭만 박음. `[attr]binary`는 glob character class `{a,t,r}` + literal `binary`로 박혀 ignore crate가 valid pattern으로 통과. attributes 토큰(`-text -diff -merge`)은 화이트리스트 외 → K1.5 `AttributeMatch::Unsupported` variant 박음 (매칭 path가 있을 때).
+- macro attributes 정의 (예: `[attr]binary -text -diff -merge`) — pattern 매칭만 지원. `[attr]binary`는 glob character class `{a,t,r}` + literal `binary`로 분류되어 ignore crate가 valid pattern으로 통과. attributes 토큰(`-text -diff -merge`)은 화이트리스트 외 → K1.5 `AttributeMatch::Unsupported` variant로 분류 (매칭 path가 있을 때).
 
-근거: read-only 도구 본성 — `.git/` 폴더 자체를 안 읽는다 (gitless 환경). working tree만 보는 게 정합. 미지원 위치 박힌 attribute는 Phase 5 화이트리스트(text/binary/eol=lf|crlf) 외라 자동 무시 + `failed_reason: "gitattributes_unsupported"` 마크 가능 (spec-domain-pitfalls.md § `.gitattributes` 화이트리스트).
+근거: read-only 도구 본성 — `.git/` 폴더 자체를 안 읽는다 (gitless 환경). working tree만 보는 게 정합. 미지원 위치에 정의된 attribute는 Phase 5 화이트리스트(text/binary/eol=lf|crlf) 외라 자동 무시 + `failed_reason: "gitattributes_unsupported"` 마크 가능 (spec-domain-pitfalls.md § `.gitattributes` 화이트리스트).
 
 ### Cache (Phase 4) — 제거됨 (ADR 0008, 2026-05-07)
 

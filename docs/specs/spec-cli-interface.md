@@ -4,7 +4,7 @@
 사용자(특히 AI 호출자)가 안정적으로 호출할 수 있는 CLI 인자/플래그 표면. 명령어는 `scan`(JSON 결과)과 `diff`(특정 파일의 raw text diff) 두 개.
 
 ## 현재 상태
-- `crates/gitless-sync/src/main.rs`에 clap derive로 `Cli`, `Commands` 정의 완료. `scan` / `diff` 디스패치 + exit code 매핑까지 박힘.
+- `crates/gitless-sync/src/main.rs`에 clap derive로 `Cli`, `Commands` 정의 완료. `scan` / `diff` 디스패치 + exit code 매핑까지 구현됨.
 - 글로벌 플래그 (`--repo`, `--branch`, `--local`, `--ignore`, `--keep-bom`, `--pretty`)와 `scan` 전용 플래그 (`--summary-only`, `--status`)가 시그니처에 있음.
 - `verbose` 플래그 (`-v`, `-vv`)는 미반영. 추가 필요.
 - 인증 토큰 입력은 본 도구에서 받지 않는다 (ADR 0002). `gh auth login` 으로 사전 처리.
@@ -30,7 +30,7 @@
 
 ### Backend 분기
 
-> **갱신 (ADR 0006, 2026-05-07)**: default backend `rest` → `graphql` 전환. v0.1 stub 표현은 obsolete (P3a에서 본체 박힘, P3b에서 stub error 제거).
+> **갱신 (ADR 0006, 2026-05-07)**: default backend `rest` → `graphql` 전환. v0.1 stub 표현은 obsolete (P3a에서 본체 구현됨, P3b에서 stub error 제거).
 
 - `--backend graphql` (default): `gh api graphql` subprocess + alias batching. 호출자(LLM)가 명시 안 해도 default로 활성. 자세한 정책: `spec-github-api.md` § GraphQL backend.
 - `--backend rest` (explicit fallback): v0.1/v0.2에서 검증된 REST + rayon 8c 흐름. GraphQL 운영 이슈(rate limit, alias batching 응답 정합성, partial errors 등) 발생 시 즉시 fallback. 자세한 정책: `spec-github-api.md` § Backend 선택 + § fetch_tree / fetch_blob / fetch_last_commit_at + § 병렬 호출 정책 § REST 분기.
@@ -49,7 +49,7 @@
 - `--repo <owner/name>` — **필수**. 미명시 또는 빈 문자열이면 `GitlessError::Config("repo not specified")` 즉시 반환, exit code 1, stdout 출력 0, stderr `error_code: "CONFIG"`. 글로벌 `--repo`와 다르게 init은 fallback 소스(env / toml) 없이 인자만 본다 — toml 파일을 만드는 도구이므로 자기 자신을 입력 소스로 쓸 수 없음.
 - `--branch <name>` — 옵셔널. 명시 시에만 TOML에 emit. 미명시 시 결과 TOML에 `branch` 줄 없음 → 다음 `scan` 실행 시 도구 내장 기본값 `main` fallback (`spec-config.md` § 우선순위).
 - `--ignore <pattern>` — 옵셔널 반복. 명시된 패턴 모두 TOML 배열로 emit. 미명시 시 결과 TOML에 `ignore` 줄 없음.
-- 외부 호출 0 — repo 존재 검증·인증 검사 0. 잘못된 repo가 박혀도 다음 `scan` 실행 시 자연스럽게 surface (gh CLI 에러 → `GitlessError::Http`).
+- 외부 호출 0 — repo 존재 검증·인증 검사 0. 잘못된 repo가 명시되어도 다음 `scan` 실행 시 자연스럽게 surface (gh CLI 에러 → `GitlessError::Http`).
 
 #### stdout 출력 형식
 - 출력은 `spec-config.md` § 스키마와 동일한 TOML 본문. emit 순서: `repo` → `branch` → `ignore` (직렬화 안정성).

@@ -46,13 +46,13 @@
 
 ## G-013: cargo deny는 deny.toml 부재 시 모든 라이선스 reject
 - **문제**: `cargo deny check`를 config 없이 실행하면 default 정책이 모든 라이선스를 reject (adler2 `0BSD OR MIT OR Apache-2.0`, aho-corasick `Unlicense OR MIT` 등).
-- **해결**: workspace root `deny.toml`(허용 라이선스 화이트리스트, advisory 정책)이 박혀 있어야 cargo deny check가 정상 통과. 신규 transitive 도입 시 deny.toml 갱신 동반. project-ops.md의 cargo deny 항목은 deny.toml 부재 시 fail로 surface.
+- **해결**: workspace root `deny.toml`(허용 라이선스 화이트리스트, advisory 정책)이 존재해야 cargo deny check가 정상 통과. 신규 transitive 도입 시 deny.toml 갱신 동반. project-ops.md의 cargo deny 항목은 deny.toml 부재 시 fail로 surface.
 
 ## G-015: 외부 명령 transient 실패 retry policy
-- **문제**: ralph가 외부 명령(`gh api`, `cargo run -- scan` 등)을 호출하는 task에서 transient 실패(network 5xx, timeout, gh exit≠0 단발, rate limit transient)와 영구 실패(gh 미설치, 인증 만료, spec/code 충돌)를 구분 못 하면 단발 noise가 영구 [!]로 박힘 → fixpoint stuck. 사람 reset 필요해짐.
+- **문제**: ralph가 외부 명령(`gh api`, `cargo run -- scan` 등)을 호출하는 task에서 transient 실패(network 5xx, timeout, gh exit≠0 단발, rate limit transient)와 영구 실패(gh 미설치, 인증 만료, spec/code 충돌)를 구분 못 하면 단발 noise가 영구 [!]로 마크되어 fixpoint stuck. 사람 reset 필요해짐.
 - **해결**: 외부 명령 transient 의심 실패는 동일 명령 N=3 + 30s backoff 재시도. 3회 모두 실패 시에만 [!] BLOCKED + 본 G-015 reference. Transient signal:
   - `gh api` exit code ≠ 0 + stderr에 `5xx` / `timeout` / `connection` / `rate limit` substring
   - `cargo run -- scan` exit code ≠ 0 + stderr에 network 키워드
   - 영구 signal (즉시 [!] + 별도 G-NNN 신규): gh stderr `HTTP 401`(인증 만료, 사람 회복 필요), `gh: command not found`/`Command::new` IO err(미설치), spec/code 정합 충돌, parse error 등.
-- **auto-recovery**: G-015로 [!] 박힌 task는 `prompt-build.md` § 1 [!] auto-recovery 룰에 따라 다음 iteration 자동 [!]→[ ] reset. 사람 개입 0. 영구 사유는 사람 대기.
-- **경계 모호 case**: stderr 패턴이 transient/permanent 분류 모호한 경우(예: gh `HTTP 503` 단발 vs backend 영구 issue). default는 transient retry 시도(N=3 + 30s backoff). 3회 실패 시 [!] + commit message에 stderr 본문 박음(grep 가능 형태). 사람이 패턴 보고 G-015 substring 추가 또는 새 G-NNN 박은 후 task reset.
+- **auto-recovery**: G-015로 [!] 마크된 task는 `prompt-build.md` § 1 [!] auto-recovery 룰에 따라 다음 iteration 자동 [!]→[ ] reset. 사람 개입 0. 영구 사유는 사람 대기.
+- **경계 모호 case**: stderr 패턴이 transient/permanent 분류 모호한 경우(예: gh `HTTP 503` 단발 vs backend 영구 issue). default는 transient retry 시도(N=3 + 30s backoff). 3회 실패 시 [!] + commit message에 stderr 본문 인용(grep 가능 형태). 사람이 패턴 보고 G-015 substring 추가 또는 새 G-NNN 정의 후 task reset.

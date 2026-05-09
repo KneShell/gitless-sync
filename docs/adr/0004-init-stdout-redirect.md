@@ -29,7 +29,7 @@ gitless-sync init --repo owner/name --branch main > gitless-sync.toml
 
 스키마는 v0.1 `spec-config.md` § 스키마 그대로 (`repo` / `branch` / `ignore` 3개 필드). 확장 0. emit 순서는 `repo` → `branch` → `ignore` (직렬화 안정성). 옵셔널 필드는 `Some` / non-empty 시에만 emit.
 
-`--repo` 미명시 시 `GitlessError::Config("repo not specified")`, exit 1, stderr `error_code: "CONFIG"`. repo 존재 검증·외부 호출 0 — 잘못된 repo가 박혀도 다음 `scan` 실행 시 자연스럽게 surface.
+`--repo` 미명시 시 `GitlessError::Config("repo not specified")`, exit 1, stderr `error_code: "CONFIG"`. repo 존재 검증·외부 호출 0 — 잘못된 repo가 들어 있어도 다음 `scan` 실행 시 자연스럽게 surface.
 
 정상 init 실행 시 stderr에 항상 hint 1줄: `Tip: redirect stdout to ./gitless-sync.toml to persist this config.` tty 감지 분기 0.
 
@@ -45,17 +45,17 @@ gitless-sync init --repo owner/name --branch main > gitless-sync.toml
 - ADR 0001 갱신 0 (read-only 영구가 그대로 유효).
 - README + `--help`(clap `after_help`) + stderr hint 보강 필요 → P6에서 처리.
 - `docs/roadmap.md` § Phase 2 원안 ("현재 디렉토리에 작성 + `--force`")는 P2에서 stdout redirect로 갱신, 실패 모드 (`--force` / 파일 권한 / 기존 파일 충돌) 항목은 obsolete로 제거.
-- `spec-cli-interface.md` / `spec-config.md` / `spec-error-contracts.md`는 P2에서 init 정의 박음.
+- `spec-cli-interface.md` / `spec-config.md` / `spec-error-contracts.md`는 P2에서 init 정의 추가.
 
 ### 운영
 - 사용자 마찰: shell redirect 1회. unix 관행에 일치하여 학습 비용 0.
 - Claude Code 호출 마찰: `gitless-sync init --repo ... > path` 한 줄. JSON/TOML 파싱 0 (그대로 파일).
-- 잘못된 repo가 toml에 박혀도 다음 `scan`에서 자연스럽게 에러로 surface (gh CLI 에러 + `GitlessError::Http` 매핑).
+- 잘못된 repo가 toml에 들어 있어도 다음 `scan`에서 자연스럽게 에러로 surface (gh CLI 에러 + `GitlessError::Http` 매핑).
 
 ## References
 
 - ADR 0001 (`docs/adr/0001-gh-subprocess-and-drop-push-tool.md`) § D2 read-only 영구
-- `docs/specs/spec-cli-interface.md` (P2에서 init subcommand 박음)
+- `docs/specs/spec-cli-interface.md` (P2에서 init subcommand 추가)
 - `docs/specs/spec-config.md` § 스키마 (v0.1 그대로 재사용)
 - 사용자 결정 회의 (2026-05-07, 본 세션)
 - unix CLI 관행: `gh api ... > out.json`, `openssl req ... > cert.pem`, `kubectl get ... -o yaml > deploy.yaml`

@@ -41,7 +41,7 @@ variance 양쪽 모두 30% 미만 → N=5 확장 불필요. gh exit≠0 발생 0
 
 - 4.86x speedup은 vault scale(수백 파일 중 수십 차이 파일) repo에서 사용자 인내심 한계와 직접 충돌하는 비용이다. M5a baseline 13 path에서 6.5초 → 1.4초. vault scale에서는 절대 시간 차이가 더 벌어진다.
 - gh subprocess spawn 비용이 rayon 효과를 상쇄할 거란 사전 우려는 측정으로 기각. spawn 오버헤드는 존재하지만 round-trip latency가 지배적이라 병렬 효과가 그대로 살아남는다.
-- 의존성 비용 0: rayon은 이미 `Cargo.lock`에 transitive로 박혀 있고, `cargo deny`/`cargo audit` 게이트는 통과 상태. 제거해도 추가 이득은 binary size 한 줄 차이 정도.
+- 의존성 비용 0: rayon은 이미 `Cargo.lock`에 transitive로 포함되어 있고, `cargo deny`/`cargo audit` 게이트는 통과 상태. 제거해도 추가 이득은 binary size 한 줄 차이 정도.
 - 제거 시 코드 변경(par_iter → for 또는 iter) + spec/guardrail 갱신 + 테스트 영향 검토가 필요하나, 5x speedup을 포기할 만한 동기는 부재.
 
 abuse detection 위험은 default 8로 cap된 상태에서 M5a 측정 중 0회 발생. burst가 GitHub abuse detection을 트리거하면 stderr `429`/abuse 신호 → `GitlessError::Http(...)` 매핑 후 즉시 종료(v0.1 정책). exponential backoff은 v0.1 비목표.

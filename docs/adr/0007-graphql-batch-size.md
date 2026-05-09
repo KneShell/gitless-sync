@@ -11,7 +11,7 @@ Phase 4 GraphQL backend는 한 `gh api graphql` request 안에 N개의 `history(
 - **200**: `roadmap.md` § Phase 4 GraphQL batching 권장 상한. GitHub GraphQL node 한도(500,000 / request)와 점수 기반 rate limit 모델 안에서 single-request 효율 극대화.
 - **100**: 좀 더 보수적. secondary rate limit / payload size에 안전 마진. 단 wire round-trip 회수가 200 대비 2배.
 
-이 trade-off를 P6a에서 raw data로 측정해 결정하기로 plan에 박혀 있었다 (`docs/ralph/implementation-plan.md` § Phase 4 사전 결정 §4 + §13).
+이 trade-off를 P6a에서 raw data로 측정해 결정하기로 plan에 명시되어 있었다 (`docs/ralph/implementation-plan.md` § Phase 4 사전 결정 §4 + §13).
 
 ## Measurement (P6a raw data, 2026-05-07)
 
@@ -25,7 +25,7 @@ Phase 4 GraphQL backend는 한 `gh api graphql` request 안에 N개의 `history(
 | (b) batch 100 (임시 변경) | 3 | 1768.3 | **1694.7** | 1651.4 / 1755.9 | 6.2% |
 | (c) batch 200 재측정 | 3 | 1731.9 | **3142.2** | 1567.5 / 6044.3 | 142.5% |
 
-raw N개 측정값(ms)은 implementation-plan.md § P6a Raw data 본문에 박힘.
+raw N개 측정값(ms)은 implementation-plan.md § P6a Raw data 본문에 기록.
 
 ## Analysis
 
@@ -47,7 +47,7 @@ raw N개 측정값(ms)은 implementation-plan.md § P6a Raw data 본문에 박�
 ## Consequences
 
 ### `crates/gitless-sync/src/commands/scan/graphql.rs`
-- `pub(crate) const GRAPHQL_BATCH_SIZE: usize = 200;` 그대로 유지. doc comment에 "ADR 0007 confirmed"로 박음 (P7a 시점에서는 P6a 측정 후 confirm 단계).
+- `pub(crate) const GRAPHQL_BATCH_SIZE: usize = 200;` 그대로 유지. doc comment에 "ADR 0007 confirmed"로 명시 (P7a 시점에서는 P6a 측정 후 confirm 단계).
 - 단위 테스트 `chunks_paths_above_batch_size` (300 → 200+100) 그대로 유지. 결정값 200과 정합.
 
 ### `docs/specs/spec-github-api.md` § GraphQL backend

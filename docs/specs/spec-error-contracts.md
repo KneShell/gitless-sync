@@ -3,41 +3,41 @@
 > **2026-05-06 (M1)**: ADR 0001 + ADR 0002 정합 부분 갱신. mockito 시나리오 → MockGhClient stub 표현으로 재작성. gh subprocess 종료 코드 + stderr substring 매핑 표 신설. gh CLI floor 박제.
 
 ## 목적
-read-only CLI라도 호출자(특히 AI)가 안정적으로 다룰 수 있도록 6개 contract를 박는다: custom error / exit code / stderr JSON / stdout-stderr 분리 / partial failure / 인증·rate limit 동작.
+read-only CLI라도 호출자(특히 AI)가 안정적으로 다룰 수 있도록 6개 contract 정의: custom error / exit code / stderr JSON / stdout-stderr 분리 / partial failure / 인증·rate limit 동작.
 
-본 문서의 매핑 source는 **`gh api` subprocess의 종료 코드 + stderr substring**이다. v0.1 ureq baseline의 HTTP status code 직접 관찰 매핑은 ADR 0002로 obsolete. 매핑 표는 본 spec § gh 종료 코드 + stderr → GitlessError 매핑 한 곳에 박는다.
+본 문서의 매핑 source는 **`gh api` subprocess의 종료 코드 + stderr substring**이다. v0.1 ureq baseline의 HTTP status code 직접 관찰 매핑은 ADR 0002로 obsolete. 매핑 표는 본 spec § gh 종료 코드 + stderr → GitlessError 매핑 한 곳에 집중.
 
 ## 현재 상태
-- `crates/gitless-sync/src/shared/error/{mod,core,network}.rs`에 `GitlessError` enum + `exit_code()` + `error_code()` + `to_stderr_payload()` 모두 구현 완료. 단일 file → 도메인 sub-module 분리(Phase 6 Q task) 박힘.
+- `crates/gitless-sync/src/shared/error/{mod,core,network}.rs`에 `GitlessError` enum + `exit_code()` + `error_code()` + `to_stderr_payload()` 모두 구현 완료. 단일 file → 도메인 sub-module 분리(Phase 6 Q task) 적용.
 - `main.rs`에서 에러 발생 시 stderr JSON 출력 + exit code 매핑 동작.
-- 각 GitHub API / IO 호출 지점에서 `GitlessError` variant 매핑 + partial failure 누적 로직 모두 박힘 (ADR 0002 마이그레이션 완료, 2026-05-07).
-- **gh CLI 최소 버전 floor**: `gh >= 2.40.0` (2023-12-07 릴리스). 근거: 멀티 계정 인증(`gh auth switch`/`gh auth status` 정비)이 박힌 시점으로 토큰/호스트 해석이 안정적. `gh api`의 `-F`/`-f`/recursive query는 그 전부터 안정이었으나 인증 측 안정성을 floor로 잡는다 [source: https://github.com/cli/cli/releases/tag/v2.40.0]. 현재 최신은 v2.92.0 (2026-04-28) 기준 [source: https://github.com/cli/cli/releases].
+- 각 GitHub API / IO 호출 지점에서 `GitlessError` variant 매핑 + partial failure 누적 로직 모두 구현 (ADR 0002 마이그레이션 완료, 2026-05-07).
+- **gh CLI 최소 버전 floor**: `gh >= 2.40.0` (2023-12-07 릴리스). 근거: 멀티 계정 인증(`gh auth switch`/`gh auth status` 정비)이 도입된 시점으로 토큰/호스트 해석이 안정적. `gh api`의 `-F`/`-f`/recursive query는 그 전부터 안정이었으나 인증 측 안정성을 floor로 잡는다 [source: https://github.com/cli/cli/releases/tag/v2.40.0]. 현재 최신은 v2.92.0 (2026-04-28) 기준 [source: https://github.com/cli/cli/releases].
 
 ### N-task audit (2026-05-09)
 
-본 spec과 실 구현(`shared/error/core.rs` / `shared/error/network.rs` / `shared/github/error_map.rs` / `commands/scan/compare.rs`) 정합 검증. 박힘 vs 미박힘 + drift surface — fix는 본 task scope 안 박힘만 박음. 외 drift는 follow-up task로 박음.
+본 spec과 실 구현(`shared/error/core.rs` / `shared/error/network.rs` / `shared/github/error_map.rs` / `commands/scan/compare.rs`) 정합 검증. 구현 vs 미구현 + drift surface — fix는 본 task scope 안 항목만 처리. 외 drift는 follow-up task로 분리.
 
-**박힘 (정합)**:
-- `GitlessError` 7 variant (`Config / AuthFailed / RateLimitExceeded / TreesTruncated / Http / Io / PartialFailure`) — `core.rs::GitlessError` line 11~33 박힘.
-- gh stderr substring 매칭 (`Bad credentials` / `secondary rate limit` / `API rate limit exceeded` / fallthrough) — `shared/github/error_map.rs::map_gh_error` line 9~20 박힘. 우선순위 정합 (auth → secondary → primary → Http).
-- GraphQL error mapping (`RATE_LIMITED` / `UNAUTHENTICATED` / fallthrough) — `error/network.rs::map_graphql_error` line 39~50 박힘. `NOT_FOUND` + 그 외 fallthrough Http 박힘.
-- `FailedReason` 5 variant — `compare.rs::FailedReason` line 20~26 박힘 (`CaseCollision / Submodule / Symlink / LongPath / LfsPointer`).
-- `LfsPointer` placeholder `{oid: "?", size: 0}` — `compare.rs::LfsPointer` line 33~36 + `commands/scan/lfs.rs::placeholder_pointer_for` 박힘.
-- 호출자 import path 호환: `use crate::shared::error::{GitlessError, GraphqlError, map_graphql_error};` — `error/mod.rs` line 13~14 re-export 박힘.
+**구현 정합**:
+- `GitlessError` 7 variant (`Config / AuthFailed / RateLimitExceeded / TreesTruncated / Http / Io / PartialFailure`) — `core.rs::GitlessError` line 11~33 정의됨.
+- gh stderr substring 매칭 (`Bad credentials` / `secondary rate limit` / `API rate limit exceeded` / fallthrough) — `shared/github/error_map.rs::map_gh_error` line 9~20 구현. 우선순위 정합 (auth → secondary → primary → Http).
+- GraphQL error mapping (`RATE_LIMITED` / `UNAUTHENTICATED` / fallthrough) — `error/network.rs::map_graphql_error` line 39~50 구현. `NOT_FOUND` + 그 외 fallthrough Http 매핑.
+- `FailedReason` 5 variant — `compare.rs::FailedReason` line 20~26 정의 (`CaseCollision / Submodule / Symlink / LongPath / LfsPointer`).
+- `LfsPointer` placeholder `{oid: "?", size: 0}` — `compare.rs::LfsPointer` line 33~36 + `commands/scan/lfs.rs::placeholder_pointer_for` 구현.
+- 호출자 import path 호환: `use crate::shared::error::{GitlessError, GraphqlError, map_graphql_error};` — `error/mod.rs` line 13~14 re-export 정합.
 
-**미박힘 (Phase 5 후속, hedge marker)**:
-- `failed_reason: "encoding"` — `shared/decode.rs::try_decode_text` sniff 박힘 (line 53~76)이지만 `commands/scan/pipeline.rs` surface plumbing 미박힘 (caller-side mapping follow-up). F task acceptance 박힘 vs 구현 gap — 본 task에서 surface 박음.
-- `failed_reason: "nfd_collision"` — `walker.rs::relative_path` NFC normalize 박힘이지만 NFD collision detect (precomposeunicode false 환경) 미박힘. P/P1 fixture task 박힌 후 implement follow-up. 본 task `enum-spec'd-but-unimplemented` align — `compare.rs::FailedReason`에 variant 미박힘.
-- `failed_reason: "gitattributes_unsupported"` — `shared/gitattributes.rs::AttributeMatch::Unsupported` variant 박힘 (line 161 박힘) + `shared/normalize.rs::prepare_for_hash` defensive fall-through to v0.1 default 박힘 (line 67 박힘)이지만 `pipeline.rs` `Status::Failed` mapping plumbing 미박힘. 동일 enum-spec'd-but-unimplemented align — `compare.rs::FailedReason`에 variant 미박힘.
+**미구현 (Phase 5 후속, hedge marker)**:
+- `failed_reason: "encoding"` — `shared/decode.rs::try_decode_text` sniff 구현 (line 53~76)이지만 `commands/scan/pipeline.rs` surface plumbing 미구현 (caller-side mapping follow-up). F task acceptance vs 구현 gap — 본 task에서 surface 마크.
+- `failed_reason: "nfd_collision"` — `walker.rs::relative_path` NFC normalize 구현이지만 NFD collision detect (precomposeunicode false 환경) 미구현. P/P1 fixture task 진행 후 implement follow-up. 본 task `enum-spec'd-but-unimplemented` align — `compare.rs::FailedReason`에 variant 미정의.
+- `failed_reason: "gitattributes_unsupported"` — `shared/gitattributes.rs::AttributeMatch::Unsupported` variant 정의됨 (line 161) + `shared/normalize.rs::prepare_for_hash` defensive fall-through to v0.1 default 적용 (line 67)이지만 `pipeline.rs` `Status::Failed` mapping plumbing 미구현. 동일 enum-spec'd-but-unimplemented align — `compare.rs::FailedReason`에 variant 미정의.
 
 **Drift surface (코드 fix follow-up — 본 task scope 밖)**:
-- `Http` exit code: 본 spec § Exit Code 매핑 line 58 박음 `1` vs `error/core.rs::exit_code()` line 49 박음 `3`. spec acceptance line 박힘 ("5xx fallthrough → 도구 exit code 1") 박힘 vs 코드 박힘 drift. ureq 시절 잔재 의심 (ADR 0002 마이그레이션 spec 갱신 시점에 코드 미반영 가능). 본 task fix 안 박음 — code change는 다른 task scope (`error/core.rs` 박힘은 task Q phase 6 영역).
+- `Http` exit code: 본 spec § Exit Code 매핑 line 58 정의 `1` vs `error/core.rs::exit_code()` line 49 구현 `3`. spec acceptance line ("5xx fallthrough → 도구 exit code 1") vs 코드 drift. ureq 시절 잔재 의심 (ADR 0002 마이그레이션 spec 갱신 시점에 코드 미반영 가능). 본 task fix 안 함 — code change는 다른 task scope (`error/core.rs` 변경은 task Q phase 6 영역).
 
-**Spec self-consistency fix (본 task에서 박음)**:
-- § Acceptance Criteria 박힘 `error_code` 양식 inconsistency: 일부 박음 `"CONFIG"` / `"HTTP"` (suffix 없음) vs 다른 박음 `"AUTH_FAILED"` / `"RATE_LIMIT_EXCEEDED"` / `"TREES_TRUNCATED"` (suffix 박힘). `error_code()` 메서드 결과는 모두 `_ERROR` / `_FAILED` / `_EXCEEDED` suffix 일관 박음 (`core.rs::error_code()` line 56~66) — `"CONFIG_ERROR"` / `"HTTP_ERROR"` / `"AUTH_FAILED"` / `"RATE_LIMIT_EXCEEDED"` / `"TREES_TRUNCATED"` / `"IO_ERROR"` / `"PARTIAL_FAILURE"`. 본 task에서 spec acceptance line 갱신 — `"CONFIG"` → `"CONFIG_ERROR"` + `"HTTP"` → `"HTTP_ERROR"`. **spec § stderr 출력 형식 line 134~140의 1:1 매핑 원칙(`error_code`는 `GitlessError` enum과 1:1 매핑 (`error_code()` 메서드 결과))과 정합**.
+**Spec self-consistency fix (본 task에서 처리)**:
+- § Acceptance Criteria 의 `error_code` 양식 inconsistency: 일부 `"CONFIG"` / `"HTTP"` (suffix 없음) vs 다른 `"AUTH_FAILED"` / `"RATE_LIMIT_EXCEEDED"` / `"TREES_TRUNCATED"` (suffix 포함). `error_code()` 메서드 결과는 모두 `_ERROR` / `_FAILED` / `_EXCEEDED` suffix 일관 (`core.rs::error_code()` line 56~66) — `"CONFIG_ERROR"` / `"HTTP_ERROR"` / `"AUTH_FAILED"` / `"RATE_LIMIT_EXCEEDED"` / `"TREES_TRUNCATED"` / `"IO_ERROR"` / `"PARTIAL_FAILURE"`. 본 task에서 spec acceptance line 갱신 — `"CONFIG"` → `"CONFIG_ERROR"` + `"HTTP"` → `"HTTP_ERROR"`. **spec § stderr 출력 형식 line 134~140의 1:1 매핑 원칙(`error_code`는 `GitlessError` enum과 1:1 매핑 (`error_code()` 메서드 결과))과 정합**.
 
 **Spec 잔재 hedge (follow-up)**:
-- § Module Layout 박음 `format_graphql_errors` re-export — `error/mod.rs` 박힘 line 14 미박힘 (module-internal helper). spec text 잔재 또는 코드 plumbing gap. 본 task fix 안 박음 — spec 박힘은 retain (helper 자체는 박힘, re-export 변경은 호출 site 영향 없음).
+- § Module Layout `format_graphql_errors` re-export — `error/mod.rs` line 14 미선언 (module-internal helper). spec text 잔재 또는 코드 plumbing gap. 본 task fix 안 함 — spec 본문은 retain (helper 자체는 구현됨, re-export 변경은 호출 site 영향 없음).
 
 ## 작업 범위
 
@@ -53,9 +53,9 @@ read-only CLI라도 호출자(특히 AI)가 안정적으로 다룰 수 있도록
 
 호출자 import는 `use crate::shared::error::{GitlessError, GraphqlError, map_graphql_error};` 형태로 호환 유지 (sub-module 위치 변경에도 path 동일). REST-side gh stderr substring 매칭은 본 모듈이 아닌 call site 인접 `shared/github/error_map.rs`에 위치 — gh 종료 코드 + stderr 스냅샷이 GitHub API 호출 모듈의 자연스러운 동반자라.
 
-mod.rs를 re-export 전용으로 박은 이유: sub-module이 parent의 type을 import하면 cargo modules 그래프에서 양방향 edge가 만들어져 cycle 게이트(`cargo xtask check-cycles`) deny. github/mod.rs(2026-05-08, task G) 박힌 동일 패턴 — sub-module 간 sibling import만 허용 + parent는 re-export hub.
+mod.rs를 re-export 전용으로 둔 이유: sub-module이 parent의 type을 import하면 cargo modules 그래프에서 양방향 edge가 만들어져 cycle 게이트(`cargo xtask check-cycles`) deny. github/mod.rs(2026-05-08, task G) 동일 패턴 — sub-module 간 sibling import만 허용 + parent는 re-export hub.
 
-### Custom Error Types (이미 박힘)
+### Custom Error Types (이미 구현됨)
 ```rust
 pub enum GitlessError {
     Config(String),
@@ -119,7 +119,7 @@ variant 의미:
 
 ### GraphQL error mapping (Phase 4)
 
-> **신설 (Phase 4 P2, 2026-05-07)**: GraphQL backend(`gh api graphql`)는 gh subprocess가 exit 0으로 떨어져도 응답 JSON 안의 `errors[]` 배열에 에러를 박을 수 있다 (REST의 stderr substring 패턴과 다른 신호 경로). 매핑 source는 응답 JSON의 `data.errors[].extensions.code` enum 값.
+> **신설 (Phase 4 P2, 2026-05-07)**: GraphQL backend(`gh api graphql`)는 gh subprocess가 exit 0으로 떨어져도 응답 JSON 안의 `errors[]` 배열에 에러를 포함할 수 있다 (REST의 stderr substring 패턴과 다른 신호 경로). 매핑 source는 응답 JSON의 `data.errors[].extensions.code` enum 값.
 
 GraphQL 응답 형식 (errors 동반 케이스):
 
@@ -145,7 +145,7 @@ GraphQL 응답 형식 (errors 동반 케이스):
 | 그 외 (예: `INTERNAL_SERVER_ERROR`) | `Http(errors[] 원문)` | 1 | fallthrough — 알려지지 않은 enum 코드 |
 
 **매칭 우선순위** (위에서 아래로):
-1. gh subprocess exit ≠ 0이면 REST과 동일 § gh 종료 코드 + stderr 매핑 우선 적용 (gh 자체가 5xx / auth 등을 stderr에 박음).
+1. gh subprocess exit ≠ 0이면 REST과 동일 § gh 종료 코드 + stderr 매핑 우선 적용 (gh 자체가 5xx / auth 등을 stderr에 노출).
 2. gh subprocess exit == 0 + stdout JSON `errors[]` 비어 있지 않음 → 본 § GraphQL error mapping 표 적용.
 3. `errors[0].extensions.code` 값으로 표 매핑. 첫 항목 우선 (다중 errors 시 첫 항목만 매핑, 나머지 errors 원문은 message에 보존).
 4. fallthrough → `Http(errors[] 원문)`.
@@ -175,19 +175,19 @@ GraphQL 응답 형식 (errors 동반 케이스):
 
 ### Per-file Pitfall Reasons (Phase 5)
 
-`Status::Failed` 항목은 `failed_reason` 필드(spec-output-schema.md § 1.1)로 함정 종류 박음. fatal error(`GitlessError`) 아님 — per-file partial failure 카운트 박힘.
+`Status::Failed` 항목은 `failed_reason` 필드(spec-output-schema.md § 1.1)로 함정 종류 구분. fatal error(`GitlessError`) 아님 — per-file partial failure 카운트 누적.
 
 | reason | 상황 | 처리 정책 | 구현 |
 |---|---|---|---|
-| `hash_io` | 로컬 파일 read / 권한 실패 | v0.1 기존 동작 | `compare.rs::FailedReason` enum 박지 않음 (None special case). `pipeline.rs::build_one_pre_entry` line 122~128 박힘 — `failed_reason: None` 박힘. v1.0 backward-compat |
-| `encoding` | UTF-8 + 2차 detect 모두 실패 | spec-domain-pitfalls.md § Encoding | **enum-spec'd-but-unimplemented** — `shared/decode.rs::try_decode_text` sniff 박힘이지만 `compare.rs::FailedReason`에 variant 미박힘 + `pipeline.rs` surface mapping 미박힘. Phase 5 후속 task로 박음 (caller-side plumbing follow-up) |
-| `submodule` | Trees mode `160000` entry | spec-domain-pitfalls.md § Submodule | `compare.rs::FailedReason::Submodule` 박힘 + `pipeline.rs::try_short_circuit_failed` line 158~159 박힘 |
-| `symlink` | Trees mode `120000` entry 또는 local symlink | spec-domain-pitfalls.md § Symlink | `compare.rs::FailedReason::Symlink` 박힘 + `pipeline.rs::try_short_circuit_failed` line 160~161 박힘 |
-| `lfs_pointer` | LFS pointer text 시그니처 detect | spec-domain-pitfalls.md § LFS pointer | `compare.rs::FailedReason::LfsPointer` 박힘 + `pipeline.rs::try_short_circuit_failed` line 162~163 박힘 + `commands/scan/lfs.rs::placeholder_pointer_for` 박힘 |
-| `long_path` | Windows 260자+ path 또는 예약 파일명 (CON/PRN/NUL/AUX 등) | spec-domain-pitfalls.md § Windows long path | `compare.rs::FailedReason::LongPath` 박힘 + `pipeline.rs::try_short_circuit_failed` line 156~157 박힘 |
-| `nfd_collision` | macOS NFD/NFC 동일 path 두 개 박힘 (precomposeunicode false 환경) | spec-domain-pitfalls.md § NFD edge | **enum-spec'd-but-unimplemented** — `walker.rs::relative_path` NFC normalize 박힘이지만 NFD collision detect (precomposeunicode false 환경) 미박힘. `compare.rs::FailedReason`에 variant 미박힘. Phase 5 후속 task로 박음 (P/P1 fixture task 박힌 후 implement follow-up) |
-| `case_collision` | Windows local에서 case-sensitive 충돌 (`Foo.txt` + `foo.txt`) | spec-domain-pitfalls.md § Case | `compare.rs::FailedReason::CaseCollision` 박힘 + `pipeline.rs::try_short_circuit_failed` line 154~155 박힘 + `case_collision::detect` 박힘 |
-| `gitattributes_unsupported` | `.gitattributes`에 화이트리스트 외 attribute 박힘 (예: `working-tree-encoding`, `ident`, `filter`) | spec-domain-pitfalls.md § `.gitattributes` 화이트리스트 | **enum-spec'd-but-unimplemented** — `shared/gitattributes.rs::AttributeMatch::Unsupported` variant 박힘 + `shared/normalize.rs::prepare_for_hash` defensive fall-through to v0.1 default 박힘이지만 `pipeline.rs` `Status::Failed` mapping plumbing 미박힘. `compare.rs::FailedReason`에 variant 미박힘. Phase 5 후속 task로 박음 (caller-side plumbing follow-up) |
+| `hash_io` | 로컬 파일 read / 권한 실패 | v0.1 기존 동작 | `compare.rs::FailedReason` enum에 미정의 (None special case). `pipeline.rs::build_one_pre_entry` line 122~128 — `failed_reason: None` 적용. v1.0 backward-compat |
+| `encoding` | UTF-8 + 2차 detect 모두 실패 | spec-domain-pitfalls.md § Encoding | **enum-spec'd-but-unimplemented** — `shared/decode.rs::try_decode_text` sniff 구현이지만 `compare.rs::FailedReason`에 variant 미정의 + `pipeline.rs` surface mapping 미구현. Phase 5 후속 task로 처리 (caller-side plumbing follow-up) |
+| `submodule` | Trees mode `160000` entry | spec-domain-pitfalls.md § Submodule | `compare.rs::FailedReason::Submodule` 정의됨 + `pipeline.rs::try_short_circuit_failed` line 158~159 구현 |
+| `symlink` | Trees mode `120000` entry 또는 local symlink | spec-domain-pitfalls.md § Symlink | `compare.rs::FailedReason::Symlink` 정의됨 + `pipeline.rs::try_short_circuit_failed` line 160~161 구현 |
+| `lfs_pointer` | LFS pointer text 시그니처 detect | spec-domain-pitfalls.md § LFS pointer | `compare.rs::FailedReason::LfsPointer` 정의됨 + `pipeline.rs::try_short_circuit_failed` line 162~163 구현 + `commands/scan/lfs.rs::placeholder_pointer_for` 구현 |
+| `long_path` | Windows 260자+ path 또는 예약 파일명 (CON/PRN/NUL/AUX 등) | spec-domain-pitfalls.md § Windows long path | `compare.rs::FailedReason::LongPath` 정의됨 + `pipeline.rs::try_short_circuit_failed` line 156~157 구현 |
+| `nfd_collision` | macOS NFD/NFC 동일 path 두 개 공존 (precomposeunicode false 환경) | spec-domain-pitfalls.md § NFD edge | **enum-spec'd-but-unimplemented** — `walker.rs::relative_path` NFC normalize 구현이지만 NFD collision detect (precomposeunicode false 환경) 미구현. `compare.rs::FailedReason`에 variant 미정의. Phase 5 후속 task로 처리 (P/P1 fixture task 진행 후 implement follow-up) |
+| `case_collision` | Windows local에서 case-sensitive 충돌 (`Foo.txt` + `foo.txt`) | spec-domain-pitfalls.md § Case | `compare.rs::FailedReason::CaseCollision` 정의됨 + `pipeline.rs::try_short_circuit_failed` line 154~155 구현 + `case_collision::detect` 구현 |
+| `gitattributes_unsupported` | `.gitattributes`에 화이트리스트 외 attribute 적용 (예: `working-tree-encoding`, `ident`, `filter`) | spec-domain-pitfalls.md § `.gitattributes` 화이트리스트 | **enum-spec'd-but-unimplemented** — `shared/gitattributes.rs::AttributeMatch::Unsupported` variant 정의됨 + `shared/normalize.rs::prepare_for_hash` defensive fall-through to v0.1 default 구현이지만 `pipeline.rs` `Status::Failed` mapping plumbing 미구현. `compare.rs::FailedReason`에 variant 미정의. Phase 5 후속 task로 처리 (caller-side plumbing follow-up) |
 
 `failed_reason` 부재(`null`) 시 v0.1 baseline `hash_io` 동작과 일관 — 호출자 backward-compat.
 
@@ -209,7 +209,7 @@ GraphQL 응답 형식 (errors 동반 케이스):
 기타 케이스(파일 권한 / 기존 파일 충돌 / `--force`)는 ADR 0004로 obsolete — 도구 파일 작성 0이라 발생 자체 불가능. shell redirect 측 에러는 도구 책임 밖.
 
 ## Acceptance Criteria
-단위 테스트는 모두 `MockGhClient` stub 응답 기반 (M2a~M2c, ADR 0002). v0.1 ureq baseline 시기에 박혀 있던 mockito 시나리오는 모두 stub 응답으로 재작성한다.
+단위 테스트는 모두 `MockGhClient` stub 응답 기반 (M2a~M2c, ADR 0002). v0.1 ureq baseline 시기에 사용된 mockito 시나리오는 모두 stub 응답으로 재작성한다.
 
 - `[AUTO]` `GitlessError::AuthFailed.exit_code()` == `2`.
 - `[AUTO]` `GitlessError::TreesTruncated.exit_code()` == `5`.
@@ -224,7 +224,7 @@ GraphQL 응답 형식 (errors 동반 케이스):
 - `[AUTO]` 정상 실행 (drift 있어도) → 도구 exit code 0.
 - `[AUTO]` stdout이 결과 JSON 한 덩어리만 포함하고 추가 텍스트 없음 (`serde_json::from_str` 가능).
 - `[AUTO]` gh 미설치 환경: `RealGhClient::new().api(&["api".to_string(), "...".to_string()])` 첫 호출이 `GitlessError::Config("gh CLI not found in PATH; install from https://cli.github.com/")` 반환 → 도구 exit code 1 + stderr `error_code: "CONFIG_ERROR"`.
-- `[AUTO]` 5xx fallthrough: `MockGhClient` stub 응답 stderr `"gh: ... (HTTP 503)"` + exit 1 → `GitlessError::Http(...)` → 도구 exit code 1 + stderr `error_code: "HTTP_ERROR"`. **N-task audit drift**: 본 spec § Exit Code 매핑 line 박음 `1` vs `error/core.rs::exit_code()` 박음 `3` (ureq 시절 잔재 의심) — 본 task scope 밖 fix follow-up. 본 line 박힘은 spec § stderr 출력 형식 § 1:1 매핑 원칙 + `error_code()` 메서드 결과 일관 정합 박음.
+- `[AUTO]` 5xx fallthrough: `MockGhClient` stub 응답 stderr `"gh: ... (HTTP 503)"` + exit 1 → `GitlessError::Http(...)` → 도구 exit code 1 + stderr `error_code: "HTTP_ERROR"`. **N-task audit drift**: 본 spec § Exit Code 매핑 line `1` vs `error/core.rs::exit_code()` `3` (ureq 시절 잔재 의심) — 본 task scope 밖 fix follow-up. 본 line은 spec § stderr 출력 형식 § 1:1 매핑 원칙 + `error_code()` 메서드 결과 일관 정합 명시.
 - `[AUTO]` PRD 검증 시나리오 17 (init repo 미명시): `cargo run -- init` (또는 `cargo run -- init --repo ""`) → 도구 exit code 1, stdout 출력 0, stderr JSON 한 줄에 `error_code: "CONFIG_ERROR"` + `message`에 `"repo not specified"` substring. library 경로로는 `commands::init::run(&InitArgs { repo: "".into(), .. }, &mut Vec<u8>)` → `Err(GitlessError::Config(_))` 반환 + `err.exit_code() == 1` + `err.error_code() == "CONFIG_ERROR"`.
 - `[AUTO]` GraphQL backend `errors[].extensions.code == "RATE_LIMITED"` 응답 → 도구 exit code 3 + stderr `error_code: "RATE_LIMIT_EXCEEDED"` (P5a 단위 테스트 매트릭스).
 - `[AUTO]` GraphQL backend `errors[].extensions.code == "UNAUTHENTICATED"` 응답 → 도구 exit code 2 + stderr `error_code: "AUTH_FAILED"`.

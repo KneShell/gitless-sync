@@ -21,13 +21,13 @@ Phase 4 P4 task에서 `mtime` 기반 SHA cache를 도입했다. 동기는 1차/2
 - **N=5 sequence (변동 재확인)**: cold mean **1335.0 ms** / warm mean **1351.6 ms** → speedup **0.988x** — warm이 cold보다 살짝 느림. variance 8.6%/9.4%, <30%.
 
 cache 정상 채워짐 확인:
-- 1차 scan 후 cache 파일 size 9063 bytes. JSON entries 50 (= summary `identical 30 + local_only_changed 20`). 모든 local file이 cache에 박힘 → 2차 scan에서 100% cache hit 기대.
+- 1차 scan 후 cache 파일 size 9063 bytes. JSON entries 50 (= summary `identical 30 + local_only_changed 20`). 모든 local file이 cache에 등록 → 2차 scan에서 100% cache hit 기대.
 - cache `version` field = 1 (CACHE_VERSION 일관). 모든 entry는 `mtime` (UTC ISO-8601) + `sha` (hex) + `is_binary` (bool) — 형식 spec-config.md § cache 일관.
 
 분석:
 - 두 측정에서 speedup이 0.99 ~ 1.04 범위. variance ≈ 4~9%로 낮은데도 1차/2차 mean 차이가 변동 범위 안. **cache 효과가 wall-clock 측정 variance보다 작음**.
 - dominant cost가 hash가 아닌 다른 곳: 1300ms 안에서 hash 50 file은 ~50ms (1KB-10KB 텍스트 × 50). 나머지 ~1250ms는 (i) cargo binary fork, (ii) `gh api` subprocess fork × 2 (Trees + GraphQL), (iii) Trees API 응답 다운로드 + 파싱, (iv) walker 파일 시스템 walk, (v) GraphQL 응답 파싱 + JSON 직렬화. cache는 hash phase만 단축 → 전체 대비 ~3-4% 영향. measured 결과(±5% noise) 내부.
-- cache save는 cold/warm 모두 매 호출 발생 (`commands/scan/mod.rs::build_report` end). 9KB JSON serialize + tmp write + rename atomic 비용은 cold/warm 동일하게 발생 → cache 도입에 따른 *추가 비용*만 양쪽에 박힘. lookup 효과는 그 위에 누적되는데 net zero.
+- cache save는 cold/warm 모두 매 호출 발생 (`commands/scan/mod.rs::build_report` end). 9KB JSON serialize + tmp write + rename atomic 비용은 cold/warm 동일하게 발생 → cache 도입에 따른 *추가 비용*만 양쪽에 발생. lookup 효과는 그 위에 누적되는데 net zero.
 
 ## Decision
 
@@ -64,7 +64,7 @@ ADR 0009 (internal cache read-only 예외)는 본 ADR로 **obsolete** 마크. ca
 
 ### Phase 5 영향
 
-- 1000+ path scale에서 hash 비중이 늘어 cache speedup이 커질 가능성 — vault scale 측정에서 다시 검토. yagni 기조라면 그때 다시 박음.
+- 1000+ path scale에서 hash 비중이 늘어 cache speedup이 커질 가능성 — vault scale 측정에서 다시 검토. yagni 기조라면 그때 다시 평가.
 - 본 ADR 0008은 v0.2 baseline에서의 결정. v0.3+에서 측정 환경 바뀌면 재고 가능.
 
 ### ADR 0009 obsolete
