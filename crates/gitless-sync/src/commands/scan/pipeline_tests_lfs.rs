@@ -5,6 +5,7 @@
 //! `#[cfg(test)] #[path = "pipeline_tests_lfs.rs"] mod tests_lfs;`.
 
 use std::fs;
+use std::sync::Arc;
 
 use tempfile::TempDir;
 
@@ -49,7 +50,7 @@ fn assemble_entries_promotes_lfs_filter_path_to_failed_with_pointer_placeholder(
         branch: "main",
         backend: Backend::Rest,
     };
-    let gitattr = GitAttributes::load(dir.path()).unwrap();
+    let gitattr = Arc::new(GitAttributes::load(dir.path()).unwrap());
     let (entries, summary, failed) =
         assemble_entries(&[local], &[remote], &ctx, false, &gitattr).unwrap();
 
@@ -112,7 +113,7 @@ fn assemble_entries_omits_lfs_pointer_for_unrelated_failed_reasons() {
         branch: "main",
         backend: Backend::Rest,
     };
-    let gitattr = GitAttributes::default();
+    let gitattr = Arc::new(GitAttributes::default());
     let (entries, _, _) = assemble_entries(
         &[local],
         &[remote_lower, remote_upper],
@@ -158,7 +159,7 @@ fn assemble_entries_does_not_promote_path_without_filter_lfs_match() {
         branch: "main",
         backend: Backend::Rest,
     };
-    let gitattr = GitAttributes::load(dir.path()).unwrap();
+    let gitattr = Arc::new(GitAttributes::load(dir.path()).unwrap());
     let (entries, summary, _) =
         assemble_entries(&[local], &[remote], &ctx, false, &gitattr).unwrap();
 

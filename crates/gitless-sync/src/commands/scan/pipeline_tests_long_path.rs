@@ -4,6 +4,8 @@
 //! `#[cfg(test)] #[path = "pipeline_tests_long_path.rs"] mod
 //! tests_long_path;` so the implementation gate stays under 300 LOC.
 
+use std::sync::Arc;
+
 use tempfile::TempDir;
 
 use super::*;
@@ -33,8 +35,14 @@ fn assemble_entries_promotes_remote_reserved_name_to_failed_with_long_path_reaso
         branch: "main",
         backend: Backend::Rest,
     };
-    let (entries, summary, failed) =
-        assemble_entries(&[], &[remote], &ctx, false, &GitAttributes::default()).unwrap();
+    let (entries, summary, failed) = assemble_entries(
+        &[],
+        &[remote],
+        &ctx,
+        false,
+        &Arc::new(GitAttributes::default()),
+    )
+    .unwrap();
 
     assert_eq!(failed, 1);
     assert_eq!(summary.failed, 1);
@@ -66,8 +74,14 @@ fn assemble_entries_promotes_oversized_remote_path_to_failed_with_long_path_reas
         branch: "main",
         backend: Backend::Rest,
     };
-    let (entries, summary, failed) =
-        assemble_entries(&[], &[remote], &ctx, false, &GitAttributes::default()).unwrap();
+    let (entries, summary, failed) = assemble_entries(
+        &[],
+        &[remote],
+        &ctx,
+        false,
+        &Arc::new(GitAttributes::default()),
+    )
+    .unwrap();
 
     assert_eq!(failed, 1);
     assert_eq!(summary.failed, 1);

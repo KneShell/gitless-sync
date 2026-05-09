@@ -1,75 +1,18 @@
+//! Text normalization + hash-input preparation.
+//!
+//! `prepare_for_hash` is the K2 entry point that routes raw bytes through
+//! one of seven `.gitattributes`-driven branches into a `(prepared,
+//! is_binary)` tuple consumed by `shared::hash::blob_hash`. The five named
+//! helpers (`apply_text_auto` / `apply_binary` / `apply_eol_lf` /
+//! `apply_eol_crlf` / `apply_unspecified`) keep each branch within the
+//! Phase 6 cognitive-complexity budget. See
+//! `docs/specs/spec-hash-and-normalize.md` § Normalize 규칙 + § Lifetime 계약.
+
+use std::sync::Arc;
+
+use crate::shared::gitattributes::{AttributeMatch, GitAttributes};
+
 const UTF8_BOM: &[u8] = &[0xEF, 0xBB, 0xBF];
-const UTF16_LE_BOM: &[u8] = &[0xFF, 0xFE];
-const UTF16_BE_BOM: &[u8] = &[0xFE, 0xFF];
-
-const TEXT_DECODE_SHORTLIST: &[&encoding_rs::Encoding] = &[
-    encoding_rs::SHIFT_JIS,
-    encoding_rs::EUC_KR,
-    encoding_rs::GBK,
-    encoding_rs::WINDOWS_1252,
-];
-
-/// Outcome of a non-mutating decode attempt for non-UTF-8 inputs.
-///
-/// Hash input remains the original raw bytes regardless of variant
-/// (`spec-domain-pitfalls.md` § Encoding (b) policy). Detection is purely
-/// informational — callers surface `failed_reason: "encoding"` on
-/// [`TextDecodeResult::Unknown`] **or** [`TextDecodeResult::Utf16Bom`]
-/// (UTF-16 is out of scope for v0.2; see `spec-hash-and-normalize.md` § BOM).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TextDecodeResult {
-    Utf8,
-    Detected {
-        encoding: &'static str,
-    },
-    /// UTF-16 BOM detected. Surfaced as `failed_reason: "encoding"` by the
-    /// caller — UTF-16 conversion is out of scope for v0.2.
-    Utf16Bom {
-        little_endian: bool,
-    },
-    Unknown,
-}
-
-/// Attempt to identify the text encoding of `raw` without modifying it.
-///
-/// Order: UTF-16 BOM (`FF FE` LE / `FE FF` BE) first; then UTF-8; on UTF-8
-/// failure, walk a curated shortlist (`Shift_JIS`, `EUC-KR`, `GBK`,
-/// `Windows-1252`) and return the first encoding that decodes without
-/// replacement characters. Returns [`TextDecodeResult::Unknown`] when every
-/// shortlist entry reports errors.
-///
-/// UTF-8 BOM (`EF BB BF`) is valid UTF-8 (encodes U+FEFF) and is reported as
-/// [`TextDecodeResult::Utf8`]; BOM stripping is `normalize_text`'s job.
-///
-/// Note: WHATWG `Windows-1252` maps every byte 0x00–0xFF to a code point,
-/// so it never reports `had_errors`. With the current shortlist Unknown is
-/// effectively unreachable for non-empty input — kept as a forward-compatible
-/// signal for future shortlist refinements.
-#[must_use]
-pub fn try_decode_text(raw: &[u8]) -> TextDecodeResult {
-    if raw.starts_with(UTF16_LE_BOM) {
-        return TextDecodeResult::Utf16Bom {
-            little_endian: true,
-        };
-    }
-    if raw.starts_with(UTF16_BE_BOM) {
-        return TextDecodeResult::Utf16Bom {
-            little_endian: false,
-        };
-    }
-    if std::str::from_utf8(raw).is_ok() {
-        return TextDecodeResult::Utf8;
-    }
-    for enc in TEXT_DECODE_SHORTLIST {
-        let (_, _, had_errors) = enc.decode(raw);
-        if !had_errors {
-            return TextDecodeResult::Detected {
-                encoding: enc.name(),
-            };
-        }
-    }
-    TextDecodeResult::Unknown
-}
 
 #[must_use]
 pub fn is_binary(content: &[u8]) -> bool {
@@ -79,12 +22,7 @@ pub fn is_binary(content: &[u8]) -> bool {
 
 #[must_use]
 pub fn normalize_text(content: &[u8], keep_bom: bool) -> Vec<u8> {
-    let body = if !keep_bom && content.starts_with(UTF8_BOM) {
-        &content[UTF8_BOM.len()..]
-    } else {
-        content
-    };
-
+    let body = strip_utf8_bom(content, keep_bom);
     let mut out = Vec::with_capacity(body.len());
     let mut i = 0;
     while i < body.len() {
@@ -99,18 +37,90 @@ pub fn normalize_text(content: &[u8], keep_bom: bool) -> Vec<u8> {
     out
 }
 
-#[must_use]
-pub fn prepare_for_hash(content: &[u8], keep_bom: bool) -> (Vec<u8>, bool) {
-    if is_binary(content) {
-        (content.to_vec(), true)
+fn strip_utf8_bom(content: &[u8], keep_bom: bool) -> &[u8] {
+    if !keep_bom && content.starts_with(UTF8_BOM) {
+        &content[UTF8_BOM.len()..]
     } else {
-        (normalize_text(content, keep_bom), false)
+        content
+    }
+}
+
+/// Route `raw` through the `.gitattributes`-classified hash-mode branch and
+/// return `(prepared_bytes, is_binary)` ready for `shared::hash::blob_hash`.
+/// Branch table + `Arc<GitAttributes>` lifetime contract:
+/// `spec-hash-and-normalize.md` § Normalize 규칙 + § Lifetime 계약.
+/// `LfsPointer` / `Unsupported` defensively fall through to v0.1 default —
+/// pipeline short-circuits both into `Status::Failed` before this is called.
+#[must_use]
+pub(crate) fn prepare_for_hash(
+    raw: &[u8],
+    keep_bom: bool,
+    gitattr: &Arc<GitAttributes>,
+    path: &str,
+) -> (Vec<u8>, bool) {
+    match gitattr.classify_path(path) {
+        AttributeMatch::TextAuto => apply_text_auto(raw, keep_bom),
+        AttributeMatch::Binary => apply_binary(raw),
+        AttributeMatch::EolLf => apply_eol_lf(raw, keep_bom),
+        AttributeMatch::EolCrlf => apply_eol_crlf(raw, keep_bom),
+        AttributeMatch::LfsPointer
+        | AttributeMatch::Unsupported { .. }
+        | AttributeMatch::Unspecified => apply_unspecified(raw, keep_bom),
+    }
+}
+
+// 5 helpers below — split per K2 acceptance to keep prepare_for_hash within
+// the Phase 6 cognitive-complexity budget. apply_text_auto and apply_eol_lf
+// share a body intentionally (spec table distinguishes them).
+
+fn apply_text_auto(raw: &[u8], keep_bom: bool) -> (Vec<u8>, bool) {
+    (normalize_text(raw, keep_bom), false)
+}
+
+fn apply_binary(raw: &[u8]) -> (Vec<u8>, bool) {
+    (raw.to_vec(), true)
+}
+
+fn apply_eol_lf(raw: &[u8], keep_bom: bool) -> (Vec<u8>, bool) {
+    (normalize_text(raw, keep_bom), false)
+}
+
+/// `eol=crlf`: BOM strip only — line endings preserved (local LF vs remote
+/// CRLF diverges, matching the spec acceptance scenario).
+fn apply_eol_crlf(raw: &[u8], keep_bom: bool) -> (Vec<u8>, bool) {
+    (strip_utf8_bom(raw, keep_bom).to_vec(), false)
+}
+
+/// v0.1 default policy. Reused defensively for `LfsPointer` / `Unsupported`.
+fn apply_unspecified(raw: &[u8], keep_bom: bool) -> (Vec<u8>, bool) {
+    if is_binary(raw) {
+        (raw.to_vec(), true)
+    } else {
+        (normalize_text(raw, keep_bom), false)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
+    use tempfile::TempDir;
+
     use super::*;
+    use crate::shared::hash::blob_hash;
+
+    fn empty_attrs() -> Arc<GitAttributes> {
+        Arc::new(GitAttributes::default())
+    }
+
+    fn attrs_with(body: &str) -> (TempDir, Arc<GitAttributes>) {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join(".gitattributes"), body).unwrap();
+        let attrs = Arc::new(GitAttributes::load(dir.path()).unwrap());
+        (dir, attrs)
+    }
+
+    // --- normalize_text + is_binary -------------------------------------
 
     #[test]
     fn strips_bom_when_keep_bom_false() {
@@ -150,137 +160,124 @@ mod tests {
         assert!(!is_binary(&content));
     }
 
+    // --- prepare_for_hash: 7 branches -----------------------------------
+
     #[test]
-    fn prepare_for_hash_returns_correct_flag() {
-        let (text_out, text_flag) = prepare_for_hash(b"hello\r\n", false);
+    fn unspecified_branch_matches_v0_1_default_for_text_and_binary() {
+        let attrs = empty_attrs();
+        let (text_out, text_flag) = prepare_for_hash(b"hello\r\n", false, &attrs, "any.txt");
         assert_eq!(text_out, b"hello\n");
         assert!(!text_flag);
 
         let binary = [0u8, 1, 2, 3];
-        let (bin_out, bin_flag) = prepare_for_hash(&binary, false);
+        let (bin_out, bin_flag) = prepare_for_hash(&binary, false, &attrs, "any.bin");
         assert_eq!(bin_out, binary);
         assert!(bin_flag);
     }
 
     #[test]
-    fn prepare_for_hash_keeps_bom_when_requested() {
+    fn unspecified_branch_keeps_bom_when_requested() {
         let input = [0xEF, 0xBB, 0xBF, b'a'];
-        let (out, is_bin) = prepare_for_hash(&input, true);
+        let attrs = empty_attrs();
+        let (out, is_bin) = prepare_for_hash(&input, true, &attrs, "any.txt");
         assert_eq!(out, input);
         assert!(!is_bin);
     }
 
     #[test]
-    fn try_decode_text_returns_utf8_for_ascii() {
-        assert_eq!(try_decode_text(b"hello"), TextDecodeResult::Utf8);
+    fn text_auto_branch_forces_text_even_with_nul_bytes() {
+        // NUL-bearing bytes that v0.1 default would mark binary; text=auto
+        // overrides → LF normalize, is_binary=false.
+        let (_dir, attrs) = attrs_with("*.txt text=auto\n");
+        let raw = b"a\x00b\r\nc";
+        let (out, is_bin) = prepare_for_hash(raw, false, &attrs, "any.txt");
+        assert!(!is_bin, "text=auto must override NUL heuristic");
+        assert_eq!(out, b"a\x00b\nc");
     }
 
     #[test]
-    fn try_decode_text_returns_utf8_for_valid_utf8_multibyte() {
-        assert_eq!(try_decode_text("한글".as_bytes()), TextDecodeResult::Utf8);
-        assert_eq!(try_decode_text("café".as_bytes()), TextDecodeResult::Utf8);
-        assert_eq!(try_decode_text("日本語".as_bytes()), TextDecodeResult::Utf8);
+    fn binary_branch_skips_normalize_for_zero_nul_input() {
+        // No NUL bytes means v0.1 default would treat as text + LF normalize;
+        // explicit `binary` keeps raw bytes + marks binary.
+        let (_dir, attrs) = attrs_with("*.bin binary\n");
+        let raw = b"hello\r\nworld\r\n";
+        let (out, is_bin) = prepare_for_hash(raw, false, &attrs, "data.bin");
+        assert!(is_bin);
+        assert_eq!(out, raw);
     }
 
     #[test]
-    fn try_decode_text_returns_utf8_for_empty_input() {
-        assert_eq!(try_decode_text(&[]), TextDecodeResult::Utf8);
+    fn eol_lf_branch_normalizes_crlf() {
+        let (_dir, attrs) = attrs_with("*.sh eol=lf\n");
+        let (out, is_bin) = prepare_for_hash(b"line\r\n", false, &attrs, "run.sh");
+        assert!(!is_bin);
+        assert_eq!(out, b"line\n");
     }
 
     #[test]
-    fn try_decode_text_returns_detected_for_euc_kr_bytes() {
-        // "한글" encoded as EUC-KR (CP949). Not valid UTF-8 (every byte is a
-        // bare continuation-range byte for UTF-8). The shortlist will pick
-        // some encoding — we don't pin the name per (b) policy.
-        let euc_kr = [0xC7u8, 0xD1, 0xB1, 0xDB];
-        let result = try_decode_text(&euc_kr);
-        assert!(
-            matches!(result, TextDecodeResult::Detected { .. }),
-            "expected Detected, got {result:?}"
-        );
+    fn eol_crlf_branch_preserves_crlf_diverging_from_lf() {
+        // Spec acceptance: local LF + remote CRLF must yield different SHA
+        // when `*.txt eol=crlf` is set. apply_eol_crlf hashes raw bytes
+        // (BOM strip only) so local-LF and remote-CRLF inputs diverge.
+        let (_dir, attrs) = attrs_with("*.txt eol=crlf\n");
+        let (lf_out, _) = prepare_for_hash(b"hello\n", false, &attrs, "notes.txt");
+        let (crlf_out, _) = prepare_for_hash(b"hello\r\n", false, &attrs, "notes.txt");
+        assert_ne!(blob_hash(&lf_out), blob_hash(&crlf_out));
+        // BOM strip still applies.
+        let (with_bom, _) = prepare_for_hash(b"\xEF\xBB\xBFhi\r\n", false, &attrs, "notes.txt");
+        assert_eq!(with_bom, b"hi\r\n");
     }
 
     #[test]
-    fn try_decode_text_returns_detected_for_shift_jis_bytes() {
-        // "あ" (U+3042) encoded as Shift_JIS = [0x82, 0xA0].
-        let shift_jis = [0x82u8, 0xA0];
-        let result = try_decode_text(&shift_jis);
-        assert!(
-            matches!(result, TextDecodeResult::Detected { .. }),
-            "expected Detected, got {result:?}"
-        );
+    fn lfs_pointer_branch_falls_through_to_unspecified_default() {
+        // Pipeline short-circuits LFS-tracked paths before hashing; if a
+        // caller bypasses that, prepare_for_hash defensively returns the
+        // v0.1 default output rather than panicking.
+        let (_dir, attrs) = attrs_with("*.psd filter=lfs\n");
+        let raw = b"hello\r\n";
+        let (out, is_bin) = prepare_for_hash(raw, false, &attrs, "art/cover.psd");
+        assert!(!is_bin);
+        assert_eq!(out, b"hello\n");
     }
 
     #[test]
-    fn try_decode_text_returns_detected_for_latin1_bytes() {
-        // © (0xA9), ® (0xAE), 'é' (0xE9) — valid Windows-1252 / Latin-1,
-        // not valid UTF-8 standalone.
-        let latin1 = [0xA9u8, 0xAE, 0xE9];
-        let result = try_decode_text(&latin1);
-        assert!(
-            matches!(result, TextDecodeResult::Detected { .. }),
-            "expected Detected, got {result:?}"
-        );
+    fn unsupported_branch_falls_through_to_unspecified_default() {
+        // Whitelist-miss attribute (`working-tree-encoding=...`) reaches
+        // prepare_for_hash if the caller hasn't promoted to Failed. The
+        // function returns v0.1 output defensively.
+        let (_dir, attrs) = attrs_with("*.foo working-tree-encoding=UTF-16\n");
+        let raw = b"hello\r\n";
+        let (out, _) = prepare_for_hash(raw, false, &attrs, "weird.foo");
+        assert_eq!(out, b"hello\n");
     }
 
-    #[test]
-    fn try_decode_text_preserves_raw_bytes_for_hashing() {
-        // (b) policy: detection must not perturb the bytes that flow into
-        // the hash. Same raw EUC-KR file on local + remote → same blob hash
-        // regardless of detection variant.
-        use crate::shared::hash::blob_hash;
-        let euc_kr_local = [0xC7u8, 0xD1, 0xB1, 0xDB];
-        let euc_kr_remote = [0xC7u8, 0xD1, 0xB1, 0xDB];
-        let hash_before = blob_hash(&euc_kr_local);
-        let _ = try_decode_text(&euc_kr_local);
-        let hash_after = blob_hash(&euc_kr_local);
-        assert_eq!(hash_before, hash_after);
-        assert_eq!(blob_hash(&euc_kr_local), blob_hash(&euc_kr_remote));
-    }
+    // --- lifetime contract ----------------------------------------------
 
     #[test]
-    fn try_decode_text_is_deterministic() {
-        let input = [0xC7u8, 0xD1, 0xB1, 0xDB];
-        assert_eq!(try_decode_text(&input), try_decode_text(&input));
-    }
-
-    #[test]
-    fn try_decode_text_detects_utf16_bom_le_be_alone_and_with_payload() {
-        let cases = [
-            (vec![0xFFu8, 0xFE, 0x41, 0x00], true),  // LE "A"
-            (vec![0xFEu8, 0xFF, 0x00, 0x41], false), // BE "A"
-            (vec![0xFFu8, 0xFE], true),              // LE BOM-only
-            (vec![0xFEu8, 0xFF], false),             // BE BOM-only
-        ];
-        for (raw, le) in cases {
-            assert_eq!(
-                try_decode_text(&raw),
-                TextDecodeResult::Utf16Bom { little_endian: le }
-            );
+    fn lifetime_contract_one_load_n_calls_no_clone_leak() {
+        // Single vault scan → one Arc::new(GitAttributes::load) → N calls
+        // share the same instance with no extra Arc clones leaked. Type
+        // signature (`&Arc<GitAttributes>`) prevents reparse inside
+        // prepare_for_hash; this test verifies the caller-side invariant.
+        let (_dir, attrs) = attrs_with("*.sh eol=lf\n");
+        for _ in 0..5 {
+            let (out, _) = prepare_for_hash(b"x\r\n", false, &attrs, "run.sh");
+            assert_eq!(out, b"x\n");
         }
-    }
-
-    #[test]
-    fn try_decode_text_separates_utf8_bom_and_short_prefix_from_utf16() {
-        // UTF-8 BOM (EF BB BF) encodes U+FEFF — valid UTF-8, not Utf16Bom.
         assert_eq!(
-            try_decode_text(&[0xEFu8, 0xBB, 0xBF, b'a']),
-            TextDecodeResult::Utf8
+            Arc::strong_count(&attrs),
+            1,
+            "no Arc clones should leak across N calls"
         );
-        // Single byte cannot match a 2-byte BOM. Falls through to shortlist.
-        for short in [[0xFFu8], [0xFEu8]] {
-            assert!(matches!(
-                try_decode_text(&short),
-                TextDecodeResult::Detected { .. }
-            ));
-        }
     }
+
+    // --- cross-module invariant (decode + normalize) --------------------
 
     #[test]
     fn utf16_bom_passes_through_unchanged_for_hashing_and_normalize() {
         // (b) policy: detection does not perturb hash bytes. normalize_text
         // also leaves UTF-16 BOM alone (only UTF-8 BOM is stripped).
-        use crate::shared::hash::blob_hash;
+        use crate::shared::decode::try_decode_text;
         let utf16_le = [0xFFu8, 0xFE, 0x41, 0x00];
         let hash_before = blob_hash(&utf16_le);
         let _ = try_decode_text(&utf16_le);

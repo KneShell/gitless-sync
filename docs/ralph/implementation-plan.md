@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 34
-- Completed: 17 / 34
+- Completed: 18 / 34
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -97,7 +97,7 @@
   - acceptance: `AttributeMatch` enum 박음 — `TextAuto / Binary / EolLf / EolCrlf / LfsPointer / Unspecified / Unsupported { attribute_name }`. **`filter=lfs`는 LfsPointer variant** (advisor BLOCKING fix — git-lfs 표준 마커). 화이트리스트 외 (`working-tree-encoding`, `ident`, `filter=*` (lfs 외), macro attributes, `crlf` legacy) 매칭 시 `Unsupported` 박음. unit test (5 화이트리스트 + 5 unsupported fixture). tarpaulin 80% 유지.
   - spec: `docs/specs/spec-domain-pitfalls.md` § `.gitattributes` 화이트리스트 + `spec-hash-and-normalize.md` § 화이트리스트 강제 + § LFS pointer.
 
-- [~] **K2. conditional LF normalize + lifetime 계약 박음 (advisor flag 3 — 분기 helper 분리)**
+- [x] **K2. conditional LF normalize + lifetime 계약 박음 (advisor flag 3 — 분기 helper 분리)**
   - acceptance: `prepare_for_hash` 함수 시그니처 변경 — `gitattr: &Arc<GitAttributes>` 인자 추가. **7 분기** (text=auto / binary / eol=lf / eol=crlf / **LfsPointer** / Unspecified / Unsupported) 박음. `Unspecified` default = v0.1 정책. `LfsPointer`/`Unsupported`는 caller가 `Status::Failed` 박음. **분기 helper fn 분리 박음** — `apply_text_auto`, `apply_binary`, `apply_eol_lf`, `apply_eol_crlf`, `apply_unspecified` 5 helper. Phase 6 `cognitive_complexity = 15` deny 회피 (advisor 권고). 모든 caller 갱신. unit test (단일 vault scan 1회 파싱 + N번 호출 reparse 0회 검증). tarpaulin 80% 유지 — 7 분기 모두 cover.
   - spec: `spec-hash-and-normalize.md` § Normalize 규칙 + § Lifetime 계약.
 

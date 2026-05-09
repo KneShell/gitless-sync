@@ -5,6 +5,7 @@
 //! the mode-bit cases collected in one place.
 
 use std::fs;
+use std::sync::Arc;
 
 use tempfile::TempDir;
 
@@ -45,8 +46,14 @@ fn assemble_entries_keeps_identical_when_only_mode_differs_executable() {
         branch: "main",
         backend: Backend::Rest,
     };
-    let (entries, summary, failed) =
-        assemble_entries(&[local], &[remote], &ctx, false, &GitAttributes::default()).unwrap();
+    let (entries, summary, failed) = assemble_entries(
+        &[local],
+        &[remote],
+        &ctx,
+        false,
+        &Arc::new(GitAttributes::default()),
+    )
+    .unwrap();
 
     assert_eq!(failed, 0);
     assert_eq!(summary.identical, 1);
