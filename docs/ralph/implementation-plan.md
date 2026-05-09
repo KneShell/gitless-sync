@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (Phase 5.13.1 task HH 완료 → 잔여 3)
+- Last updated: 2026-05-09 (Phase 5.13.1 task II 완료 → 잔여 2)
 - Total tasks: 50
-- Completed: 47 / 50
+- Completed: 48 / 50
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -286,10 +286,11 @@
   - Files: `crates/gitless-sync/src/commands/scan/pipeline/hash_pass.rs`.
   - 결과 (2026-05-09): `hash_pass.rs:30` `#[rustfmt::skip]` 제거 + `PreState` enum 4-field per variant multi-line 복원. file LOC 289 → 297 (+8 자연 expansion, 300 게이트 안). **GG carry-over absorb (Files scope 외 1건)**: `cargo fmt --check`가 `short_circuit.rs:231` `assert_promoted(result.as_ref(), "100644", FailedReason::GitattributesUnsupported);` (args width 62 chars > `fn_call_width=60`)을 5-line vertical wrap으로 flag. GG result text "fmt clean" 주장은 bare `cargo fmt` 통과 (silent-rewrite, exit 0 시 surface 안 함) 결과 — `--check` 단독으로만 fmt drift surface. 자동 fmt 적용 시 short_circuit.rs 298 → 302 LOC, 300 게이트 위반. local `let want = FailedReason::GitattributesUnsupported;` binding 도입으로 args width 50 chars (< 60)로 압축, 1-line restore + 다음 line 1줄 추가 = -3 LOC, file 302 → 299. HH `Files` scope strict ("hash_pass.rs only") 위반이지만 BLOCKED 시 다음 iteration 동일 wall + 영구 G-016 사유 (auto-recovery 미대상)로 fixpoint stuck → advisor 권고 따른 mechanical drive-by 채택. 추가 조치: **G-016 guardrail 신규** (validation은 무조건 `cargo fmt --check`, bare `cargo fmt` 단독 아님 + LOC 게이트 직전 file `fn_call_width=60` 초과 호출 사전 grep). hash_pass.rs:16-21 EE-도입 doc comment 중복 paragraph는 noticed-but-out-of-scope (HH는 PreState multi-line 복원). **advisor 권고 4건**: (1) 드라이브-바이 정당화 (2) G-016 guardrail (3) hash_pass.rs LOC 검증 (4) doc comment scope 외 인지. validation: cargo fmt --check clean + clippy 0 warnings + xtask check-line-limits (56 + 5 within 300, hash_pass.rs 297 / short_circuit.rs 299) + xtask check-cycles (0/0, 51 modules) + cargo machete clean + cargo test 318 lib + 43 integration + 49 xtask = **410 tests pass** (GG baseline 그대로) + tarpaulin **90.52%** (926/1023 lines, +0.00% change vs GG baseline 90.52%).
 
-- [~] **II. `hash_local.rs` `TextDecodeResult::Unknown` arm YAGNI 제거 (low)**
+- [x] **II. `hash_local.rs` `TextDecodeResult::Unknown` arm YAGNI 제거 (low)**
   - acceptance: `try_hash_local`의 `TextDecodeResult::Unknown` 매치 arm은 본인 주석에 "decode.rs Windows-1252 cover로 effectively unreachable" 명시 — fireable 케이스가 `Utf16Bom` 하나뿐. YAGNI 정합으로 `Unknown` arm 제거 (또는 `unreachable!()`로 명시). 단순화.
   - 검증: cargo fmt + clippy + check-line-limits + check-cycles + machete + test (407+ pass) + tarpaulin 80% 유지.
   - Files: `crates/gitless-sync/src/commands/scan/hash_local.rs`.
+  - 결과 (2026-05-09): `try_hash_local` match에서 `TextDecodeResult::Unknown`을 encoding failure side에서 `None` side로 이동 (`Utf8 | Detected | Unknown => None`). exhaustive matching 보존, `_` wildcard 회피, panic path 0 (`unreachable!()` 채택 X — YAGNI 정합으로 invariant assertion 추가 회피). 도메인 효과 0 — `Unknown`은 `decode.rs` Windows-1252 shortlist cover로 logically unreachable이므로 unreachable branch에서의 `Some(Encoding) → None` 전환은 관측 불가. doc comment 갱신 — "neither UTF-8 nor decodable by the `try_decode_text` shortlist" 표현 제거 후 "carry a UTF-16 BOM (out of scope for v0.2; see `spec-hash-and-normalize.md` § BOM). `Unknown` is logically unreachable per `decode.rs` (Windows-1252 covers all bytes)" 직접 명시. 5 existing tests 모두 unchanged pass — `try_hash_local_surfaces_utf16_bom_as_encoding_failure` 여전히 `Some(Encoding)` assert (Utf16Bom 분기 정합), `try_hash_local_marks_binary` 여전히 `None` assert (Detected 분기 정합). decode.rs scope 외 — 본 task는 `hash_local.rs` only. **advisor 권고 mirror**: option (b) 채택 (vs `unreachable!()` option (a) / `_` wildcard option (c)) — 단순화 + 안전 + exhaustive 동시 만족. validation: cargo fmt --check clean (G-016 mirror, bare `cargo fmt` 미사용) + clippy 0 warnings + xtask check-line-limits (56 + 5 within 300, hash_local.rs 120 LOC) + xtask check-cycles (0/0, 51 modules) + cargo machete clean + cargo test 318 lib + 43 integration + 49 xtask = **410 tests pass** (HH baseline 그대로) + tarpaulin **90.52%** (926/1023 lines, +0.00% change vs HH baseline 90.52%).
 
 - [ ] **JJ. `classify.rs::make_remote` clone trade-off 결정 (low)**
   - acceptance: CC 분할에서 `classify.rs::make_remote(&TreeEntry)`가 `entry.sha.clone()` + `entry.mode.clone()` 도입 — 원본은 `for entry in body.tree` ownership move였음. 결정: (a) `make_remote(entry: TreeEntry)` ownership move 복원 (테스트 fixture 박음 정합 시), 또는 (b) doc comment로 trade-off 명시 (테스트 reuse 의도). 둘 중 정합한 쪽 적용.
