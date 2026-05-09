@@ -3,35 +3,15 @@
 - **Status**: Accepted
 - **Date**: 2026-05-07
 - **Resolves**: ADR 0002 § Consequences "병렬 subprocess spawn 비용 vs 순차 호출 시간 trade-off는 측정해 rayon 유지/제거 결정 — 별도 task" open question
-- **Related**: ADR 0001 (gh subprocess 채택), ADR 0002 (v0.1 ureq → gh 일괄 마이그레이션), M5a 측정 commit `5e95312`, `docs/ralph/guardrails.md` G-011
+- **Related**: ADR 0001 (gh subprocess 채택), ADR 0002 (v0.1 ureq → gh 일괄 마이그레이션), `docs/research/phase4-measurements.md` § M5a, `docs/ralph/guardrails.md` G-011
 
 ## Context
 
-ADR 0002는 ureq → gh subprocess 마이그레이션을 결정하면서 한 가지를 미정으로 남겼다: rayon 병렬 호출 정책(default 8 concurrent)을 그대로 유지할지, 아니면 gh subprocess spawn 비용 때문에 순차 호출이 오히려 빠른지 — 이 결정은 실측 후로 미뤘다.
+ADR 0002는 ureq → gh subprocess 마이그레이션을 결정하면서 rayon 병렬 호출 정책(default 8 concurrent) 유지 여부를 실측 후로 미뤘다. M5a (2026-05-07, commit `5e95312`)에서 13 path commits API 호출 환경에서 rayon 8 concurrent vs sequential `iter` 비교 측정.
 
-M5a (2026-05-07T01:16~01:18Z, commit `5e95312`)에서 자율 측정을 마쳤다. 환경·명령어·raw data는 다음과 같다.
+raw data + 환경 + 명령어: `docs/research/phase4-measurements.md` § M5a.
 
-- **환경**: Windows 11 Pro 10.0.26100 / gh 2.88.1 / cargo 1.95.0 / release binary (`target/release/gitless-sync.exe`). wall-clock은 PowerShell `Measure-Command`.
-- **대상**: `KneShell/gitless-sync` @ main, local = `D:\00.Projects\02.Personal\05.gitless-sync`. 측정 직전 8개 commit된 `.md` 파일에 trailing newline 임시 추가 → 13개 path가 commits API 호출 분기 (양쪽 SHA 상이). 측정 종료 후 `git restore`로 복원, 코드 임시 변경(`par_iter` → `iter`)도 동시 revert.
-- **명령어**: `gitless-sync.exe scan --repo KneShell/gitless-sync --branch main --local <local> --summary-only`
-
-### (a) rayon 8 concurrent (default `MAX_COMMITS_CONCURRENCY = 8`, `par_iter` 경로)
-
-- warm-up dropped: 1395.1 ms
-- N=3 raw ms: 1360.5, 1354.8, 1337.7
-- mean **1351.0 ms** / min 1337.7 / max 1360.5 / `(max-min)/mean` 1.7% (≪30%)
-
-### (b) sequential (`par_iter` → `iter`, ThreadPool 우회 — 측정 후 revert 완료)
-
-- warm-up dropped: 6897.0 ms
-- N=3 raw ms: 6054.3, 6917.5, 6718.9
-- mean **6563.6 ms** / min 6054.3 / max 6917.5 / `(max-min)/mean` 13.2% (<30%)
-
-### Speedup
-
-`6563.6 / 1351.0 ≈ 4.86x` (rayon 8c가 sequential보다 약 5배 빠름). 13 commits API 호출 기준 이론 max speedup 6.5x; 실제 4.86x는 subprocess spawn 오버헤드 + Trees/walk 공통 비용(약 1.3s)이 분모에 남아 발생한 비례 손실.
-
-variance 양쪽 모두 30% 미만 → N=5 확장 불필요. gh exit≠0 발생 0회 → G-015 retry 미발동.
+요약: rayon 8c mean **1351.0 ms** / sequential mean **6563.6 ms** → **4.86x speedup**. variance 양쪽 30% 미만, gh exit≠0 0회.
 
 ## Decision
 
@@ -70,6 +50,7 @@ abuse detection 위험은 default 8로 cap된 상태에서 M5a 측정 중 0회 �
 
 - ADR 0001 § D1 (gh subprocess 채택)
 - ADR 0002 § Consequences "병렬 subprocess spawn 비용 vs 순차 호출 시간 trade-off"
+- `docs/research/phase4-measurements.md` § M5a (raw data + 환경 + N=3 ms)
 - M5a 측정 commit `5e95312` (chore: M5a measurement (rayon 8c vs seq, 4.86x speedup))
 - `docs/ralph/guardrails.md` § G-011
 - `docs/specs/spec-github-api.md` § 병렬 호출 정책 (Latency)
