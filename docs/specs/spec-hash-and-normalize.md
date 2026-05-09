@@ -59,6 +59,28 @@
 - 근거: git core가 raw bytes 보존 — UTF-8 변환 hash는 git core와 mismatch.
 - detect는 `failed_reason` 마크 + 사용자 정보 제공 용도. hash 정확성과 무관.
 
+### BOM 처리 (v0.2)
+
+UTF-8 BOM과 UTF-16 BOM을 분기 처리:
+
+| BOM | 처리 |
+|---|---|
+| UTF-8 BOM (`EF BB BF`) | v0.1 정책 그대로 — `text=auto` + 미명시에서 strip. `--keep-bom` 시 보존. `normalize_text`가 담당. |
+| UTF-16 LE BOM (`FF FE`) | detect → `Status::Failed` + `failed_reason: "encoding"` (UTF-16은 v0.2 비목표). |
+| UTF-16 BE BOM (`FE FF`) | detect → `Status::Failed` + `failed_reason: "encoding"` (UTF-16은 v0.2 비목표). |
+
+#### 호출 지점
+
+- `try_decode_text` (`shared/normalize.rs`)가 UTF-16 BOM 검사 진입점. UTF-16 BOM detected → `TextDecodeResult::Utf16Bom { little_endian: bool }` variant 반환.
+- caller (`compare.rs` / `gitattributes` 매핑, K1.5 / K2 단계)는 `Utf16Bom` variant를 `failed_reason: "encoding"`으로 매핑.
+- UTF-8 BOM 처리는 `normalize_text`가 담당 (v0.1 그대로).
+
+#### 우선순위
+
+`try_decode_text`는 UTF-16 BOM 검사를 UTF-8 디코드 시도 **앞**에 박는다. UTF-16 BOM은 첫 2바이트만으로 분기 가능 + UTF-8 디코드는 BOM 자체가 invalid byte sequence라 자연 fall-through되지만, 명시적 BOM 분기로 detection 정보(LE vs BE) 보존.
+
+UTF-8 BOM (`EF BB BF`)은 첫 3바이트가 valid UTF-8 (U+FEFF)이므로 `try_decode_text`는 `Utf8`로 분류. strip 처리는 `normalize_text` 책임.
+
 ### `.gitattributes` 정확 재현
 
 #### 파서 (Phase 5 task K1)

@@ -1,4 +1,6 @@
 const UTF8_BOM: &[u8] = &[0xEF, 0xBB, 0xBF];
+const UTF16_LE_BOM: &[u8] = &[0xFF, 0xFE];
+const UTF16_BE_BOM: &[u8] = &[0xFE, 0xFF];
 
 const TEXT_DECODE_SHORTLIST: &[&encoding_rs::Encoding] = &[
     encoding_rs::SHIFT_JIS,
@@ -11,21 +13,33 @@ const TEXT_DECODE_SHORTLIST: &[&encoding_rs::Encoding] = &[
 ///
 /// Hash input remains the original raw bytes regardless of variant
 /// (`spec-domain-pitfalls.md` § Encoding (b) policy). Detection is purely
-/// informational — callers surface `failed_reason: "encoding"` only on
-/// [`TextDecodeResult::Unknown`].
+/// informational — callers surface `failed_reason: "encoding"` on
+/// [`TextDecodeResult::Unknown`] **or** [`TextDecodeResult::Utf16Bom`]
+/// (UTF-16 is out of scope for v0.2; see `spec-hash-and-normalize.md` § BOM).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextDecodeResult {
     Utf8,
-    Detected { encoding: &'static str },
+    Detected {
+        encoding: &'static str,
+    },
+    /// UTF-16 BOM detected. Surfaced as `failed_reason: "encoding"` by the
+    /// caller — UTF-16 conversion is out of scope for v0.2.
+    Utf16Bom {
+        little_endian: bool,
+    },
     Unknown,
 }
 
 /// Attempt to identify the text encoding of `raw` without modifying it.
 ///
-/// Order: UTF-8 first; on failure, walk a curated shortlist
-/// (`Shift_JIS`, `EUC-KR`, `GBK`, `Windows-1252`) and return the first
-/// encoding that decodes without replacement characters. Returns
-/// [`TextDecodeResult::Unknown`] when every shortlist entry reports errors.
+/// Order: UTF-16 BOM (`FF FE` LE / `FE FF` BE) first; then UTF-8; on UTF-8
+/// failure, walk a curated shortlist (`Shift_JIS`, `EUC-KR`, `GBK`,
+/// `Windows-1252`) and return the first encoding that decodes without
+/// replacement characters. Returns [`TextDecodeResult::Unknown`] when every
+/// shortlist entry reports errors.
+///
+/// UTF-8 BOM (`EF BB BF`) is valid UTF-8 (encodes U+FEFF) and is reported as
+/// [`TextDecodeResult::Utf8`]; BOM stripping is `normalize_text`'s job.
 ///
 /// Note: WHATWG `Windows-1252` maps every byte 0x00–0xFF to a code point,
 /// so it never reports `had_errors`. With the current shortlist Unknown is
@@ -33,6 +47,16 @@ pub enum TextDecodeResult {
 /// signal for future shortlist refinements.
 #[must_use]
 pub fn try_decode_text(raw: &[u8]) -> TextDecodeResult {
+    if raw.starts_with(UTF16_LE_BOM) {
+        return TextDecodeResult::Utf16Bom {
+            little_endian: true,
+        };
+    }
+    if raw.starts_with(UTF16_BE_BOM) {
+        return TextDecodeResult::Utf16Bom {
+            little_endian: false,
+        };
+    }
     if std::str::from_utf8(raw).is_ok() {
         return TextDecodeResult::Utf8;
     }
@@ -218,5 +242,51 @@ mod tests {
     fn try_decode_text_is_deterministic() {
         let input = [0xC7u8, 0xD1, 0xB1, 0xDB];
         assert_eq!(try_decode_text(&input), try_decode_text(&input));
+    }
+
+    #[test]
+    fn try_decode_text_detects_utf16_bom_le_be_alone_and_with_payload() {
+        let cases = [
+            (vec![0xFFu8, 0xFE, 0x41, 0x00], true),  // LE "A"
+            (vec![0xFEu8, 0xFF, 0x00, 0x41], false), // BE "A"
+            (vec![0xFFu8, 0xFE], true),              // LE BOM-only
+            (vec![0xFEu8, 0xFF], false),             // BE BOM-only
+        ];
+        for (raw, le) in cases {
+            assert_eq!(
+                try_decode_text(&raw),
+                TextDecodeResult::Utf16Bom { little_endian: le }
+            );
+        }
+    }
+
+    #[test]
+    fn try_decode_text_separates_utf8_bom_and_short_prefix_from_utf16() {
+        // UTF-8 BOM (EF BB BF) encodes U+FEFF — valid UTF-8, not Utf16Bom.
+        assert_eq!(
+            try_decode_text(&[0xEFu8, 0xBB, 0xBF, b'a']),
+            TextDecodeResult::Utf8
+        );
+        // Single byte cannot match a 2-byte BOM. Falls through to shortlist.
+        for short in [[0xFFu8], [0xFEu8]] {
+            assert!(matches!(
+                try_decode_text(&short),
+                TextDecodeResult::Detected { .. }
+            ));
+        }
+    }
+
+    #[test]
+    fn utf16_bom_passes_through_unchanged_for_hashing_and_normalize() {
+        // (b) policy: detection does not perturb hash bytes. normalize_text
+        // also leaves UTF-16 BOM alone (only UTF-8 BOM is stripped).
+        use crate::shared::hash::blob_hash;
+        let utf16_le = [0xFFu8, 0xFE, 0x41, 0x00];
+        let hash_before = blob_hash(&utf16_le);
+        let _ = try_decode_text(&utf16_le);
+        assert_eq!(blob_hash(&utf16_le), hash_before);
+        assert_eq!(normalize_text(&utf16_le, false), utf16_le);
+        // UTF-8 BOM by contrast is stripped (v0.1 behavior preserved).
+        assert_eq!(normalize_text(&[0xEFu8, 0xBB, 0xBF, b'a'], false), b"a");
     }
 }
