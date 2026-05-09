@@ -2,37 +2,24 @@
 
 - **Status**: Accepted
 - **Date**: 2026-05-07
-- **Related**: ADR 0009 (internal cache read-only 예외 — 본 ADR로 obsolete), `docs/ralph/implementation-plan.md` § Phase 4 사전 결정 §15 임계값, P6c Raw data, `docs/specs/spec-config.md` § Cache (Phase 4) (제거 대상), `crates/gitless-sync/src/shared/cache.rs` (제거 대상)
+- **Related**: ADR 0009 (internal cache read-only 예외 — 본 ADR로 obsolete), `docs/research/phase4-measurements.md` § P6c, `docs/specs/spec-config.md` § Cache (Phase 4) (제거 대상), `crates/gitless-sync/src/shared/cache.rs` (제거 대상)
 
 ## Context
 
-Phase 4 P4 task에서 `mtime` 기반 SHA cache를 도입했다. 동기는 1차/2차 scan 사이의 hash phase 단축으로 wall-clock 단축. P6c task에서 이 효과를 측정해 § Phase 4 사전 결정 §15 임계값에 매핑하고 본 ADR에서 유지/제거 결정.
+Phase 4 P4 task에서 `mtime` 기반 SHA cache를 도입했다. 동기는 1차/2차 scan 사이의 hash phase 단축으로 wall-clock 단축. P6c task에서 50 path scale로 cold/warm 비교 측정.
 
 § Phase 4 사전 결정 §15 임계값 (P7 결정 자의성 회피, P6 raw data 매핑):
 - **유지**: cache hit speedup ≥ 2x.
 - **제거**: speedup < 1.5x (코드/의존성 부담만 — `dirs` crate 1 + cache.rs ~360 LOC).
 - **경계 1.5~2.0x**: 본 ADR에서 raw data 박고 yagni 일관 시 제거 default.
 
-## P6c Measurement Summary
+raw data + 환경 + cache 정상 채워짐 확인 + dominant cost 분석: `docs/research/phase4-measurements.md` § P6c.
 
-(50 path scale, KneShell/gitless-sync, Windows 11 Pro 10.0.26100 / gh 2.88.1 / cargo 1.95.0 / release binary `target/release/gitless-sync.exe`. wall-clock = PowerShell `Measure-Command`.)
-
-- **N=3 sequence**: cold mean **1324.8 ms** / warm mean **1274.0 ms** → speedup **1.040x** (variance 6.7%/3.7%, <30%).
-- **N=5 sequence (변동 재확인)**: cold mean **1335.0 ms** / warm mean **1351.6 ms** → speedup **0.988x** — warm이 cold보다 살짝 느림. variance 8.6%/9.4%, <30%.
-
-cache 정상 채워짐 확인:
-- 1차 scan 후 cache 파일 size 9063 bytes. JSON entries 50 (= summary `identical 30 + local_only_changed 20`). 모든 local file이 cache에 등록 → 2차 scan에서 100% cache hit 기대.
-- cache `version` field = 1 (CACHE_VERSION 일관). 모든 entry는 `mtime` (UTC ISO-8601) + `sha` (hex) + `is_binary` (bool) — 형식 spec-config.md § cache 일관.
-
-분석:
-- 두 측정에서 speedup이 0.99 ~ 1.04 범위. variance ≈ 4~9%로 낮은데도 1차/2차 mean 차이가 변동 범위 안. **cache 효과가 wall-clock 측정 variance보다 작음**.
-- dominant cost가 hash가 아닌 다른 곳: 1300ms 안에서 hash 50 file은 ~50ms (1KB-10KB 텍스트 × 50). 나머지 ~1250ms는 (i) cargo binary fork, (ii) `gh api` subprocess fork × 2 (Trees + GraphQL), (iii) Trees API 응답 다운로드 + 파싱, (iv) walker 파일 시스템 walk, (v) GraphQL 응답 파싱 + JSON 직렬화. cache는 hash phase만 단축 → 전체 대비 ~3-4% 영향. measured 결과(±5% noise) 내부.
-- cache save는 cold/warm 모두 매 호출 발생 (`commands/scan/mod.rs::build_report` end). 9KB JSON serialize + tmp write + rename atomic 비용은 cold/warm 동일하게 발생 → cache 도입에 따른 *추가 비용*만 양쪽에 발생. lookup 효과는 그 위에 누적되는데 net zero.
+요약: speedup **1.040x (N=3)** / **0.988x (N=5)** — 두 측정 모두 wall-clock variance 안. dominant cost는 cargo fork + `gh api` subprocess × 2 + Trees/GraphQL 응답 처리이며 hash phase는 ~50ms (전체 1300ms 대비 3-4%). cache lookup gain ≈ save cost.
 
 ## Decision
 
-§ Phase 4 사전 결정 §15 임계값 매핑:
-- measured speedup **1.040x (N=3) / 0.988x (N=5)** → **둘 다 < 1.5x 제거 영역**. 경계도 아님 (1.5x에 한참 못 미침).
+measured speedup **1.040x / 0.988x** → **둘 다 < 1.5x 제거 영역** (경계도 아님).
 
 → **mtime cache를 제거한다.**
 
@@ -79,8 +66,7 @@ ADR 0009 (internal cache read-only 예외)는 본 ADR로 **obsolete** 마크. ca
 
 ## References
 
-- P6c raw data: `docs/ralph/implementation-plan.md` § P6c Raw data (2026-05-07).
-- § Phase 4 사전 결정 §15 임계값.
+- `docs/research/phase4-measurements.md` § P6c (raw data + 분석 + 임계값 매핑)
 - `docs/adr/0009-internal-cache-readonly-exception.md` (본 ADR로 obsolete).
 - `docs/specs/spec-config.md` § Cache (Phase 4) (제거 대상).
 - `crates/gitless-sync/src/shared/cache.rs` (제거 대상).

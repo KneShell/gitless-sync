@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-05-07
-- **Related**: ADR 0001 (gh subprocess 채택), ADR 0003 (rayon 유지), ADR 0005 (rayon은 REST 한정), `docs/specs/spec-cli-interface.md` § Backend 분기, `docs/ralph/implementation-plan.md` § Phase 4 사전 결정
+- **Related**: ADR 0001 (gh subprocess 채택), ADR 0003 (rayon 유지), ADR 0005 (rayon은 REST 한정), `docs/specs/spec-cli-interface.md` § Backend 분기, `docs/research/phase4-measurements.md` § P6b (REST vs GraphQL 1.73x speedup at 13 path)
 
 ## Context
 
@@ -54,4 +54,4 @@ REST backend는 deprecated가 아니라 explicit fallback으로 유지. 별도 d
 - ADR 0003 (rayon 유지 — REST default 시점 측정)
 - ADR 0005 (rayon은 REST 한정)
 - `docs/specs/spec-cli-interface.md` § Backend 분기 (P2 갱신 대상)
-- `docs/ralph/implementation-plan.md` § Phase 4 사전 결정 §2 (Backend default), §13 (Performance baseline)
+- `docs/research/phase4-measurements.md` § P6b (REST vs GraphQL 1.73x speedup raw data)
