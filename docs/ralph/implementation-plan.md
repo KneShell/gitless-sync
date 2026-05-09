@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 34
-- Completed: 3 / 34
+- Completed: 4 / 34
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -31,7 +31,7 @@
 
 ### Phase 5.2 — path 정규화 함정 (NFD / case)
 
-- [~] **C. NFD → NFC path 정규화**
+- [x] **C. NFD → NFC path 정규화**
   - acceptance: `walker.rs`에서 local file path를 NFC로 정규화 (`unicode-normalization` crate). remote tree path도 NFC 정규화. 비교 key는 NFC. unit test (raw bytes injection으로 NFD 가짜 fixture 박음).
   - spec: `docs/specs/spec-domain-pitfalls.md` § Path 정규화 + `spec-classification.md`.
 

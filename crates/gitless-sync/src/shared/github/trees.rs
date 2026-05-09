@@ -3,6 +3,7 @@ use serde::Deserialize;
 use super::error_map::map_gh_error;
 use crate::shared::error::GitlessError;
 use crate::shared::gh::GhClient;
+use crate::shared::path::to_nfc;
 
 #[derive(Debug, Clone)]
 pub struct RemoteFile {
@@ -57,7 +58,7 @@ pub(crate) fn fetch_tree(
         }
         if entry.mode == "100644" {
             files.push(RemoteFile {
-                path: entry.path,
+                path: to_nfc(&entry.path),
                 sha: entry.sha,
             });
         } else {
@@ -261,5 +262,26 @@ mod tests {
         let mock = MockGhClient::new();
         let err = fetch_tree(&mock, "o/r", "main").unwrap_err();
         assert!(matches!(err, GitlessError::Http(_)));
+    }
+
+    #[test]
+    fn fetch_tree_nfc_normalizes_remote_path() {
+        // GitHub returns paths exactly as committed. If a file was committed
+        // from a macOS shell that emitted NFD bytes, the response carries
+        // NFD. We canonicalize to NFC so the comparison key aligns with the
+        // walker's NFC output. The decomposed Korean syllable
+        // U+1100 + U+1161 is a distinct sequence from the composed
+        // form U+AC00 until NFC normalization runs.
+        let nfd_path = "\u{1100}\u{1161}.txt";
+        let body = format!(
+            "{{\"sha\":\"root\",\"tree\":[{{\"path\":\"{nfd_path}\",\"mode\":\"100644\",\"type\":\"blob\",\"sha\":\"s1\"}}],\"truncated\":false}}"
+        );
+        let mut mock = MockGhClient::new();
+        mock.stub(tree_args("o/r", "main"), ok_resp(body.as_bytes()));
+
+        let files = fetch_tree(&mock, "o/r", "main").unwrap();
+        assert_eq!(files.len(), 1);
+        assert_ne!(files[0].path, nfd_path);
+        assert_eq!(files[0].path, "\u{AC00}.txt");
     }
 }

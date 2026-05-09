@@ -5,6 +5,7 @@ use walkdir::WalkDir;
 
 use crate::shared::error::GitlessError;
 use crate::shared::ignore::IgnoreMatcher;
+use crate::shared::path::to_nfc;
 
 #[derive(Debug, Clone)]
 pub struct LocalFile {
@@ -15,11 +16,13 @@ pub struct LocalFile {
 
 /// Walk `root` and return every file that survives the ignore matcher.
 ///
-/// `relative_path` is normalized to forward slashes so the comparison key
-/// matches GitHub's tree/blob paths on every platform (G-004). Symlinks,
-/// directories, and ignored entries are excluded; ignored directories are
-/// pruned via a probe path so we don't descend into them (so `node_modules/`
-/// does not get walked).
+/// `relative_path` is normalized to forward slashes (G-004) and then to
+/// Unicode NFC so the comparison key matches GitHub's tree/blob paths even
+/// when the local filesystem stores names in NFD (macOS APFS/HFS+). See
+/// `spec-domain-pitfalls.md` § Path 정규화. Symlinks, directories, and
+/// ignored entries are excluded; ignored directories are pruned via a probe
+/// path so we don't descend into them (so `node_modules/` does not get
+/// walked).
 ///
 /// # Errors
 /// Returns [`GitlessError::Io`] when the underlying walk reports an I/O failure
@@ -75,7 +78,7 @@ pub fn walk(root: &Path, matcher: &IgnoreMatcher) -> Result<Vec<LocalFile>, Gitl
 
 fn relative_path(root: &Path, path: &Path) -> Option<String> {
     let rel = path.strip_prefix(root).ok()?;
-    Some(rel.to_string_lossy().replace('\\', "/"))
+    Some(to_nfc(&rel.to_string_lossy().replace('\\', "/")))
 }
 
 fn walkdir_to_io(err: &walkdir::Error) -> GitlessError {
@@ -232,5 +235,26 @@ mod tests {
         let n = names(&files);
 
         assert_eq!(n, vec!["real.txt".to_string()]);
+    }
+
+    #[test]
+    fn relative_path_normalizes_nfd_to_nfc() {
+        // Direct check on the helper: filesystems on macOS may yield NFD
+        // bytes for the same logical name. We can't reliably create an NFD-
+        // named file on every test runner, so this asserts the helper
+        // produces NFC keys when given an NFD synthetic path.
+        let root = Path::new("/root");
+        let nfd_path = Path::new("/root/\u{1100}\u{1161}.txt");
+        let key = relative_path(root, nfd_path).unwrap();
+        assert_eq!(key, "가.txt");
+        assert_eq!(key, "\u{AC00}.txt");
+    }
+
+    #[test]
+    fn relative_path_nfc_input_is_preserved() {
+        let root = Path::new("/root");
+        let nfc_path = Path::new("/root/가.txt");
+        let key = relative_path(root, nfc_path).unwrap();
+        assert_eq!(key, "가.txt");
     }
 }
