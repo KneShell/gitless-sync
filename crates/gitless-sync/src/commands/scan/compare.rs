@@ -20,6 +20,7 @@ pub enum Status {
 pub enum FailedReason {
     CaseCollision,
     Submodule,
+    Symlink,
 }
 
 #[derive(Debug, Clone, Serialize)]

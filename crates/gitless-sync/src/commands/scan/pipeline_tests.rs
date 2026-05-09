@@ -18,6 +18,7 @@ fn assemble_entries_marks_unreadable_local_as_failed() {
         relative_path: "ghost.md".to_string(),
         absolute_path: dir.path().join("ghost-not-here.md"),
         mtime: mtime(1_700_000_000),
+        is_symlink: false,
     };
     let remote = RemoteFile {
         path: "ghost.md".to_string(),
@@ -56,6 +57,7 @@ fn assemble_entries_skips_commits_for_identical() {
         relative_path: "ok.md".to_string(),
         absolute_path: dir.path().join("ok.md"),
         mtime: mtime(1_700_000_000),
+        is_symlink: false,
     };
     let remote = RemoteFile {
         path: "ok.md".to_string(),
@@ -91,6 +93,7 @@ fn assemble_entries_promotes_case_collision_to_failed_with_reason() {
         relative_path: "foo.txt".to_string(),
         absolute_path: dir.path().join("foo.txt"),
         mtime: mtime(1_700_000_000),
+        is_symlink: false,
     };
     let lower = RemoteFile {
         path: "foo.txt".to_string(),
@@ -144,6 +147,7 @@ fn assemble_entries_promotes_remote_submodule_to_failed_with_reason() {
         relative_path: "vendor/lib".to_string(),
         absolute_path: dir.path().join("vendor-lib"),
         mtime: mtime(1_700_000_000),
+        is_symlink: false,
     };
     let remote = RemoteFile {
         path: "vendor/lib".to_string(),
@@ -184,6 +188,7 @@ fn assemble_entries_carries_mode_for_local_only_files() {
         relative_path: "local.md".to_string(),
         absolute_path: dir.path().join("local.md"),
         mtime: mtime(1_700_000_000),
+        is_symlink: false,
     };
 
     let mock = MockGhClient::new();
@@ -197,4 +202,87 @@ fn assemble_entries_carries_mode_for_local_only_files() {
 
     assert_eq!(summary.local_only_changed, 1);
     assert_eq!(entries[0].mode, "100644");
+}
+
+#[test]
+fn assemble_entries_promotes_remote_symlink_to_failed_with_reason() {
+    // Remote tree carries a symlink (`mode: "120000"`, type=blob). Phase 5
+    // task H short-circuits this BEFORE try_hash_local — the remote sha
+    // points to a blob holding the link target path, not file content, so
+    // a content compare is meaningless. Result: Status::Failed +
+    // failed_reason: symlink, mode bit "120000" carried into v1.1 JSON,
+    // no Commits API call needed.
+    let dir = TempDir::new().unwrap();
+    fs::write(dir.path().join("link"), "shadow content").unwrap();
+    let local = LocalFile {
+        relative_path: "link".to_string(),
+        absolute_path: dir.path().join("link"),
+        mtime: mtime(1_700_000_000),
+        is_symlink: false,
+    };
+    let remote = RemoteFile {
+        path: "link".to_string(),
+        sha: "feedface".to_string(),
+        mode: "120000".to_string(),
+    };
+
+    // No commits stub — symlink short-circuit must not invoke Commits API.
+    let mock = MockGhClient::new();
+    let ctx = GitHubContext {
+        client: &mock,
+        repo: "o/r",
+        branch: "main",
+        backend: Backend::Rest,
+    };
+    let (entries, summary, failed) = assemble_entries(&[local], &[remote], &ctx, false).unwrap();
+
+    assert_eq!(failed, 1);
+    assert_eq!(summary.failed, 1);
+    assert_eq!(entries.len(), 1);
+    let entry = &entries[0];
+    assert_eq!(entry.path, "link");
+    assert_eq!(entry.status, Status::Failed);
+    assert_eq!(entry.failed_reason, Some(FailedReason::Symlink));
+    assert_eq!(entry.mode, "120000");
+    assert_eq!(entry.remote_sha.as_deref(), Some("feedface"));
+    assert!(entry.local_sha.is_none());
+}
+
+#[test]
+fn assemble_entries_promotes_local_only_symlink_to_failed_with_mode_120000() {
+    // Local symlink with no matching remote entry — the default mode bit
+    // for local-only paths is "100644", so the symlink branch MUST
+    // override to "120000" to satisfy the v1.1 schema invariant
+    // (spec-output-schema.md § v1.1: mode reflects link type).
+    let dir = TempDir::new().unwrap();
+    let local = LocalFile {
+        relative_path: "stale-link".to_string(),
+        absolute_path: dir.path().join("stale-link"),
+        mtime: mtime(1_700_000_000),
+        is_symlink: true,
+    };
+
+    // No commits stub — symlink short-circuit must not invoke Commits API.
+    let mock = MockGhClient::new();
+    let ctx = GitHubContext {
+        client: &mock,
+        repo: "o/r",
+        branch: "main",
+        backend: Backend::Rest,
+    };
+    let (entries, summary, failed) = assemble_entries(&[local], &[], &ctx, false).unwrap();
+
+    assert_eq!(failed, 1);
+    assert_eq!(summary.failed, 1);
+    assert_eq!(entries.len(), 1);
+    let entry = &entries[0];
+    assert_eq!(entry.path, "stale-link");
+    assert_eq!(entry.status, Status::Failed);
+    assert_eq!(entry.failed_reason, Some(FailedReason::Symlink));
+    assert_eq!(
+        entry.mode, "120000",
+        "local-only symlink must override default 100644 to canonical 120000"
+    );
+    assert!(entry.remote_sha.is_none());
+    assert!(entry.local_sha.is_none());
 }

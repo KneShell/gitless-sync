@@ -60,6 +60,18 @@ pub(crate) fn fetch_tree(
                     mode: entry.mode,
                 });
             }
+            ("blob", "120000") => {
+                // Symlink — carry through to compare.rs which promotes the
+                // path to `Status::Failed` + `failed_reason: "symlink"`
+                // (Phase 5 task H, spec-domain-pitfalls.md § Symlink). The
+                // `sha` here points to a blob whose contents are the link
+                // target path; we do not follow or compare it.
+                files.push(RemoteFile {
+                    path: to_nfc(&entry.path),
+                    sha: entry.sha,
+                    mode: entry.mode,
+                });
+            }
             ("commit", "160000") => {
                 // Submodule — carry through to compare.rs which promotes the
                 // path to `Status::Failed` + `failed_reason: "submodule"`
