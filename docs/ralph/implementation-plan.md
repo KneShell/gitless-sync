@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 34
-- Completed: 1 / 34
+- Completed: 2 / 34
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -21,7 +21,7 @@
   - acceptance: KneShell/gitless-sync 또는 사용자 vault repo (356+ files)에 대해 `cargo run -- scan` 재실행. drift/failed/local_only_changed/remote_only_changed 분류. 각 drift entry에 대해 함정 (NFD/case/encoding/submodule/symlink/empty/permission/.gitattributes/BOM/LFS/long_path/.gitignore) 중 어느 것이 원인인지 분석. **검증 필요 fact check sub-step**: encoding_rs binary size (cargo-bloat), git core NUL byte heuristic 정확 N (git source), Windows NTFS NFD 파일 생성 검증 (실험). `docs/research/phase5-vault-baseline.md` 박음.
   - spec: 없음 (research artifact).
 
-- [~] **B. 우선순위 박음 — vault 데이터 기반**
+- [x] **B. 우선순위 박음 — vault 데이터 기반**
   - acceptance: vault 분석 결과로 함정 우선순위 박음. spec-domain-pitfalls.md § "v0.1 baseline 영향"에 박음.
   - spec: `docs/specs/spec-domain-pitfalls.md`.
 

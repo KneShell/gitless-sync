@@ -188,9 +188,47 @@ macOS/Linux runner 추가는 별도 phase. 현재 Windows runner 그대로.
 
 ## v0.1 baseline 영향
 
-- v0.1 vault 검증 (356 파일, 0 drift, ureq 시절): 위 함정이 vault에 얼마나 영향 미쳤는지 vault scan 재실행 + drift 근원 분석으로 측정 (task A).
-- Phase 6 완료 시점 baseline: 244 tests pass + tarpaulin 88.31% (project-ops.md § Coverage 게이트 80%).
-- Phase 5 진행 후 baseline: vault dogfooding false drift 0건 (의도된 detect-only drift 제외) + 회귀 0건 (정확화 화이트리스트 외).
+### task A 측정 결과 (2026-05-09)
+
+- **vault 부재**: 머신 환경(`C:\Users\dasgut`)에서 vault path(`C:\Users\admin\iCloudDrive\iCloud~md~obsidian`) 접근 불가. dogfood target은 KneShell/gitless-sync 자체 repo (92 files) 한정 — Rust 프로젝트라 함정 surface ~0건 예상 + 실제로 그렇게 측정됨.
+- **측정 결과**: 92 files (90 identical / 2 local_only_changed / 0 drift / 0 failed). 2건 local_only_changed는 scan 자체 stdout/stderr redirect race noise (도메인 함정 아님).
+- **함정 0건 surface**: KneShell/gitless-sync는 NFD path / `.gitattributes` / LFS / submodule / symlink / 비-UTF-8 / Windows long path 모두 결여 — 함정 surface 측정 부적절.
+- **상세**: `docs/research/phase5-vault-baseline.md`.
+
+### 우선순위 박음 (이론 + spec 매핑 + fact check 3축)
+
+vault 데이터 부재 + KneShell/gitless-sync surface 0건이라, 우선순위 입력은 (1) spec § 함정 처리 정책 매핑 + (2) task A fact check 3건 + (3) downstream task 결과 누적의 3축으로 박음.
+
+**등급 정의**:
+- **P0**: scan 정의 자체 — 함정 처리 외 (scan 범위 contract).
+- **P1**: 일반 vault 운영(markdown / 미디어 / 다른 OS) 시 1순위 false drift 원인 또는 정확화 큰 변경.
+- **P2**: 특수 vault 환경(EUC-KR / NTFS case-insensitive volume / depth 깊은 nested)에서 surface.
+- **P3**: 일반 vault 0건 또는 detect-only로 충분, 정확 hash 재현 안 함.
+
+| 등급 | 함정 | task A baseline | 우선순위 근거 |
+|---|---|---|---|
+| **P0** | `.gitignore` 무시 정책 | scan 정의 자체 (A2 task) | scan 범위 contract — 함정 처리 외 |
+| **P1** | NFD vs NFC | NTFS NFC/NFD 공존 fact check 통과 (#3) | macOS↔Windows vault 운영 시 1순위 false drift 원인. NFC 정규화 hash 기반 |
+| **P1** | `.gitattributes` | KneShell/gitless-sync 부재 | 화이트리스트 박힌 vault에서 1순위 정확화 (큰 변경 — conditional normalize) |
+| **P1** | LFS pointer | 미surface | 미디어 vault에서 1순위 — `.gitattributes filter=lfs` 매칭 path 자동 fail mark |
+| **P2** | 비-UTF-8 인코딩 | encoding_rs 미박힘 (size delta unknown — Y task) | EUC-KR vault에서 2순위 — 변환 시도 + raw bytes (b) hash |
+| **P2** | NTFS case-insensitive 충돌 | KneShell/gitless-sync에 case 충돌 없음 | NTFS case-insensitive volume에서 1 entry 누락 (D1 task) |
+| **P3** | submodule (`160000`) | 미surface | 일반 vault 0건 가능성 높음, detect-only 충분 |
+| **P3** | symlink (`120000`) | 미surface (Windows unprivileged 박을 수 없음) | mock 검증으로 cover |
+| **P3** | 실행 권한 (`100755` vs `100644`) | 미surface | content 같으면 Identical 유지, false drift 원인 아님 |
+| **P3** | UTF-16 BOM | 미surface | UTF-8 BOM은 v0.1 처리, UTF-16은 detect-only |
+| **P3** | Windows long path / 예약 파일명 | 미surface | depth 깊은 nested vault에서 surface 가능 |
+| **N/A** | 빈 파일 | 미surface | unit test 이미 cover (`hash::tests::empty_blob_matches_git`) |
+
+### 등급 vs implement 순서 분리
+
+본 표의 P0~P3 등급은 **함정별 우선순위 정보**(vault 운영 시 false drift 영향 크기 + 정확화 필요성)이고, 실제 task implement 순서는 `docs/ralph/implementation-plan.md` § 의존 순서가 정의 (acceptance 의존 + spec cascade + fixture 박힘 시점). 등급과 implement 순서는 1대1 매핑 아님.
+
+### Phase 5 baseline 진입점
+
+- **v0.1 vault 검증** (356 파일, 0 drift, 2026-04-29, ureq): 당시 vault에 함정이 surface하지 않았던 이유 — vault markdown 위주 ASCII-friendly + v0.1 코드가 함정을 detect 못 해도 통과시키는 정책 두 효과 분리 측정 불가 (vault 접근 없이는). Phase 5 처리 후 vault dogfooding은 task T가 담당.
+- **Phase 6 완료 시점 baseline**: 244 tests pass + tarpaulin 88.31% (project-ops.md § Coverage 게이트 80%).
+- **Phase 5 진행 후 baseline**: vault dogfooding false drift 0건 (의도된 detect-only drift 제외) + 회귀 0건 (정확화 화이트리스트 외).
 
 ## Acceptance Criteria
 
