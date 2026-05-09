@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 40
-- Completed: 36 / 40
+- Completed: 37 / 40
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -198,9 +198,10 @@
 
 ### Phase 5.11 — 최종 박제 + CI
 
-- [~] **U. CI gate 갱신 (.github/workflows/ci.yml)**
+- [x] **U. CI gate 갱신 (.github/workflows/ci.yml)**
   - acceptance: `.gitattributes` / encoding fixture / submodule mock / LFS pointer / Windows long path 시나리오를 CI에서 검증. Windows runner에서 통과.
   - spec: 없음 (CI).
+  - 결과 (2026-05-09): `.github/workflows/ci.yml`에 4 게이트 박음 (project-ops § Full Validation Pipeline order mirror) — `cargo fmt --check` / `cargo clippy --workspace --all-targets -- -D warnings` / `cargo test --workspace` / `cargo tarpaulin --engine llvm --workspace --out Stdout --fail-under 80`. install step에 `cargo install cargo-tarpaulin --locked` 박음 (cargo-modules/machete/public-api 패턴 정합). 박힌 step order: checkout → toolchain (stable 1.95 + nightly) → cache → 4 cargo-* install → **fmt-check → clippy** → check-line-limits → check-cycles → machete → **test --workspace → tarpaulin --fail-under 80** → public-api diff (PR-only). U acceptance 5 시나리오는 모두 `cargo test --workspace`가 cover — `.gitattributes` (scan_gitattributes.rs 7 tests + gitattributes_classify_tests.rs unit), encoding (decode.rs unit + scan_robustness.rs mid-byte truncated UTF-8), submodule mock (scan_modes.rs `160000`), LFS pointer (pipeline_tests_lfs.rs unit + scan_modes.rs integration), Windows long path (pipeline_tests_long_path.rs unit + long_path.rs 모듈). `tarpaulin --fail-under 80` flag로 80% 게이트 enforce (없으면 informational, exit 0). **`#[cfg(unix)]` 면제**: scan_robustness.rs 박힌 dangling/circular symlink 2 tests는 windows-latest runner에서 컴파일·실행 X (cfg-gated, 의도된 design — CLAUDE.md § Key Constraints "OS: Windows 1차 타겟" 정합). **punt 결정**: R3 task acceptance 박힌 ratio-based perf gate (`with_attrs / without_attrs ≤ 3.5×`)는 본 task scope 외 — U acceptance text 미명시 + criterion JSON parser 신규 도구 필요 → V1/Phase 6+ follow-up. **yagni**: `cargo bench --no-run` (R3 punt 정합) + `cargo deny check` / `cargo audit` (project-ops "의존성 변경 시" conditional, 본 task 의존 변경 0) + multi-job parallelization. validation: cargo fmt clean + clippy 0 warnings + xtask check-line-limits (52 + 5 within 300) + xtask check-cycles (0/0) + cargo machete clean + cargo test 293 lib + 41 integration + 49 xtask = **383 tests pass** (S baseline 유지) + tarpaulin **90.73%** (949/1046 lines, +0.00% change vs S baseline 90.73%). 코드 변경 0 (CI yml 단일 file edit). 다른 task scope 침범 없음.
 
 - [ ] **V. CLAUDE.md / roadmap.md 완료 박스 박음**
   - acceptance: Phase 6 완료 박스 처럼 Phase 5 완료 박스 박음. 다음 세션 진입점 갱신 (vault scale 1000+ path / Phase 7+).

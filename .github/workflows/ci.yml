@@ -40,6 +40,15 @@ jobs:
       - name: Install cargo-public-api
         run: cargo install cargo-public-api --locked
 
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin --locked
+
+      - name: cargo fmt --check
+        run: cargo fmt --check
+
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
       - name: cargo xtask check-line-limits
         run: cargo xtask check-line-limits
 
@@ -48,6 +57,12 @@ jobs:
 
       - name: cargo machete
         run: cargo machete
+
+      - name: cargo test --workspace
+        run: cargo test --workspace
+
+      - name: cargo tarpaulin (--fail-under 80)
+        run: cargo tarpaulin --engine llvm --workspace --out Stdout --fail-under 80
 
       - name: cargo public-api diff
         if: github.event_name == 'pull_request'
