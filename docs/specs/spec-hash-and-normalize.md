@@ -8,13 +8,14 @@
 ## 현재 상태
 
 - `crates/gitless-sync/src/shared/hash.rs::blob_hash` 구현 완료 (SHA-1 + git blob header 형식). empty blob 테스트 통과.
-- `crates/gitless-sync/src/shared/normalize.rs::{is_binary, normalize_text, prepare_for_hash}` 구현 완료 (v0.1 항상 LF normalize 정책).
-- **Phase 5에서 갱신 예정**:
-  - `.gitattributes` 파서 추가 (`shared/gitattributes.rs` 신규).
-  - `prepare_for_hash` 시그니처 변경 — `gitattr: &Arc<GitAttributes>` 인자 추가 (lifetime 계약).
-  - conditional LF normalize 박음 (text=auto / binary / eol=lf / eol=crlf / 미명시 5 분기).
-  - 화이트리스트 박음 — 외 attribute는 `failed_reason: "gitattributes_unsupported"` 마크.
-  - encoding 변환 hash 입력 (b) 정책 — detect는 reason만, hash는 raw bytes.
+- `crates/gitless-sync/src/shared/normalize.rs::{is_binary, normalize_text, prepare_for_hash}` 구현 완료. `prepare_for_hash`는 K2(2026-05-09) 시점 `.gitattributes` 분기 라우팅 + 5 helper(`apply_text_auto`/`apply_binary`/`apply_eol_lf`/`apply_eol_crlf`/`apply_unspecified`) 분리 박음.
+- **Phase 5 K1~K4 + K1.5 박힘** (2026-05-09):
+  - `.gitattributes` 파서 박힘 (`shared/gitattributes.rs` 신규, K1).
+  - `AttributeMatch` enum 박힘 — `TextAuto / Binary / EolLf / EolCrlf / LfsPointer / Unspecified / Unsupported { attribute_name }` 7 variant (K1.5, advisor BLOCKING fix로 `LfsPointer` variant 추가).
+  - `prepare_for_hash` 시그니처 박힘 — `(raw, keep_bom, gitattr: &Arc<GitAttributes>, path: &str) -> (Vec<u8>, bool)` 4 인자 (K2). 내부 분기는 7 variant → 5 helper 매핑(`LfsPointer`/`Unsupported`/`Unspecified`는 `apply_unspecified` 공유). caller(`pipeline.rs`)가 `LfsPointer`는 `Status::Failed` 단락(via `lfs::is_lfs`), `Unsupported`는 caller-side 단락 미박힘 — 본 task 외 follow-up 대상.
+  - binary attribute 정확 적용 박힘 (NUL byte 휴리스틱 무시 + raw bytes 해시, K3).
+  - `.gitattributes` 우선순위 (root < sub-dir depth < line-level last-wins) 박힘 (K4).
+  - encoding (b) 정책 + detector 박힘 (`shared/decode.rs::try_decode_text` — UTF-16 BOM detect + non-UTF-8 shortlist). hash는 raw bytes 정합 검증 invariant test로 박힘. **production caller plumbing은 follow-up** — pipeline.rs는 현재 encoding 단락 미박힘.
 
 ## 작업 범위
 
@@ -71,8 +72,9 @@ UTF-8 BOM과 UTF-16 BOM을 분기 처리:
 
 #### 호출 지점
 
-- `try_decode_text` (`shared/normalize.rs`)가 UTF-16 BOM 검사 진입점. UTF-16 BOM detected → `TextDecodeResult::Utf16Bom { little_endian: bool }` variant 반환.
-- caller (`compare.rs` / `gitattributes` 매핑, K1.5 / K2 단계)는 `Utf16Bom` variant를 `failed_reason: "encoding"`으로 매핑.
+- `try_decode_text` (`shared/decode.rs`)가 UTF-16 BOM 검사 진입점. UTF-16 BOM detected → `TextDecodeResult::Utf16Bom { little_endian: bool }` variant 반환.
+- caller-side `Utf16Bom` variant → `failed_reason: "encoding"` 매핑은 **별도 follow-up task에서 박음** — 현재 `pipeline.rs::try_short_circuit_failed` cascade는 case_collision / long_path / submodule / symlink / lfs_pointer 5 분기만 박힘. encoding/Unsupported caller plumbing은 K1~K4 범위 외, task F/N 또는 후속 caller-plumbing task 책임.
+- `try_decode_text`는 production code에서 미호출 (현재). detector + decode 결과 invariant test (`utf16_bom_passes_through_unchanged_for_hashing_and_normalize`)로 raw bytes 정합 검증만 박힘.
 - UTF-8 BOM 처리는 `normalize_text`가 담당 (v0.1 그대로).
 
 #### 우선순위
@@ -95,20 +97,21 @@ UTF-8 BOM (`EF BB BF`)은 첫 3바이트가 valid UTF-8 (U+FEFF)이므로 `try_d
 
 ```rust
 pub struct GitAttributes {
-    rules: Vec<AttributeRule>,
-    // ... project root + sub-dir 로드 결과 통합
+    files: Vec<AttributesFile>,  // project root + sub-dir 로드 결과, depth 정렬
 }
 
-pub fn prepare_for_hash(
+pub(crate) fn prepare_for_hash(
     raw: &[u8],
     keep_bom: bool,
     gitattr: &Arc<GitAttributes>,  // 단일 vault scan 1회 파싱 + 모든 파일 공유
+    path: &str,                    // working-tree-relative + forward slash, K1.5 classify_path 입력
 ) -> (Vec<u8>, bool);
 ```
 
 - 단일 vault scan에서 1회 파싱 + 모든 파일 공유. 매 호출 reparse 회귀 차단.
 - `Arc<GitAttributes>` 권고 — `Option<&>` (모든 호출 lifetime 결합) / owned (clone 비용 큼) 둘 다 K2 박지 않음.
-- `walker.rs` 또는 `scan/pipeline.rs`가 vault root 진입 시 1회 `Arc::new(GitAttributes::load(root)?)` 박음.
+- `path: &str`는 `gitattr.classify_path(path)` 입력 — 매 파일별 attribute 매핑이 필요하므로 시그니처에 박음.
+- `commands/scan/mod.rs`가 vault root 진입 시 1회 `Arc::new(GitAttributes::load(local_root)?)` 박음 (`shared/normalize.rs::prepare_for_hash` → `commands/scan/hash_local.rs::try_hash_local` → `commands/scan/pipeline.rs::assemble_entries` 경로로 reference 전파).
 
 #### 화이트리스트 강제 (clean-context §1, K1.5 sub-task)
 
@@ -162,12 +165,12 @@ GitHub Trees API가 반환하는 blob SHA는 working tree 바이트의 해시이
 - `[AUTO]` `.gitattributes`에 `*.txt eol=lf` 박힌 상태에서 CRLF/LF 차이 무시.
 - `[AUTO]` 가장 깊은 디렉토리 `.gitattributes`가 root보다 우선.
 - `[AUTO]` `.gitattributes` 미존재 시 v0.1 정책 그대로 적용.
-- `[AUTO]` 화이트리스트 외 attribute (예: `*.foo working-tree-encoding=UTF-16`) 매칭 시 `Status::Failed` + `failed_reason: "gitattributes_unsupported"` + `attribute_name: "working-tree-encoding"` 박음.
+- `[AUTO]` 화이트리스트 외 attribute (예: `*.foo working-tree-encoding=UTF-16`) 매칭 시 `GitAttributes::classify_path` 결과가 `AttributeMatch::Unsupported { attribute_name: "working-tree-encoding" }` 박음. caller-side `Status::Failed` + `failed_reason: "gitattributes_unsupported"` 매핑은 `spec-error-contracts.md` § Per-file Pitfall Reasons + 별도 caller-plumbing follow-up task에서 박음 (K1.5 classifier scope 외).
 
 ### Phase 5 시나리오 (Lifetime 계약)
 
-- `[AUTO]` 단일 vault scan에서 `GitAttributes::load(root)` 1회 호출 + `prepare_for_hash` N번 호출 시 reparse 0회 (counter 검증).
-- `[AUTO]` `Arc<GitAttributes>` clone 박음 — 모든 worker thread (rayon backend)에서 공유.
+- `[AUTO]` 단일 vault scan에서 `GitAttributes::load(root)` 1회 호출 + `prepare_for_hash` N번 호출 시 reparse 0회 (lifetime 계약 — `&Arc<GitAttributes>` 시그니처가 reparse를 컴파일러 차원에서 차단). `lifetime_contract_one_load_n_calls_no_clone_leak` 테스트가 N=5 호출 후 `Arc::strong_count == 1` 검증.
+- `[AUTO]` `Arc<GitAttributes>` 시그니처가 future shared access 박음 — 현재 `commands/scan/pipeline.rs`는 sequential `.iter().map()` (REST rayon backend는 commits API 한정, ADR 0003; GraphQL backend는 rayon 미사용, ADR 0005). cross-thread clone 시나리오는 1000+ path scale에서 hash pass 병렬화 필요 시 활성화 — `Arc::clone()` 호출 변경 0건.
 
 ### Phase 5 시나리오 (인코딩 변환 — hash 입력 (b))
 
