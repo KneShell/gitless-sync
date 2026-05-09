@@ -30,7 +30,7 @@ Phase 5 함정 처리에서 `prepare_for_hash` 입력이 비-UTF-8 텍스트일 
 - **Maintenance**: 활성 (last release 2024, Servo / Firefox / Cargo 의존).
 - **Coverage**: WHATWG Encoding Standard 기준. 주요 legacy encoding 모두 지원 — Shift_JIS, EUC-KR, GBK, GB18030, Big5, Windows-1252, ISO-8859-*, Latin-1 [source: https://docs.rs/encoding_rs/latest/encoding_rs/].
 - **API**: 변환 위주 (`Encoding::decode`, `Encoding::for_label`). 직접 detection 기능 0.
-- **Binary size impact**: 정적 인코딩 테이블 박혀있음 — release stripped binary delta는 보통 ~1MB 수준 보고됨 (README 본문 "encoding_rs is fairly large" 명시) [unverified — Y task에서 cargo-bloat 정량 측정 박음].
+- **Binary size impact**: 정적 인코딩 테이블 박혀있음 — release stripped binary delta는 보통 ~1MB 수준 보고됨 (README 본문 "encoding_rs is fairly large" 명시). **Y task 측정 결과 (2026-05-09, current HEAD, panic=abort + lto=thin + strip=true)**: gitless-sync `.text` section에 encoding_rs symbol attribution **0 bytes** (LTO + strip + dead code elimination, top 50 crates 외 + `--filter encoding_rs` filter 0 KiB). 전체 `.exe` 2,476,032 bytes (`.text` 1.9 MiB / `.rdata` 393 KiB / 합 2.4 MiB). README "fairly large" + ~1MB 가정은 unconditional 박음 가정 — LTO 박힌 4 encoding shortlist (Shift_JIS / EUC_KR / GBK / Windows-1252)만 retain 박혀 실제 impact는 측정 한계 미만 [source: `cargo bloat 0.12.1` + `objdump -h` Y task 결과 § Y task 결과 (2026-05-09)].
 
 ### 2. `chardetng` (Henri Sivonen, encoding_rs 동일 저자)
 
@@ -194,13 +194,102 @@ caller 정책 (`prepare_for_hash` 또는 호출자):
 
 ## 후속 task 박음 입력
 
-- **F task**: `shared/normalize.rs::try_decode_text` 박음 (위 § 박음 — task F 입력 코드 박음).
-- **Y task**: `cargo-bloat` + dependency tree 분석으로 encoding_rs 박힘 후 binary size delta 측정 (~1MB 보고 정량 검증).
-- **Q task**: EUC-KR / Shift_JIS / Latin-1 byte literal fixture 박음 + try_decode_text 시나리오 unit test.
+- **F task**: `shared/normalize.rs::try_decode_text` 박음 (위 § 박음 — task F 입력 코드 박음). [x] commit `fe45a8e`.
+- **Y task**: `cargo-bloat` + dependency tree 분석으로 encoding_rs 박힘 후 binary size delta 측정 (~1MB 보고 정량 검증). [x] § Y task 결과 (2026-05-09) 박음.
+- **Q task**: EUC-KR / Shift_JIS / Latin-1 byte literal fixture 박음 + try_decode_text 시나리오 unit test. [x] commit `2a223ce`.
+
+## Y task 결과 (2026-05-09)
+
+> Phase 5 Y task — encoding_rs 박힌 후 binary size delta 정량 측정. clean-context §5 의심점 (`~1MB delta`) 사후 검증.
+
+### 측정 환경
+
+- **Commit**: HEAD (encoding_rs 박힌 상태, task F commit `fe45a8e` 이후 모든 Phase 5 task 박힘).
+- **Profile**: `[profile.release]` `panic = "abort"` + `lto = "thin"` + `strip = true` (workspace `Cargo.toml`).
+- **Toolchain**: stable 1.95.0, target `x86_64-pc-windows-msvc`.
+- **Tools**: `cargo-bloat 0.12.1`, MSYS2 `objdump` (binutils 2.x).
+- **Build command**: `cargo build --release -p gitless-sync`.
+
+### encoding_rs attribution (cargo-bloat)
+
+```
+$ cargo bloat --release -p gitless-sync --crates -n 50
+ File  .text     Size Crate
+12.3%  15.0% 297.8KiB regex_automata
+12.3%  15.0% 296.6KiB std
+10.5%  12.7% 252.7KiB clap_builder
+10.3%  12.5% 248.2KiB gitless_sync
+ 7.9%   9.6% 190.9KiB aho_corasick
+ 6.6%   8.1% 159.7KiB regex_syntax
+ 6.0%   7.3% 144.3KiB similar
+ 4.2%   5.1% 101.8KiB toml_edit
+ 2.5%   3.0%  60.1KiB globset
+ 1.5%   1.8%  35.7KiB serde_json
+ ...
+ 0.1%   0.1%   2.2KiB unicode_normalization
+ ...
+ 0.0%   0.0%       1B log
+82.0% 100.0%   1.9MiB .text section size, the file size is 2.4MiB
+```
+
+**encoding_rs는 top 50 entries 박음 안 됨** — 박힌 마지막 entry는 `log = 1 byte`. 즉 `.text` section attribution은 1 byte 미만.
+
+```
+$ cargo bloat --release -p gitless-sync --filter encoding_rs -n 100
+File .text Size Crate Name
+0.0%  0.0%   0B       filtered data size, the file size is 2.4MiB
+```
+
+`--filter encoding_rs`로 직접 검색 박음 — `.text` section에 encoding_rs 심볼 attribution **0 bytes**.
+
+### Reverse dependency tree
+
+```
+$ cargo tree -p gitless-sync -i encoding_rs
+encoding_rs v0.8.35
+└── gitless-sync v0.1.0
+```
+
+encoding_rs는 직접 dep만 박음 — transitive 0건 (Option A 결정 정합).
+
+### PE section breakdown (objdump)
+
+```
+$ objdump -h target/release/gitless-sync.exe
+Idx Name          Size
+  0 .text         001ef714  (2,029,332 bytes ≈ 1.9 MiB)
+  1 .rdata        000624ac    (402,604 bytes ≈ 393 KiB)
+  2 .data         00000200        (512 bytes)
+  3 .pdata        00008550     (34,128 bytes)
+  4 .reloc        00001cf8      (7,416 bytes)
+```
+
+전체 `.exe` size: **2,476,032 bytes (~2.4 MiB)**. 정적 데이터 박힌 `.rdata` section 전체가 **393 KiB** — README "fairly large" + ~1MB 가정과 정렬 안 됨 (전체 정적 데이터 자체가 1 MB 미만).
+
+### 결론
+
+1. **`.text` attribution 0 bytes** — encoding_rs 함수 코드는 LTO + dead code elimination + strip 박음 caller (`gitless_sync` 248.2 KiB)에 흡수 박음 또는 잘림. 사용 박은 4 encoding shortlist (`SHIFT_JIS`/`EUC_KR`/`GBK`/`WINDOWS_1252`) 외 dispatcher (e.g. `Encoding::for_label` for HTML 콘텐츠) 코드 다 잘림.
+2. **`.rdata` 정적 테이블 attribution unverified directly** — cargo-bloat은 `.text` section만 박음. encoding_rs lookup tables는 `.rdata` 박힐 가능성. 단 전체 `.rdata`가 393 KiB라 README "fairly large" + ~1MB 가정 (unconditional 박음)은 정량 부정 — `.rdata` 전체보다도 작아야 함.
+3. **README "fairly large" + ~1MB은 misconception** — unconditional 박음 (모든 30+ WHATWG encoding 정적 테이블 retain) 가정. 실제 LTO + strip + dead code elimination이 사용 박은 4 encoding 외 다 잘라냄.
+4. **Option A 결정 영향 0** — 측정 결과 박은 후 결정 변경 없음. encoding_rs 단독 채택 confirmed (~1MB 추정 dimensions 정량 부정 + delta가 측정 한계 미만).
+
+### Caveats
+
+- **cargo-bloat은 `.text` section 박음** — 정적 테이블 박힌 `.rdata` attribution은 산출 안 됨. 정확한 `.rdata` per-crate attribution 박음에는 dual-build (encoding_rs 임시 제거 + 재빌드) 또는 `dumpbin /symbols` 박음 필요. 본 measurement 박은 README 가정 부정에는 충분 — `.rdata` 전체가 393 KiB라 ~1MB 추정과 정렬 안 됨.
+- **LTO inline 우려** — encoding_rs `decode` 호출이 caller에 inline 박음 가능 — 그 경우 `gitless_sync` 248.2 KiB 안 박혀 attribution 안 됨. 단 inline 후 dead code 박힘 가능성 더 높음 (decode 결과 cow 즉시 폐기 — b-policy).
+- **Phase 4 baseline dual-build skip** — advisor 권고 박음. Phase 5 다른 dep (`unicode-normalization` 박힘 task C, `ignore` 0.4.x crate 박힘 task K1, `criterion` dev-dep 박힘 task X) 노이즈 박힘 + 빌드 시간 30분+ 박음. encoding_rs 단독 효과 박음에는 cargo-bloat 박은 single-build 박음으로 충분.
+
+### 의사결정 영향 요약
+
+clean-context §5 의심점 ("encoding_rs ~1MB binary size delta") **사후 검증 박음** — 정량 부정. Option A (encoding_rs 단독) 결정 그대로 confirmed. § Limitations item 3 박은 [unverified] → verified 갱신 박음.
+
+향후 재검토 트리거:
+- Phase 6+ `working-tree-encoding` attribute 지원 시 — full WHATWG encoding 박음 시점, 본 measurement 재실행 박음 (`.rdata` 박힌 정적 테이블 박힘).
+- vault dogfooding (task T)에서 vault에 비-UTF-8 encoding 발견 박힘 시점 — shortlist 확장 cascade로 measurement 변동 박음.
 
 ## Limitations
 
 1. **shortlist 4 encoding 한정**. 외 encoding surface 시 false binary 분류 가능 — 향후 사용자 요구로 확장.
 2. **detection 정확도 측정 부재**. (b) policy로 출력 surface 안 됨 → 정량 측정 ROI 0. 향후 `failed_reason_detail` 신설 시 Option B로 회귀 가능.
-3. **encoding_rs binary size delta unverified**. Y task에서 cargo-bloat 정량 측정 박음 — 현재 README 본문 "fairly large" 한정 [unverified].
+3. **encoding_rs binary size delta verified (Y task, 2026-05-09)**. cargo-bloat + objdump 박음 — `.text` section attribution **0 bytes** (LTO inline + dead code elim), 전체 `.exe` 2.4 MiB. README "fairly large" + ~1MB 가정 정량 부정. § Y task 결과 (2026-05-09) 박음.
 4. **Phase 6+ `working-tree-encoding` attribute 지원 시 본 결정 재검토**. 본 결정은 v0.2 한정.
