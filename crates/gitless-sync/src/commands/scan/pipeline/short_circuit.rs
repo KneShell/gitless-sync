@@ -116,6 +116,10 @@ mod tests {
         }
     }
 
+    fn assert_promoted(result: Option<&(String, FailedReason)>, mode: &str, reason: FailedReason) {
+        assert_eq!(result, Some(&(mode.to_string(), reason)));
+    }
+
     #[test]
     fn nfd_collision_promotes_with_remote_mode() {
         let nfd: HashSet<String> = ["dup.txt".to_string()].into_iter().collect();
@@ -124,10 +128,7 @@ mod tests {
         let cctx = cctx_with(&case, &nfd, &attrs);
         let r = remote_file("dup.txt", "100644");
         let result = try_short_circuit_failed("dup.txt", None, Some(&r), &cctx);
-        assert_eq!(
-            result,
-            Some(("100644".to_string(), FailedReason::NfdCollision))
-        );
+        assert_promoted(result.as_ref(), "100644", FailedReason::NfdCollision);
     }
 
     #[test]
@@ -138,10 +139,7 @@ mod tests {
         let cctx = cctx_with(&case, &nfd, &attrs);
         let r = remote_file("Foo.txt", "100644");
         let result = try_short_circuit_failed("Foo.txt", None, Some(&r), &cctx);
-        assert_eq!(
-            result,
-            Some(("100644".to_string(), FailedReason::CaseCollision))
-        );
+        assert_promoted(result.as_ref(), "100644", FailedReason::CaseCollision);
     }
 
     #[test]
@@ -175,10 +173,7 @@ mod tests {
         let cctx = cctx_with(&case, &nfd, &attrs);
         let r = remote_file("vendor/lib", "160000");
         let result = try_short_circuit_failed("vendor/lib", None, Some(&r), &cctx);
-        assert_eq!(
-            result,
-            Some(("160000".to_string(), FailedReason::Submodule))
-        );
+        assert_promoted(result.as_ref(), "160000", FailedReason::Submodule);
     }
 
     #[test]
@@ -217,10 +212,7 @@ mod tests {
         let nfd = empty_set();
         let cctx = cctx_with(&case, &nfd, &attrs);
         let result = try_short_circuit_failed("cover.psd", None, None, &cctx);
-        assert_eq!(
-            result,
-            Some(("100644".to_string(), FailedReason::LfsPointer))
-        );
+        assert_promoted(result.as_ref(), "100644", FailedReason::LfsPointer);
     }
 
     #[test]
@@ -236,10 +228,7 @@ mod tests {
         let nfd = empty_set();
         let cctx = cctx_with(&case, &nfd, &attrs);
         let result = try_short_circuit_failed("notes.txt", None, None, &cctx);
-        assert_eq!(
-            result,
-            Some(("100644".to_string(), FailedReason::GitattributesUnsupported))
-        );
+        assert_promoted(result.as_ref(), "100644", FailedReason::GitattributesUnsupported);
     }
 
     #[test]
@@ -265,10 +254,7 @@ mod tests {
         let cctx = cctx_with(&case, &nfd, &attrs);
         let r = remote_file("Foo.txt", "160000");
         let result = try_short_circuit_failed("Foo.txt", None, Some(&r), &cctx);
-        assert_eq!(
-            result,
-            Some(("160000".to_string(), FailedReason::CaseCollision))
-        );
+        assert_promoted(result.as_ref(), "160000", FailedReason::CaseCollision);
     }
 
     #[test]
@@ -291,9 +277,22 @@ mod tests {
         let nfd = empty_set();
         let cctx = cctx_with(&case, &nfd, &attrs);
         let result = try_short_circuit_failed("cover.psd", None, None, &cctx);
-        assert_eq!(
-            result,
-            Some(("100644".to_string(), FailedReason::LfsPointer))
-        );
+        assert_promoted(result.as_ref(), "100644", FailedReason::LfsPointer);
+    }
+
+    #[test]
+    fn gitattributes_text_auto_without_lfs_filter_returns_none() {
+        // Regression guard (Phase 5.13.1 task GG): a `.gitattributes`
+        // with `text=auto` only (no `filter=lfs`) must NOT promote — path
+        // proceeds to `try_hash_local`. See `spec-domain-pitfalls.md`
+        // § `.gitattributes` 화이트리스트.
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join(".gitattributes"), "*.txt text=auto\n").unwrap();
+        let attrs = Arc::new(GitAttributes::load(dir.path()).unwrap());
+        let case = empty_set();
+        let nfd = empty_set();
+        let cctx = cctx_with(&case, &nfd, &attrs);
+        let result = try_short_circuit_failed("notes.txt", None, None, &cctx);
+        assert_eq!(result, None);
     }
 }
