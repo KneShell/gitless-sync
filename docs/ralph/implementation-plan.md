@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 34
-- Completed: 11 / 34
+- Completed: 12 / 34
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -77,7 +77,7 @@
 
 ### Phase 5.5 — 빈 파일 실파일 검증
 
-- [~] **I. 빈 파일 실파일 fixture + integration test**
+- [x] **I. 빈 파일 실파일 fixture + integration test**
   - acceptance: integration test fixture로 실제 0-byte 파일 박음. `blob_hash(&[])` == git empty blob constant 확인. local empty file ↔ remote empty blob → `Status::Identical`.
   - spec: `spec-hash-and-normalize.md` § Acceptance.
 
