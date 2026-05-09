@@ -21,6 +21,7 @@ pub enum FailedReason {
     CaseCollision,
     Submodule,
     Symlink,
+    LongPath,
 }
 
 #[derive(Debug, Clone, Serialize)]

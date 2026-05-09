@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 34
-- Completed: 13 / 34
+- Completed: 14 / 34
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -71,7 +71,7 @@
   - acceptance: scan은 **blob fetch 안 함** (Phase 4 GraphQL batching 이득 유지) — `.gitattributes` 파싱 시점에 `filter=lfs` 매칭된 path는 자동 `Status::Failed` + `failed_reason: "lfs_pointer"` + `lfs_pointer: {oid: "?", size: 0}` (oid/size unknown). diff 명령은 blob fetch 박혀있어 첫 줄 시그니처 `version https://git-lfs.github.com/spec/v1` 검증 + oid/size 정확 파싱 (defence-in-depth). **K1.5 LfsPointer variant 의존**. unit test (LFS pointer fixture + filter=lfs `.gitattributes` fixture). tarpaulin 80% 유지 — 신규 코드 cover 책임.
   - spec: `docs/specs/spec-domain-pitfalls.md` § LFS pointer + `spec-error-contracts.md` + `spec-hash-and-normalize.md` § 화이트리스트.
 
-- [~] **R1. Windows long path / 예약 파일명 detect-only**
+- [x] **R1. Windows long path / 예약 파일명 detect-only**
   - acceptance: walker에서 260자+ path 또는 예약 파일명 (CON/PRN/NUL/AUX/COM1-9/LPT1-9) detect → `Status::Failed` + `failed_reason: "long_path"`. unit test (mock filesystem fixture).
   - spec: `docs/specs/spec-domain-pitfalls.md` § Windows long path + `spec-error-contracts.md`.
 

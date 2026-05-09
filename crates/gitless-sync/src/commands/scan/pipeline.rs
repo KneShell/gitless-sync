@@ -1,6 +1,5 @@
-//! Three-pass classification pipeline. [`assemble_entries`] is the entry
-//! point: hash local files (pass 1), fetch commit dates for differing
-//! paths only (pass 2 via [`super::commits`]), classify and emit
+//! Three-pass `assemble_entries`: hash local (pass 1), fetch commit dates
+//! for differing paths via [`super::commits`] (pass 2), classify into
 //! [`FileEntry`] rows (pass 3).
 
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -12,6 +11,7 @@ use super::case_collision;
 use super::commits;
 use super::compare::{FailedReason, FileEntry, Status, classify};
 use super::hash_local::try_hash_local;
+use super::long_path;
 use super::output::Summary;
 use super::walker::LocalFile;
 use crate::shared::error::GitlessError;
@@ -78,11 +78,9 @@ fn build_pre_entries(
 
 /// Compose one [`PreEntry`]. Defers the failed-short-circuit cascade to
 /// [`try_short_circuit_failed`] so the cascade stays in one place and this
-/// function fits the 60-line clippy gate. Order after short-circuit:
-///   1. local present + hash ok → `Hashed`
-///   2. local present + hash err → `Failed { failed_reason: None }`
-///      (v1.0 `hash_io` default, no explicit reason)
-///   3. local absent → `Hashed { local_sha: None }` (remote-only)
+/// function fits the 60-line clippy gate. After short-circuit: hash ok →
+/// `Hashed`; hash err → `Failed { failed_reason: None }` (v1.0 `hash_io`
+/// default); local absent → remote-only `Hashed`.
 fn build_one_pre_entry(
     path: &str,
     local: Option<&LocalFile>,
@@ -139,29 +137,29 @@ fn build_one_pre_entry(
     }
 }
 
-/// Cascade of failed short-circuits. Returns `Some((mode, reason))` for the
-/// first matching condition or `None` to fall through to the normal hash
-/// path. Priority: case collision (upstream) → submodule (`160000`) →
-/// symlink (`120000` or `local.is_symlink`). Submodule/symlink force their
-/// canonical mode bit so local-only symlinks still report `"120000"` per
-/// `spec-output-schema.md` § v1.1.
+/// Cascade of failed short-circuits. Priority: case collision → `long_path` /
+/// reserved name → submodule (`160000`) → symlink (`120000` or
+/// `local.is_symlink`). Submodule/symlink force their canonical mode bit so
+/// local-only symlinks still report `"120000"` per `spec-output-schema.md`
+/// § v1.1; `long_path` inherits the remote tree mode when available.
 fn try_short_circuit_failed(
     path: &str,
     local: Option<&LocalFile>,
     remote: Option<&RemoteFile>,
     collisions: &HashSet<String>,
 ) -> Option<(String, FailedReason)> {
+    let mode = || remote.map_or_else(|| "100644".to_string(), |r| r.mode.clone());
     if collisions.contains(path) {
-        let mode = remote.map_or_else(|| "100644".to_string(), |r| r.mode.clone());
-        return Some((mode, FailedReason::CaseCollision));
+        Some((mode(), FailedReason::CaseCollision))
+    } else if long_path::is_invalid(path) {
+        Some((mode(), FailedReason::LongPath))
+    } else if remote.is_some_and(|r| r.mode == "160000") {
+        Some(("160000".to_string(), FailedReason::Submodule))
+    } else if remote.is_some_and(|r| r.mode == "120000") || local.is_some_and(|lf| lf.is_symlink) {
+        Some(("120000".to_string(), FailedReason::Symlink))
+    } else {
+        None
     }
-    if remote.is_some_and(|r| r.mode == "160000") {
-        return Some(("160000".to_string(), FailedReason::Submodule));
-    }
-    if remote.is_some_and(|r| r.mode == "120000") || local.is_some_and(|lf| lf.is_symlink) {
-        return Some(("120000".to_string(), FailedReason::Symlink));
-    }
-    None
 }
 
 /// Pass 2 input: keep only paths whose SHA differs on both sides.
@@ -295,3 +293,7 @@ mod tests;
 #[cfg(test)]
 #[path = "pipeline_tests_modes.rs"]
 mod tests_modes;
+
+#[cfg(test)]
+#[path = "pipeline_tests_long_path.rs"]
+mod tests_long_path;
