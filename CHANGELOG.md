@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 TBD — Phase 7+ 진입 시점 추가.
 
-## [0.2.0] - 2026-05-09
+## [0.2.0] - 2026-05-10
 
-> Phase 5 — 도메인 함정 정리. 상세 task별 결과는 `docs/ralph/implementation-plan.md` § Phase 5.
+> Phase 5 (도메인 함정 정리) + Phase 5.13/5.13.1/5.14 (follow-up) + Phase 6.1 (v0.2.x cleanup) 누적. 상세 task별 결과는 git history (`git log --grep="<task ID>"`) + `docs/ralph/implementation-plan.md`.
 
 ### Added
 
@@ -21,30 +21,39 @@ TBD — Phase 7+ 진입 시점 추가.
 - Schema v1.1 (minor bump) — 신규 field `mode` (4-digit octal: `100644`/`100755`/`120000`/`160000`) + `failed_reason` (9 enum, skip_serializing on `None`) + `lfs_pointer` (skip on `None`). v1.0 backward-compat lock test (`output.rs::tests` 5 lock).
 - Dependencies — `unicode-normalization = "0.1"` (NFC) + `encoding_rs = "0.8"` (Apache-2.0/MIT). cargo-bloat `.text` attribution 0 KiB (LTO + strip + dead code elim).
 - Specs — `docs/specs/spec-domain-pitfalls.md` (Phase 5 함정 spec hub).
-- Research — `docs/research/phase5-{vault-baseline, vault-after, regression, gitattributes-bench, scan-scale-bench}.md` + `encoding-library-eval.md`.
-- CI gate Windows runner — `.github/workflows/ci.yml` 4 게이트 (`fmt --check` / `clippy -D warnings` / `test --workspace` / `tarpaulin --fail-under 80`).
+- Research — `docs/research/phase5-{vault-baseline, vault-after, regression, gitattributes-bench, scan-scale-bench}.md` + `encoding-library-eval.md` + `phase4-measurements.md` (ADR 0003/0006/0007/0008 raw data hub).
+- Phase 5.13/5.13.1 follow-up — `failed_reason` 3건 (`encoding`/`nfd_collision`/`gitattributes_unsupported`) caller plumbing 완성 + `shared/github/trees/` module 폴더 분할 + `commands/scan/pipeline/` module 폴더 분할 + sibling test 5 file 제거 + tmp/ + 외부 worktree 정리 + `.gitignore`에 `tmp/` 추가.
+- Phase 5.14 (md 자료 audit) — CLAUDE.md "### 메모리 환경" section 제거 (privacy critical, vault path/admin username 노출 제거) + CLAUDE.md slim 142→45 LOC + CHANGELOG.md slim 159→76 LOC + ADR (0001~0009) audit + research/specs/ralph privacy 일반화 (vault path/`<project root>` placeholder).
+- Phase 6.1 (v0.2.x cleanup) — ADR 0010 (cognitive_complexity vs LOC 300 orthogonal proxy 둘 다 유지 결정) + CI runner Linux 전환 (`windows-latest` → `ubuntu-latest`, 비용 + cold-start 둘 다 우위, G-018 cross-platform cfg gate 신규 발견 + fix).
+- guardrails — G-016 (`cargo fmt --check` 무조건) + G-017 (gh `-F` GET→POST 자동 전환) + G-018 (cross-platform cfg gate — Windows-only `use`/test).
+- CI gate Linux runner — `.github/workflows/ci.yml` 4 게이트 (`fmt --check` / `clippy -D warnings` / `test --workspace` / `tarpaulin --engine llvm --fail-under 80`). public-api diff PR-only.
 
 ### Changed
 
 - `prepare_for_hash` 시그니처 — `gitattr: &Arc<GitAttributes>` + `path: &str` 추가. caller 모두 갱신.
-- `status="failed"` 의미 확장 — v0.1 = "hash IO 실패"만, v0.2 = 9 reasons (`hash_io` / `encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported`). caller가 `failed_reason` 분기 필요. 6 reason 코드 구현 (`hash_io`/`submodule`/`symlink`/`lfs_pointer`/`long_path`/`case_collision`), 3 reason enum-spec'd-but-unimplemented (`encoding`/`nfd_collision`/`gitattributes_unsupported`).
+- `status="failed"` 의미 확장 — v0.1 = "hash IO 실패"만, v0.2 = 9 reasons (`hash_io` / `encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported`). caller가 `failed_reason` 분기 필요. 9 reason 모두 caller plumbing 완성 (Phase 5.13.1 EE/FF/GG).
 - default LF normalize — v0.1 = 항상, v0.2 = `.gitattributes` conditional + 화이트리스트 5 entry. `Unspecified` (default) branch는 v0.1 정책 그대로 유지.
+- implementation-plan.md skeleton inline slim — 440→246 LOC (completed task `결과` paragraph + sub-bullet 제거, header만 retain).
 
 ### Fixed
 
 - G-005 mtime 휴리스틱 정합 — `local_mtime == remote_last_commit_at` 동률은 `Status::Drift`로 격하 (각 함정 처리 후 정합 재검증).
+- hash_pass.rs PreState doc comment 3줄 중복 (sub-claude AUTO-FIX, EE diff cleanup miss).
+- CLAUDE.md G-017 stale cross-ref + research 3 file 절대 경로 (`D:\00.Projects\02.Personal\05.gitless-sync` → `<project root>`).
+- scan_errors.rs:13 `use std::fs;` cfg(windows) gate (Linux CI unused import) + compute.rs:267 backslash test cfg(windows) gate (Linux invalid path).
 
 ### Verified
 
 - vault dogfood (T) — KneShell/gitless-sync@main 117 files / 0 drift / 0 failed.
 - v0.1 baseline regression diff (W) — REGRESSION 0건 (envelope schema_version + mode field 정확화만, 121/121 path binary delta 0).
-- 383 tests pass (293 lib + 41 integration + 49 xtask) + tarpaulin 90.73% (949/1046 lines).
+- 410+ tests pass + tarpaulin 90.57% (Phase 5 baseline 90.73% 대비 -0.16% 자연 변동).
+- Linux CI runner 1차 검증 통과 (commit `87d2cf4`, 19m7s).
 
-### Known limitations
+### Known limitations (v0.3+에서 해소 검토)
 
-- `failed_reason` 3건 plumbing follow-up (`encoding`/`nfd_collision`/`gitattributes_unsupported`) — caller-side `pipeline.rs`.
-- `.gitattributes` module 폴더 분할 (task Z) — `shared/gitattributes/{mod, parser, classify, matching}` 4 file + sibling test 정리.
-- vault scale 1000+ path mtime cache 재검토는 v0.3+.
+- vault scale 1000+ path dogfood 미측정 — Phase 5/6.1까지는 13~117 path scale 한정. Phase 7 진입 시 측정 + mtime cache 재도입 트리거 검토 (ADR 0008 § Future work).
+- Trees API truncated repo 미지원 (G-002, 7MB or 100K entry 한도) — Phase 7+ sub-tree 재귀 fallback 도입 검토.
+- 큰 파일 임계치 미정 (10MB+ 메모리 + Phase 4 cache 연결) — Phase 7+ 도입 검토.
 
 ## [0.1.0] - Phase 6 완료 시점 (2026-05-09)
 
@@ -60,7 +69,7 @@ TBD — Phase 7+ 진입 시점 추가.
 
 ### Architecture decisions
 
-- Read-only 영구 (ADR 0001) + Vertical slice + cross-slice 직접 ref 금지 + slice 안 acyclic + directional discipline (orchestrator → domain → IO) + Windows 1차 + MSRV 1.95.0 stable + `#![forbid(unsafe_code)]` + release `panic = "abort"` + `lto = "thin"` + `strip = true` + 박제 expiration (Phase 진입마다 재검토).
+- Read-only 영구 (ADR 0001) + Vertical slice + cross-slice 직접 ref 금지 + slice 안 acyclic + directional discipline (orchestrator → domain → IO) + Windows 1차 (실행 환경) + MSRV 1.95.0 stable + `#![forbid(unsafe_code)]` + release `panic = "abort"` + `lto = "thin"` + `strip = true` + 박제 expiration (Phase 진입마다 재검토).
 
 ### Verified
 
