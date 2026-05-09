@@ -22,10 +22,11 @@ use crate::shared::normalize::prepare_for_hash;
 /// Hash a local file and surface encoding failures using the same byte read.
 ///
 /// The third tuple element is `Some(FailedReason::Encoding)` when the bytes
-/// are neither UTF-8 nor decodable by the `try_decode_text` shortlist (or
-/// carry a UTF-16 BOM, which is out of scope for v0.2). The caller demotes
-/// `Hashed` → `Failed` on `Some(_)`. SHA + `is_binary` are still computed
-/// because they remain valid for the raw-bytes hash policy.
+/// carry a UTF-16 BOM (out of scope for v0.2; see `spec-hash-and-normalize.md`
+/// § BOM). `Unknown` is logically unreachable per `decode.rs` (Windows-1252
+/// covers all bytes). The caller demotes `Hashed` → `Failed` on `Some(_)`.
+/// SHA + `is_binary` are still computed because they remain valid for the
+/// raw-bytes hash policy.
 pub(super) fn try_hash_local(
     path: &Path,
     keep_bom: bool,
@@ -34,10 +35,10 @@ pub(super) fn try_hash_local(
 ) -> Result<(String, bool, Option<FailedReason>), std::io::Error> {
     let raw = fs::read(path)?;
     let encoding_failure = match try_decode_text(&raw) {
-        TextDecodeResult::Utf16Bom { .. } | TextDecodeResult::Unknown => {
-            Some(FailedReason::Encoding)
+        TextDecodeResult::Utf16Bom { .. } => Some(FailedReason::Encoding),
+        TextDecodeResult::Utf8 | TextDecodeResult::Detected { .. } | TextDecodeResult::Unknown => {
+            None
         }
-        TextDecodeResult::Utf8 | TextDecodeResult::Detected { .. } => None,
     };
     let (prepared, is_binary) = prepare_for_hash(&raw, keep_bom, gitattr, relative_path);
     Ok((blob_hash(&prepared), is_binary, encoding_failure))
