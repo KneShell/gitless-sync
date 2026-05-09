@@ -8,7 +8,7 @@
 
 - 빌드: `cargo run --release --quiet -- scan --repo KneShell/gitless-sync --branch main --pretty > tmp/phase5-scan-baseline.json 2>tmp/phase5-scan-baseline.err`
 - backend: `graphql` (default per ADR 0006)
-- local root: `D:\00.Projects\02.Personal\05.gitless-sync` (이 repo 자체 — self-dogfooding)
+- local root: `<project root>` (이 repo 자체 — self-dogfooding)
 - exit code: 0
 - scanned_at: 2026-05-09T00:09:57.980941200Z
 - schema_version: 1.0 (`mode` / `failed_reason` / `lfs_pointer` 필드는 task O 시점 1.1 추가)

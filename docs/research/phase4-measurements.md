@@ -6,7 +6,7 @@
 
 - Windows 11 Pro 10.0.26100 / `gh` 2.88.1 / cargo 1.95.0 / release binary `target/release/gitless-sync.exe`.
 - wall-clock = PowerShell `Measure-Command`. warm-up 회는 dropped.
-- 대상: `KneShell/gitless-sync` @ main, local = `D:\00.Projects\02.Personal\05.gitless-sync`.
+- 대상: `KneShell/gitless-sync` @ main, local = `<project root>`.
 - commits API 분기 강제: 측정 직전 13개 commited `.md` 파일에 trailing newline 임시 추가 → 13 path가 `local_sha != remote_sha` 분기로 commits map fetch. 측정 종료 후 `git restore`로 복원.
 - 명령어: `gitless-sync.exe scan --repo KneShell/gitless-sync --branch main --local <local> --summary-only`
 
