@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 34
-- Completed: 23 / 34
+- Completed: 24 / 34
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -127,9 +127,10 @@
   - spec: `spec-classification.md`.
   - 결과 (2026-05-09): spec § 판정 로직 의사코드 vs `compare.rs::classify` 구현 정합 (5 status branch: Identical/LocalOnlyChanged/RemoteOnlyChanged/Drift + Failed) 검증 통과 + NFC 정규화 boundary 양쪽 박힘 (`walker.rs::relative_path` line 92 + `shared/github/trees.rs` line 63/75/87 — 3 mode) 검증 통과 + case_collision symmetric detect (canonical/diagonal/local-both 3 시나리오, `case_collision.rs::detect`) 검증 통과. 1 drift surface + fix: § Path 정규화 § edge case의 `nfd_collision`이 spec 박혀있는데 `FailedReason` enum + `pipeline.rs` 매핑 미박힘 — spec-domain-pitfalls.md "99%/1%" hedge 표현 mirror로 § edge case에 hedge 박음 ("Phase 5 후속, task N 박힌 후 implement task로 박음"). § 현재 상태에 audit verification 박음 (NFC 박힘 line + case_collision 박힘 line). **cross-task carryover**: spec-error-contracts.md § Per-file Pitfall Reasons 표 line 162에 `nfd_collision` 박혀있음 — task N에서 동일 drift hit 예상 (enum-spec'd-but-unimplemented align 또는 enum variant 박음 결정은 task N scope). validation: cargo fmt clean (spec-only, G-012 적용). 코드 변경 0 — baseline 유지.
 
-- [~] **N. spec-error-contracts.md 함정별 reason 매핑**
+- [x] **N. spec-error-contracts.md 함정별 reason 매핑**
   - acceptance: `failed_reason` enum 9 값 (이미 Phase 5 spec 갱신) 정합 검증. unit test 박음.
   - spec: `spec-error-contracts.md`.
+  - 결과 (2026-05-09): spec § Per-file Pitfall Reasons 9 reason vs `compare.rs::FailedReason` 5 variant 정합 audit + 6 drift 박음. (1) § 현재 상태 § N-task audit (2026-05-09) section 신설 — 박힘 (정합) 6건 + 미박힘 (Phase 5 후속, hedge marker) 3건 (`encoding`/`nfd_collision`/`gitattributes_unsupported` enum-spec'd-but-unimplemented align) + Drift surface (`Http` exit code spec 1 vs `error/core.rs::exit_code()` 박힘 3, ureq 시절 잔재 의심, follow-up 박음) + Spec self-consistency fix (acceptance error_code 양식 inconsistency `"CONFIG"`/`"HTTP"` → `"CONFIG_ERROR"`/`"HTTP_ERROR"`, § stderr 출력 형식 § 1:1 매핑 원칙 정합) + Spec 잔재 hedge (`format_graphql_errors` re-export). (2) § Per-file Pitfall Reasons 표에 구현 컬럼 박음 — 박힘 5 variant + 미박힘 3 reason hedge marker + None special case 박음. (3) § Acceptance Criteria 4 line self-consistency fix (CONFIG → CONFIG_ERROR ×2, HTTP → HTTP_ERROR ×3 — gh 미설치 + 5xx fallthrough + GraphQL NOT_FOUND + GraphQL fallthrough). (4) `compare.rs::tests`에 unit test 10건 박음 — `FailedReason` snake_case round-trip 5건 + None skip_serializing 1건 + Some emit 1건 + LfsPointer placeholder shape 2건 + helper. (5) **F task 정합 의심 surface 박음** — F task acceptance "3차 binary 취급 (`Status::Failed` + `failed_reason: "encoding"`)" 박혀있는데 `decode.rs` sniff-only + `pipeline.rs` surface plumbing 미박힘 — 본 task hedge marker 박음, fix는 follow-up task. validation: cargo fmt clean + clippy 0 warnings + xtask check-line-limits (52 files within 300) + xtask check-cycles (0/0) + cargo machete clean + cargo test 286 lib + 25 integration + 49 xtask = **360 tests pass** + tarpaulin **90.34%** (945/1046 lines, +0.00% change). compare.rs LOC 158 → 256 (300 안). **다른 task scope 침범 없음** (`error/core.rs` exit_code 박힘 3 코드 변경 박지 않음, follow-up task 영역).
 
 - [ ] **O. spec-output-schema.md mode bit + reason + LFS 필드 검증**
   - acceptance: schema_version `"1.1"` + `mode` + `failed_reason` + `lfs_pointer` 필드 박힘 (이미 Phase 5 spec 갱신). v1.0 호출자 backward-compat 검증 unit test.
