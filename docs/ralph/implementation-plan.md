@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 34
-- Completed: 28 / 34
+- Completed: 29 / 34
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -154,9 +154,10 @@
   - spec: `docs/specs/spec-domain-pitfalls.md` § 검증 환경.
   - 결과 (2026-05-09): `crates/gitless-sync/tests/scan_nfd_real_file.rs` 박음 — 3 integration tests (P unit-level synthetic fixture에 실파일 fs round-trip 차원 추가). (1) `local_nfd_hangul_real_file_matches_remote_nfc_blob` — `\u{1100}\u{1161}.txt` (NFD jamo LV) 실파일 + 원격 `\u{AC00}.txt` (NFC) tree → Identical, walker side `to_nfc` (walker.rs:92) 정합 검증. (2) `local_nfd_latin_n_tilde_real_file_matches_remote_nfc_blob` — `n\u{0303}ame.txt` (NFD decomposition table) 실파일 + 원격 `\u{00F1}ame.txt` (NFC) tree → Identical, 알고리즘과 다른 normalization 코드 경로 cover. (3) `local_nfc_real_file_matches_remote_nfd_blob` — symmetric 방향 (NFC 실파일 + NFD remote tree) → Identical, `shared/github/trees.rs::to_nfc` (line 63/75/87) 정합 검증. NFD path는 `\u{}` Rust escape 박은 const + raw format! interpolate 패턴 (advisor 권고). Platform note: NTFS/ext4/APFS는 raw bytes 박음 (NFD 실파일 생성 가능), HFS+은 canonicalize-on-write로 NFD 박혀도 양쪽 NFC 수렴 → 모든 platform 통과. Commits API stub 안 박음 — Identical entries skip Commits API (G-003). validation: cargo fmt clean + clippy 0 warnings + xtask check-line-limits (52 files within 300, scan_nfd_real_file.rs 113) + xtask check-cycles (0/0) + cargo machete clean + cargo test 292 lib + 28 integration + 49 xtask = **369 tests pass** (+3) + tarpaulin **90.34%** (945/1046 lines, +0.00% change).
 
-- [~] **Q. 인코딩 변환 fixture 박음**
+- [x] **Q. 인코딩 변환 fixture 박음**
   - acceptance: EUC-KR / Shift_JIS / Latin-1 byte literal fixture 박음 + 변환 시나리오 unit test. **hash 입력 raw bytes 정합 검증**.
   - spec: `docs/specs/spec-domain-pitfalls.md` § Encoding.
+  - 결과 (2026-05-09): advisor scope 확정 — F-task 박은 EUC-KR / Shift_JIS / Latin-1 fixture (decode.rs:100-133)는 박힘, gap은 (1) `try_decode_text_preserves_raw_bytes_for_hashing`이 EUC-KR 단일만 cover + (2) decode + normalize chain raw bytes invariant 미박힘. 두 gap 박음. (1) 기존 test를 3 인코딩 loop로 확장 — encoding_rs distinct decoder path 명시 (EUC-KR/CP949 stateful · Shift_JIS lead+trail multi-byte · Windows-1252 single-byte table) tautology 회피 (advisor flag, P task 패턴 mirror). (2) `prepare_for_hash_preserves_non_utf8_raw_bytes_via_pipeline` 신규 — `prepare_for_hash` × 3 인코딩 NUL-free non-UTF-8 raw bytes (default policy, `Arc<GitAttributes>::default()`) → unspecified branch `normalize_text` 통과 + LF/CRLF 0이라 output == input == hash input. local + remote 같은 raw bytes → 같은 blob_hash via 실제 scan pipeline 거친 chain. **Files**: `decode.rs::tests` 한정 — advisor 권고 locus normalize.rs였으나 normalize.rs 299 LOC (300 게이트 1줄 여유) 위반 회피로 decode.rs 박음 (이미 cross-module pattern 박힘 — line 287 `utf16_bom_passes_through_unchanged_for_hashing_and_normalize`). **out of scope**: pipeline.rs surface plumbing for `failed_reason: "encoding"` (N task hedge marker 박힘 — F task 정합 의심 surface, follow-up task 영역) + 새 file / sibling `_tests.rs` (Z task 영역). validation: cargo fmt clean + clippy 0 warnings + xtask check-line-limits (52 files within 300, decode.rs 188 → 222) + xtask check-cycles (0/0) + cargo machete clean + cargo test 293 lib + 28 integration + 49 xtask = **370 tests pass** (+1) + tarpaulin **90.34%** (945/1046 lines, +0.00% change).
 
 - [ ] **R. submodule/symlink/permission integration fixture**
   - acceptance: `MockGhClient` Trees API mock 응답에 submodule (`160000`) / symlink (`120000`) / `100755` entry 박음. integration test 박음 + JSON 출력 정합 검증.
