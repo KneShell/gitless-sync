@@ -1,7 +1,7 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (Phase 5.13.1 task II 완료 → 잔여 2)
+- Last updated: 2026-05-09 (Phase 5.13.1 task JJ [~] in progress)
 - Total tasks: 50
 - Completed: 48 / 50
 
@@ -292,7 +292,7 @@
   - Files: `crates/gitless-sync/src/commands/scan/hash_local.rs`.
   - 결과 (2026-05-09): `try_hash_local` match에서 `TextDecodeResult::Unknown`을 encoding failure side에서 `None` side로 이동 (`Utf8 | Detected | Unknown => None`). exhaustive matching 보존, `_` wildcard 회피, panic path 0 (`unreachable!()` 채택 X — YAGNI 정합으로 invariant assertion 추가 회피). 도메인 효과 0 — `Unknown`은 `decode.rs` Windows-1252 shortlist cover로 logically unreachable이므로 unreachable branch에서의 `Some(Encoding) → None` 전환은 관측 불가. doc comment 갱신 — "neither UTF-8 nor decodable by the `try_decode_text` shortlist" 표현 제거 후 "carry a UTF-16 BOM (out of scope for v0.2; see `spec-hash-and-normalize.md` § BOM). `Unknown` is logically unreachable per `decode.rs` (Windows-1252 covers all bytes)" 직접 명시. 5 existing tests 모두 unchanged pass — `try_hash_local_surfaces_utf16_bom_as_encoding_failure` 여전히 `Some(Encoding)` assert (Utf16Bom 분기 정합), `try_hash_local_marks_binary` 여전히 `None` assert (Detected 분기 정합). decode.rs scope 외 — 본 task는 `hash_local.rs` only. **advisor 권고 mirror**: option (b) 채택 (vs `unreachable!()` option (a) / `_` wildcard option (c)) — 단순화 + 안전 + exhaustive 동시 만족. validation: cargo fmt --check clean (G-016 mirror, bare `cargo fmt` 미사용) + clippy 0 warnings + xtask check-line-limits (56 + 5 within 300, hash_local.rs 120 LOC) + xtask check-cycles (0/0, 51 modules) + cargo machete clean + cargo test 318 lib + 43 integration + 49 xtask = **410 tests pass** (HH baseline 그대로) + tarpaulin **90.52%** (926/1023 lines, +0.00% change vs HH baseline 90.52%).
 
-- [ ] **JJ. `classify.rs::make_remote` clone trade-off 결정 (low)**
+- [~] **JJ. `classify.rs::make_remote` clone trade-off 결정 (low)**
   - acceptance: CC 분할에서 `classify.rs::make_remote(&TreeEntry)`가 `entry.sha.clone()` + `entry.mode.clone()` 도입 — 원본은 `for entry in body.tree` ownership move였음. 결정: (a) `make_remote(entry: TreeEntry)` ownership move 복원 (테스트 fixture 박음 정합 시), 또는 (b) doc comment로 trade-off 명시 (테스트 reuse 의도). 둘 중 정합한 쪽 적용.
   - 검증: cargo fmt + clippy + check-line-limits + check-cycles + machete + test (407+ pass) + tarpaulin 80% 유지.
   - Files: `crates/gitless-sync/src/shared/github/trees/classify.rs`, `crates/gitless-sync/src/shared/github/trees/fetch.rs` (caller 정합 시).
