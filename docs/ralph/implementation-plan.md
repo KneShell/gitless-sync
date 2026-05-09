@@ -144,7 +144,7 @@
 
 ### Phase 5.9 — 보강 fixture
 
-- [ ] **P. NFD raw bytes injection unit test fixture**
+- [~] **P. NFD raw bytes injection unit test fixture**
   - acceptance: Windows 환경에서 raw bytes injection — compose 한글 (`가` = `\u{AC00}`) vs decompose (`가` = `\u{1100}\u{1161}`) 둘 다 시도. `walker.rs` + 비교 path key 정합 검증.
   - spec: `docs/specs/spec-domain-pitfalls.md` § 검증 환경.
 
