@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (Phase 5.14 task NN 완료)
+- Last updated: 2026-05-09 (Phase 5.14 task OO 완료)
 - Total tasks: 57
-- Completed: 51 / 57
+- Completed: 52 / 57
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -326,10 +326,11 @@
   - Files: `CLAUDE.md`.
   - 결과 (2026-05-09): CLAUDE.md line 142(빈줄)~144 "### 메모리 환경" section 통째 제거 (3 lines down). Files scope 정합 (`CLAUDE.md` only). 검증 본문의 "전체 repo 범위" 0건 조건은 의존순서 NN → OO → {RR, SS}와 정합 — NN 단독에서는 CLAUDE.md scope만 즉시 만족 (`git grep "iCloud~md~obsidian" -- CLAUDE.md` 0건 + `git grep "C:\\Users\\admin" -- CLAUDE.md` 0건 확인), 전체 repo scope는 RR (research) + SS (specs)에서 누적 통과 예정 (research 3건 + spec-domain-pitfalls.md 1건 잔존 — `docs/research/phase5-{regression,vault-after,vault-baseline}.md` + `docs/specs/spec-domain-pitfalls.md` line 197). validation: cargo fmt --check clean (G-016 mirror) + cargo clippy 0 warnings + cargo xtask check-line-limits (56 + 5 within 300) + cargo xtask check-cycles (51 modules, 0 cycle / 0 cross-slice ref) + cargo machete clean + cargo test --workspace (318 lib + integration + 49 xtask = 410 tests baseline 그대로) + tarpaulin은 G-012 spec-only 면제 (코드 변동 0, baseline 유지 자동 통과). Status counter Phase 5.14 7 task 누락분 동시 회복 — Total 50 → 57 + Completed 50 → 51 + Last updated 갱신.
 
-- [~] **OO. CLAUDE.md slim — Current State + 사용자 취향 결정 + Ralph Workflow + File Locations**
+- [x] **OO. CLAUDE.md slim — Current State + 사용자 취향 결정 + Ralph Workflow + File Locations**
   - acceptance: CLAUDE.md line 3-59 "Current State" section의 ADR/Phase narrative summary는 `docs/adr/*.md` + `CHANGELOG.md` + `docs/roadmap.md`와 중복 — 1~2 paragraph로 압축 ("현재 v0.2.x, Phase 5.14 진행 중. history는 CHANGELOG/ADR/research"). 사용자 취향 결정 section (line 129-141)도 spec-architecture.md와 중복 — pointer로 압축. Ralph Workflow + File Locations section은 `docs/ralph/`로 pointer. 결과 CLAUDE.md ≤ 60 LOC 목표.
   - 검증: CLAUDE.md LOC 측정 (PowerShell `(Get-Content CLAUDE.md).Count`) ≤ 60. 기존 ralph build mode prompt에서 CLAUDE.md만 읽어도 핵심 (도구 본성 + 비목표 + 검증된 함정 + Architecture vertical slice 요점) 정보 잔존 확인.
   - Files: `CLAUDE.md`.
+  - 결과 (2026-05-09): CLAUDE.md 142 LOC → **45 LOC** (≤ 60 게이트 통과, 68% 감축). Current State 57 lines (line 3-59 ADR 0001~0008 + Phase 2/4/6/5 narrative + 자율 진행 통계 + 다음 진입점) → 1 paragraph pointer (`CHANGELOG.md` + `docs/adr/*.md` + `docs/research/*.md` + `docs/ralph/implementation-plan.md`). 사용자 취향 결정 13 lines (line 129-141, vertical slice / coverage 80% / init stdout / GraphQL default / rayon 정책 / 파일 ≤ 300 / Layer 정의 / panic 차단 / Event 영구 제외) → 1 line pointer (`docs/specs/spec-architecture.md` + 박제 expiration 정책 retain). Ralph Workflow + File Locations → 압축 pointer (각 1~3 line). Architecture directory tree (24 lines) → 1 paragraph + spec-architecture.md pointer. Pillars retention 검증 통과: 도구 본성 (3 bullets) + 비목표 (1 paragraph + Phase 5 8 함정 명시) + 검증된 함정 (3 bullets, tarpaulin Windows / 자체 hash / gh -F POST G-017) + Architecture vertical slice 요점 (1 paragraph) 모두 잔존. Privacy: `git grep "iCloud~md~obsidian" -- CLAUDE.md` 0건 + `git grep "C:\\Users\\admin" -- CLAUDE.md` 0건 (NN 후속 baseline 유지). validation: cargo fmt --check clean (G-016 mirror) + cargo clippy 0 warnings + cargo xtask check-line-limits (56 + 5 within 300) + cargo xtask check-cycles (51 modules, 0 cycle / 0 cross-slice ref) + cargo machete clean + cargo test --workspace (318 lib + 43 integration + 49 xtask = 410 tests baseline 그대로) + tarpaulin은 G-012 spec-only 일반화 면제 (CLAUDE.md doc-only 코드 변동 0, baseline 유지 자동 통과). Status counter Completed 51 → 52 + Last updated 갱신.
 
 - [ ] **PP. CHANGELOG.md slim — v0.2 entry verbose paragraph 정리**
   - acceptance: CHANGELOG.md v0.2 entry의 task별 결과 narrative paragraph 압축. semver-style (`## [0.2.0] - 2026-05-09` + `### Added/Changed/Removed/Fixed` 4개 sub-section) 표준 형식 따라 bullet으로 정리. 자세한 task별 결과는 `docs/ralph/implementation-plan.md` 본문에 이미 존재 — CHANGELOG는 user-facing summary만.
