@@ -39,7 +39,7 @@
   - acceptance: 같은 path key가 두 case (`README.md` vs `Readme.md`)로 박힐 때 case-sensitive 비교 정책 박음. integration test fixture (mock Trees API + walker).
   - spec: `docs/specs/spec-domain-pitfalls.md` § Path 정규화 + `spec-classification.md`.
 
-- [ ] **D1. Windows NTFS case collision local-side detection**
+- [~] **D1. Windows NTFS case collision local-side detection**
   - acceptance: walker가 NTFS local에서 case-collision 박힌 directory 박을 때 (예: `Foo.txt` + `foo.txt` 같은 directory에 박힌 환경) 두 entry 모두 catch + case-sensitive 비교로 정합. NTFS volume이 case-insensitive로 1개만 catch한 case도 detect — `Status::Failed` + `failed_reason: "case_collision"` 박음. unit test (mock filesystem).
   - spec: `docs/specs/spec-domain-pitfalls.md` § Windows NTFS local-side case detection.
 
