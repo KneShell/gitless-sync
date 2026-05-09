@@ -24,11 +24,14 @@ Read in this order, fully:
 - GitHub API mocking uses `GhClient` trait + `MockGhClient` inject. ureq + mockito 의존성은 ADR 0002로 제거됨 — 추가 금지.
 
 ## 3. Validation (Backpressure)
-Run in order. Do NOT proceed to step 4 until all pass.
+Run in order. Do NOT proceed to step 7 until all pass.
 1. `cargo fmt --check` — if fails, run `cargo fmt` and re-check.
 2. `cargo clippy --workspace --all-targets -- -D warnings` — fix all warnings.
-3. `cargo test --workspace` — all tests must pass.
-4. `cargo tarpaulin --engine llvm --workspace --out Stdout` — coverage ≥ 80%. (G-012 적용 — spec-only task / `todo!()` 잔존 task는 baseline 유지로 자동 통과.)
+3. `cargo xtask check-line-limits` — file ≤ 300 LOC (Phase 6 deny gate, doc-heavy 면제).
+4. `cargo xtask check-cycles` — slice 안 acyclic + cross-slice ref 0건 (Phase 6 deny gate, cargo-modules 기반).
+5. `cargo machete` — unused dependency 0건 (exit 0). false positive 시 `[package.metadata.cargo-machete] ignored = [...]`.
+6. `cargo test --workspace` — all tests must pass.
+7. `cargo tarpaulin --engine llvm --workspace --out Stdout` — coverage ≥ 80%. (G-012 적용 — spec-only task / `todo!()` 잔존 task는 baseline 유지로 자동 통과.)
 
 If any step fails after a reasonable fix attempt:
 - Update `docs/ralph/guardrails.md` with a new `G-NNN` entry describing the failure pattern.

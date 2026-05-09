@@ -25,12 +25,15 @@
 ## Full Validation Pipeline
 1. `cargo fmt --check`
 2. `cargo clippy --workspace --all-targets -- -D warnings`
-3. `cargo test --workspace`
-4. `cargo tarpaulin --engine llvm --workspace --out Stdout` (≥ 80%)
-5. `cargo deny check` (의존성 변경 시)
-6. `cargo audit` (의존성 변경 시)
+3. `cargo xtask check-line-limits` (file ≤ 300 LOC)
+4. `cargo xtask check-cycles` (cycle 0 + cross-slice 0)
+5. `cargo machete` (unused dependency 0건)
+6. `cargo test --workspace`
+7. `cargo tarpaulin --engine llvm --workspace --out Stdout` (≥ 80%)
+8. `cargo deny check` (의존성 변경 시)
+9. `cargo audit` (의존성 변경 시)
 
-위 1~4를 순서대로 통과하면 task 완료 가능. 5~6은 의존성 추가/변경한 task에 한해 추가.
+위 1~7을 순서대로 통과하면 task 완료 가능. 8~9는 의존성 추가/변경한 task에 한해 추가. `cargo-public-api`는 CI gate(`.github/workflows/ci.yml`) 한정 — local에는 안 박음 (ref + nightly 부담).
 
 ## Architecture Tools (Phase 6)
 
