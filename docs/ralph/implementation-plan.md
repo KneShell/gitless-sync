@@ -2,8 +2,8 @@
 
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
-- Total tasks: 34
-- Completed: 34 / 34
+- Total tasks: 40
+- Completed: 36 / 40
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -191,9 +191,10 @@
   - spec: `docs/specs/spec-domain-pitfalls.md` § Acceptance Criteria.
   - 결과 (2026-05-09): `target/release/gitless-sync.exe scan --repo KneShell/gitless-sync --branch main --pretty > tmp/phase5-scan-after.json` 박음 (exit 0, schema 1.1, scanned_at 2026-05-09T06:32:02). **117 files / 81 identical / 36 local_only_changed / 0 remote_only_changed / 0 drift / 0 failed**. **T acceptance 핵심 metric 통과** — false drift 0건 ✓ + false failed 0건 ✓ + 의도된 detect-only drift surface 부재 (KneShell/gitless-sync는 NFD path/`.gitattributes`/LFS/submodule/symlink/비-UTF-8/Windows long path 모두 결여, baseline § Limitations 그대로). 36 local_only_changed = 2 race noise (`tmp/phase5-scan-after.{json,err}` shell redirect race) + 17 NEW (Phase 5 phase 박힌 file: `decode.rs`/`gitattributes.rs`/`gitattributes_*_tests.rs`/`pipeline_tests*.rs` × 4 + `tests/scan_*.rs` × 4 + `benches/*.rs` × 2 + `docs/research/phase5-*.md` × 2 + `encoding-library-eval.md`) + 17 MODIFIED (Phase 5 phase 박힘 변경: `Cargo.{toml,lock}` + `commands/scan/*.rs` × 6 + `shared/{mod,normalize}.rs` × 2 + `tests/common/mod.rs` + `implementation-plan.md` + `spec-*.md` × 5). KneShell/gitless-sync remote는 mid-phase snapshot이라 본 repo 변경 cascade 박지 못함 — local_only_changed 누적은 self-dogfood 본질적 noise. Schema 1.0 → 1.1 정확화 분류 박음 (spec-domain-pitfalls.md § "v0.1 vs v0.2 회귀 정의" + O task 5 lock test). pitfall handling 정확성 검증은 cross-reference integration tests chain (R/R2/S/P/P1/Q/G1/R1/I) 담당 — KneShell/gitless-sync에 함정 surface 0건이라 dogfood가 직접 박지 못함, baseline § Pitfall Verification Chain 박음. **per-file regression diff는 W task scope** (의존성 graph `T → W`, baseline JSON 미보존 박힘). `docs/research/phase5-vault-after.md` 박음 (baseline mirror 구조 — Setup / Summary / Drift Source / Pitfall Chain / Schema / Hand-off / Limitations / Acceptance). validation: cargo fmt clean + clippy 0 warnings + xtask check-line-limits (52 + 5 within 300) + xtask check-cycles (0/0) + cargo machete clean + cargo test 293 lib + 41 integration + 49 xtask = **383 tests pass** (S baseline 유지) + tarpaulin 90.73% baseline 유지 (research artifact, production code 변경 0 — G-012 코드 변경 0 baseline 유지 정합).
 
-- [~] **W. v0.1 baseline regression diff (정확화 vs 회귀 자동 분류)**
+- [x] **W. v0.1 baseline regression diff (정확화 vs 회귀 자동 분류)**
   - acceptance: v0.1 출력 baseline JSON 박고 v0.2 출력과 자동 diff 분류. 정확화 화이트리스트 (`.gitattributes` 박힌 vault에서 binary 정확 분류 / NFC 정규화로 false drift 해소 / LFS pointer 명시 박힘) 박음. 화이트리스트 외 status 변화는 회귀로 박음 (자동 fail). `docs/research/phase5-regression.md` 박음.
   - spec: `docs/specs/spec-domain-pitfalls.md` § v0.1 vs v0.2 회귀 정의.
+  - 결과 (2026-05-09): commit `68fb0f0` (task A 시점 v0.1 코드) worktree에 별도 빌드 (`D:/00.Projects/02.Personal/gitless-sync-v01baseline`, scan 후 정리) → main repo cwd 박음 동일 local state + 동일 remote (KneShell/gitless-sync@main) + 1.2초 간격 timing-aligned scan. binary delta만 isolate. **REGRESSION 0건** (자동 fail trigger 박음 안 함, 스크립트 exit 0). 121/121 path가 binary delta 0 — `(status, local_sha, remote_sha)` 정확 일치 (`exact-match`). Envelope W1 정확화 — `schema_version` 1.0 → 1.1. W2 정확화 — `mode` 필드 121/121 v0.2 entry 박음 (v0.1 0/121, optional 신규 — output.rs::tests v1.0 backward-compat lock). W3/W4/W5/W6 화이트리스트 분기 0건 (KneShell/gitless-sync 함정 surface 0건, baseline 그대로). 첫 reckless try (main worktree cwd + tmp/ 박음, T after 06:32 vs W baseline 06:47, 15분 timing 박음)에서 3 REGRESSION + 2 status-same-sha-drift surface → advisor 권고 따른 timing-aligned 재실행 (target/regression/ 박음, walker descent 안 함, race noise 0)으로 0건 도달. 산출물: `docs/research/phase5-regression.md` (Method / Whitelist W1~W6 / Result / Diff Output self-contained / Limitations / Hand-off). process artifact는 `tmp/` 박음 (gitignored 컨벤션, T 정합, 재실행 가능): baseline JSON + after JSON + Python classifier (210 LOC) + result.txt. worktree 정리 완료 (`git worktree remove --force`, `git worktree list` clean). validation: cargo fmt clean (코드 변경 0) + clippy 0 warnings + xtask check-line-limits (52 + 5 within 300) + xtask check-cycles (0/0) + cargo machete clean + cargo test 383 pass (lib 293 + integration 41 + xtask 49, S baseline 그대로) + tarpaulin baseline 유지 (G-012 spec-only 면제 적용 — `docs/research/*.md` + `docs/ralph/*.md` 박음, src/ 변경 0).
 
 ### Phase 5.11 — 최종 박제 + CI
 
