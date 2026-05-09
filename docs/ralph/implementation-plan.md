@@ -117,7 +117,7 @@
 
 ### Phase 5.8 — spec 갱신 cascade
 
-- [ ] **L. spec-hash-and-normalize.md `.gitattributes` 박힌 정합 검증**
+- [~] **L. spec-hash-and-normalize.md `.gitattributes` 박힌 정합 검증**
   - acceptance: spec 본문 + acceptance criteria가 K1~K4 결과와 정합. 기존 PRD 시나리오 5/6/7 통과 + 새 시나리오 박음. (Phase 5 spec 갱신에서 이미 박혔으니 본 task는 implementation 정합 검증.)
   - spec: `spec-hash-and-normalize.md`.
 
