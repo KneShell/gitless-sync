@@ -113,10 +113,12 @@ for R3 (deferred to task U / vault dogfooding).
 The 100K mock-only case (175 ms) skips the 10K case's filesystem walk
 + 10K SHA-1 computations. It measures only Trees parse + classify +
 serialize at scale — a different shape, included as the projection point
-for "what does the no-IO pipeline cost at 100K?" Linear scaling implies
-~1.75 s for 1M paths in the same shape, well within the Trees API
-truncation ceiling (`docs/specs/spec-github-api.md` § Trees, G-002 limit
-~100K entries).
+for "what does the no-IO pipeline cost at 100K?" Linear scaling would
+imply ~1.75 s for 1M paths in the same shape, but **1M paths far exceeds
+the Trees API truncation ceiling** (G-002: ~7 MB or ~100K entries,
+whichever first). The 1M number is therefore a hypothetical pipeline-only
+cost assuming the API constraint were lifted — at 100K entries the API
+itself starts truncating before the pipeline becomes interesting.
 
 ## Regression gate scope
 
