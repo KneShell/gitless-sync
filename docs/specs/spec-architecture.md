@@ -62,6 +62,21 @@ CLI/Domain/IO 전체 분층은 채택 안 함. vertical slice 박제와 충돌 +
 - **error 정의 모듈**: 단일 거대 enum 대신 도메인별 sub-module로 분리 (`shared/error/network.rs`, `shared/error/config.rs` 등).
 - **integration tests**: 단일 파일 대신 도메인별 file 분리 (`tests/scan_*.rs`, `tests/diff_*.rs`, `tests/common/mod.rs`). Rust ch11-03 best practice.
 
+### 금지 패턴 — sibling test file
+
+`production_module.rs` 옆에 `production_module_tests.rs` 같은 sibling test file **박지 마라**. Rust 관용 위반:
+
+- unit test = same file `#[cfg(test)] mod tests` (private item 접근 + 컴파일 시점 분리)
+- integration test = `tests/` 별도 crate (public API만 접근)
+- sibling `_tests.rs`는 위 둘 다 어긴 패턴 — Rust ecosystem에 거의 안 박혀있음
+
+LOC 300 게이트 통과 위해 test 분리 박지 말고, **production 자체를 module 폴더로 분할**:
+- `foo.rs` (296 LOC) → `foo/{mod.rs, parser.rs, classify.rs, matching.rs}` 4 file
+- 각 sub-module에 `#[cfg(test)] mod tests` 박음
+- LOC 게이트 자연 통과 + Rust 관용 정합 + production 폴더 noise 0
+
+위반 사례 (2026-05-09): `shared/gitattributes_tests.rs` + `shared/gitattributes_classify_tests.rs` (task K1.5 시점 박음). task Z에서 정리.
+
 ### Enforcement
 
 - Phase 6 Step 2: F-I 4 task 분할 + Q error 분리 + P tests 분리 직후 baseline 위반 0건 도달 시 즉시 deny 전환.
