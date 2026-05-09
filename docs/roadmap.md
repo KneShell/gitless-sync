@@ -125,11 +125,24 @@ vague 4건 결론 박은 후 메모리 차단된 fresh session으로 5개 각도
 - §5-2 cargo-* 외부 도구 채택 — public-api / machete / modules.
 - §5-3 (mention) — LOC 300 + `cognitive_complexity` 15 부분 중복 비판. 박제 expiration 정책에 따라 Phase 7 진입 시 재검토 (proxy 두 개 동시 deny가 정당한지). 현 시점은 둘 다 유지.
 
-## Phase 5 — 도메인 함정 정리 (CONFIRMED, 2026-05-09)
+## Phase 5 — 도메인 함정 정리 (COMPLETED, 2026-05-09)
 
-> **2026-05-09 vague 결론 박힘 + clean-context 외부 시각 보강.** 8 함정 모두 ralph 자율 진행 (한 phase 통째). 우선순위 입력은 vault 운영 데이터 (Phase 5 첫 task). 검증 환경 Windows 1차 + 실용 근사 (raw bytes injection + NTFS 실파일 fixture 둘 다 가능 — fact check §4 확정). 완료 기준 = implement 완료 + vault dogfooding 통과. 상세 spec: `docs/specs/spec-domain-pitfalls.md`. task list: `docs/ralph/implementation-plan.md` (35+ task A~Z+).
+> **2026-05-09 완료.** 38 task ralph 자율 진행 본진 종료 (V1 CHANGELOG + Z audit sweep 잔여), **383 tests pass (293 lib + 41 integration + 49 xtask) + tarpaulin 90.73%** (949/1046 lines). 사람 개입 0회 (advisor BLOCKING fix 다수는 self-correct).
 >
-> **clean-context 보강 박힘 (2026-05-09)**: 5 각도 비판 + fact check 6건 + task 11건 추가. encoding 변환 hash 입력 = (b) 원본 raw bytes 정책. `.gitattributes` 화이트리스트 (text/binary/eol=lf|crlf만). v0.1 vs v0.2 회귀 정의 정책 박음. `prepare_for_hash` lifetime = `Arc<GitAttrs>` 권고. 추가 함정: BOM / git LFS pointer / Windows long path / `.gitignore` 정책 / NTFS case local-side detection.
+> 결과:
+> - 8 함정 (NFD/case/encoding/submodule/symlink/empty/permission/.gitattributes) 모두 정확 hash 재현 또는 detect-only 처리 + 신규 함정 BOM (UTF-8 strip + UTF-16 detect) / git LFS pointer / Windows long path 추가.
+> - NFC 정규화 walker + remote tree 양쪽 박힘. case_collision 3 시나리오 detect (canonical/diagonal/local-both).
+> - encoding_rs 다중 인코딩 변환 시도 후 detect-only (`failed_reason: "encoding"` caller plumbing은 follow-up).
+> - `.gitattributes` 5 module 폴더 (mod/parser/classify/matching) + 화이트리스트 5 entry (text=auto / binary / eol=lf / eol=crlf / LfsPointer) + 7 분기 helper.
+> - schema_version 1.0 → 1.1 (`mode` + `failed_reason` + `lfs_pointer` 필드, v1.0 backward-compat lock test 박힘).
+> - T (vault dogfood KneShell/gitless-sync@main): 117 files / 81 identical / 36 local_only_changed / 0 drift / 0 failed (false drift 0건).
+> - W (v0.1 baseline regression diff): REGRESSION 0건 (envelope schema_version + mode field 정확화만, 121/121 path binary delta 0).
+> - U (CI gate `.github/workflows/ci.yml`, Windows runner): fmt-check / clippy / test --workspace / tarpaulin --fail-under 80 박음.
+> - 신규 spec: `docs/specs/spec-domain-pitfalls.md`. 신규 research: phase5-vault-baseline / phase5-vault-after / phase5-regression / phase5-gitattributes-bench / phase5-scan-scale-bench / encoding-library-eval.
+
+> 사용자 stance: 도메인 함정 정확 처리. 검증 환경 Windows 1차 + 실용 근사 (raw bytes injection + NTFS 실파일 fixture 둘 다 가능). 완료 기준 = implement + vault dogfooding 통과 + 회귀 0건.
+>
+> 결론 박제 (2026-05-09, vague 4건 + clean-context 외부 시각 5건 + fact check 6건). 상세 task list는 `docs/ralph/implementation-plan.md` (40 task A~Z+), spec은 `docs/specs/spec-domain-pitfalls.md`.
 
 ### 8 함정 처리 정책 매핑
 

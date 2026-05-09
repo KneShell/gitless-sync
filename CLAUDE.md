@@ -1,6 +1,6 @@
 # gitless-sync
 
-## Current State (2026-05-07)
+## Current State (2026-05-09)
 
 **v0.2 마이그레이션 완료** — ADR 0002 (ureq → gh subprocess) 15 task ralph 자율 진행 종료, **154 tests pass (142 unit + 12 integration), tarpaulin 90.47%**. M8 self dogfooding 통과(`scan --repo KneShell/gitless-sync` → 43 files, 36 identical / 7 local_only_changed / 0 remote_only_changed / 0 drift / 0 failed, total invariant 일치).
 
@@ -54,7 +54,9 @@
 
 **Phase 5 clean-context 외부 시각 보강 박힘 (2026-05-09)** — 5 각도 비판 + fact check 6건 + task 12건 추가. 박음 결정: encoding 변환 hash 입력 (b) 원본 raw bytes / `.gitattributes` 화이트리스트 (text/binary/eol=lf|crlf만) / v0.1 vs v0.2 회귀 정의 (정확화 vs 회귀 자동 분류) / `prepare_for_hash` lifetime 계약 `Arc<GitAttributes>`. 추가 함정: BOM (UTF-8 strip + UTF-16 detect) / git LFS pointer (Status::Failed + reason "lfs_pointer") / Windows long path / 예약 파일명 / `.gitignore` 무시 정책 명시 / Windows NTFS case local-side detection. plan 22 → 34 task. spec 갱신: spec-domain-pitfalls.md (대규모) + spec-hash-and-normalize.md (lifetime 계약) + spec-output-schema.md (schema_version 1.1) + spec-error-contracts.md (failed_reason enum) + spec-config.md (.gitattributes 위치) + spec-classification.md (NFC + case). 신규 박음: docs/specs/spec-domain-pitfalls.md + CHANGELOG.md.
 
-**다음 세션 진입점 후보**: Phase 5 ralph 자율 진행 (A~Y task, vault 분석 + fact check 첫 task) / vault scale dogfooding (1000+ path cache 효과 재검토 트리거, Phase 5 완료 후).
+**Phase 5 완료 (2026-05-09)** — 도메인 함정 정리 38 task ralph 자율 진행 본진 종료 (V1 CHANGELOG + Z audit sweep 잔여), **383 tests pass (293 lib + 41 integration + 49 xtask) + tarpaulin 90.73%** (949/1046 lines). 사람 개입 0회 (advisor BLOCKING fix 다수는 self-correct). 8 함정 (NFD/case/encoding/submodule/symlink/empty/permission/.gitattributes) 모두 정확 hash 재현 또는 detect-only 처리 + 신규 함정 BOM (UTF-8 strip + UTF-16 detect) / git LFS pointer / Windows long path 추가. NFC 정규화 walker + remote tree 양쪽 박힘. case_collision 3 시나리오 detect (canonical/diagonal/local-both). encoding_rs 다중 인코딩 변환 시도 후 detect-only (`failed_reason: "encoding"` caller plumbing은 follow-up). `.gitattributes` 5 module 폴더 (mod/parser/classify/matching) + 화이트리스트 5 entry (text=auto / binary / eol=lf / eol=crlf / LfsPointer) + 7 분기 helper. schema_version 1.0 → 1.1 (`mode` + `failed_reason` + `lfs_pointer` 필드, v1.0 backward-compat lock test 박힘). T (vault dogfood KneShell/gitless-sync@main, 2026-05-09): 117 files / 81 identical / 36 local_only_changed / 0 drift / 0 failed (false drift 0건). W (v0.1 baseline regression diff): REGRESSION 0건 (envelope W1 schema_version + W2 mode field 정확화만, 121/121 path binary delta 0). U (CI gate `.github/workflows/ci.yml`, Windows runner): fmt-check / clippy / test --workspace / tarpaulin --fail-under 80. 신규 spec: `docs/specs/spec-domain-pitfalls.md`. 신규 research: phase5-vault-baseline.md / phase5-vault-after.md / phase5-regression.md / phase5-gitattributes-bench.md / phase5-scan-scale-bench.md / encoding-library-eval.md.
+
+**다음 세션 진입점 후보**: V1 (CHANGELOG.md v0.2 entry) + Z (gitattributes 296 LOC module 폴더 분할 + 6 sub-agent audit sweep) Phase 5 잔여 마무리 → vault scale 1000+ path dogfooding (mtime cache 효과 재검토 트리거, ADR 0008 § Future work) / Phase 7+ 진입.
 
 ## Project Overview
 git이 없는 로컬 디렉토리를 GitHub repo와 단방향으로 비교해, 드리프트를 정량적으로 보고하는 read-only AI 친화 CLI. iCloud 동기화 디렉토리처럼 git 사용 자체가 불가능한 환경에서 "평행우주 드리프트"를 막기 위한 도구. 도구는 사실(4분류 JSON)만 제공하고 결정은 호출자(사람 또는 AI)에게 맡긴다.
