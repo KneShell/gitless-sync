@@ -1,7 +1,7 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (Phase 5.13.1 task GG 완료 → 잔여 4)
+- Last updated: 2026-05-09 (Phase 5.13.1 task HH [~] in progress)
 - Total tasks: 50
 - Completed: 46 / 50
 
@@ -280,7 +280,7 @@
   - Files: `crates/gitless-sync/src/commands/scan/pipeline/short_circuit.rs`.
   - 결과 (2026-05-09): `short_circuit.rs::tests`에 `gitattributes_text_auto_without_lfs_filter_returns_none` 신규 — `.gitattributes` 단일 line `*.txt text=auto`만 (no `filter=lfs`) load → `try_short_circuit_failed("notes.txt", None, None, &cctx)` returns `None` 회귀 가드. 기존 `no_short_circuit_returns_none_for_plain_path` (empty `.gitattributes` 케이스)와 분리 — `.gitattributes` parse + classify 경로 자체가 false LFS promotion 없이 통과하는지 검증 (DD 분할 전 `pipeline_tests_lfs.rs::assemble_entries_does_not_promote_path_without_filter_lfs_match` semantics mirror, integration → unit-level downscope). **LOC fit (advisor 권고 mirror)**: 299 → 298. helper `assert_promoted(result: Option<&(String, FailedReason)>, mode: &str, reason: FailedReason)` 도입 (`Option<&T>` form은 clippy `ref_option` deny 정합) + 7개 multi-line `assert_eq!(result, Some((...)))` (4 lines) → `assert_promoted(result.as_ref(), mode, reason)` (1 line) 압축. 새 test 16 lines + helper 3 lines − 7×3 압축 = -2 net. `Some(&(mode.to_string(), reason))` 안 — temp 튜플 ref가 assert_eq! 호출 동안 살아있어 valid (NLL extension), `assert_eq!`는 inner `&left`/`&right` borrow라 추가 move 없음. **Files scope strict**: `short_circuit.rs` only — 다른 task scope 침범 없음 (Cargo.toml/spec/CHANGELOG 미변경). validation: cargo fmt clean + clippy 0 warnings (1 fix — `clippy::ref_option` 위반 첫 시도 `&Option<T>` → `Option<&T>` form 정합) + xtask check-line-limits (56 + 5 within 300, short_circuit.rs 298 LOC) + xtask check-cycles (0/0, 51 modules) + cargo machete clean + cargo test 318 lib + 43 integration + 49 xtask = **410 tests pass** (FF baseline 409 → +1 net: regression guard) + tarpaulin **90.52%** (926/1023 lines, +0.10% change vs FF baseline 90.42%/925/1023).
 
-- [ ] **HH. `hash_pass.rs` `PreState` multi-line 복원 (low)**
+- [~] **HH. `hash_pass.rs` `PreState` multi-line 복원 (low)**
   - acceptance: `hash_pass.rs:624` `#[rustfmt::skip]` + `PreState` enum 단일라인 압축 carry over는 AA에서 `pipeline.rs` 300 LOC gate 회피용 임시 hack이었음. DD에서 분할 후 `hash_pass.rs`는 257 LOC라 LOC 압력 해소 → `#[rustfmt::skip]` 제거 + normal multi-line struct로 복원.
   - 검증: cargo fmt clean (skip 제거 후 자동 multi-line) + clippy + check-line-limits + check-cycles + machete + test (407+ pass) + tarpaulin 80% 유지.
   - Files: `crates/gitless-sync/src/commands/scan/pipeline/hash_pass.rs`.
