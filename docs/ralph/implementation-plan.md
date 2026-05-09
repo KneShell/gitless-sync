@@ -15,22 +15,13 @@
 
 > **Slim 정책 (2026-05-10)**: completed phase는 1~2 sentence 요약만 retain. 자세한 task별 결과는 git history (`git log --grep="<task ID>"`) + commit message 본문 + CHANGELOG.md user-facing summary로 cover. active/pending phase만 verbose retain. 의존 순서 graph 제거 — completed phase는 이미 종결, 신규 phase는 phase 본문 안에 의존 명시.
 
-## Completed Phases (v0.2.x)
+## Completed Phases
 
-### Phase 5 — 도메인 함정 정리 (본진 38 task: A~Y, 2026-05-09)
-8 핵심 함정 (NFD/NFC + case + encoding + submodule + symlink + 빈 파일 + 실행 권한 + .gitattributes) + 추가 함정 4건 (UTF-8/16 BOM / LFS pointer / Windows long path / .gitignore) detect 또는 정확 hash 재현. NFC normalize + case_collision 3 시나리오 + encoding_rs 4-encoding sniff (raw bytes hash, b-policy) + .gitattributes 화이트리스트 5 entry + Schema v1.0→1.1 (mode/failed_reason/lfs_pointer 필드). vault dogfood 117 files / 0 drift / 0 failed + v0.1 baseline regression diff REGRESSION 0건.
+### Phase 5 (2026-05-09 ~ 05-10, 57 task: A~TT)
+도메인 함정 정리 본진 + plumbing follow-up + sibling cleanup + clean-context audit follow-up + md 자료 audit. 8 핵심 함정 + 추가 함정 4건 detect/handle + Schema v1.0→1.1 (mode/failed_reason 9 enum/lfs_pointer) + vault dogfood 117 files / 0 drift / 0 failed + CLAUDE.md privacy section 제거.
 
-### Phase 5.13 — Plumbing follow-up + sibling cleanup (3 task: AA/CC/DD, 2026-05-09)
-failed_reason 3건 (encoding/nfd_collision/gitattributes_unsupported) caller plumbing 완성 + shared/github/trees + commands/scan/pipeline module 폴더 분할 + 5 sibling test file 제거.
-
-### Phase 5.13.1 — clean-context audit follow-up (9 task: EE~MM, 2026-05-09)
-encoding Failed entry is_binary plumbing + cascade priority lock + LFS regression guard test + PreState multi-line 복원 + Unknown arm YAGNI 제거 + make_remote ownership move 복원 + try_hash_local early return + tmp/ 정리 + .gitignore 추가 + 외부 worktree 제거.
-
-### Phase 5.14 — md 자료 audit (7 task: NN~TT, 2026-05-09~10)
-CLAUDE.md "### 메모리 환경" section 제거 (privacy critical, vault path/admin username 노출 제거) + CLAUDE.md slim 142→45 LOC + CHANGELOG.md slim 159→76 LOC + ADR (0001~0009) audit + 측정 raw data를 docs/research/phase4-measurements.md로 이전 + research/specs/ralph privacy 일반화 (vault path → `<project root>` placeholder) + guardrails G-011/G-016 fold + G-017 stale ref flag.
-
-### Phase 6.1 — v0.2.x cleanup (3 task: UU/VV/WW, 2026-05-10)
-ADR 0010 (cognitive_complexity 15 + LOC 300 orthogonal proxy 둘 다 유지 결정 — 함수 단위 분기 복잡도 vs file 단위 인지부하) + CI 안정성 1차 검증 (8 successful Windows runs retro, G-007 LLVM 가설 반증) + CI runner Linux 전환 (`windows-latest` → `ubuntu-latest`, 비용/cold-start 우위, G-018 cross-platform cfg gate 신규 발견).
+### Phase 6 (2026-05-09 ~ 05-10, 23 task: A~T 본진 + UU/VV/WW v0.2.x cleanup)
+Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 0 + panic 검출 hard gate) + v0.2.x cleanup (ADR 0010 cognitive_complexity vs LOC orthogonal proxy + CI runner Linux 전환 G-018).
 
 ## Active Phase
 
