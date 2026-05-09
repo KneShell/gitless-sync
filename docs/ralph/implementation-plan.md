@@ -186,7 +186,7 @@
 
 ### Phase 5.10 — vault dogfooding + 회귀 검증
 
-- [ ] **T. vault dogfooding (Phase 5 후)**
+- [~] **T. vault dogfooding (Phase 5 후)**
   - acceptance: Phase 5 후 vault scan 재실행 — false drift 0건 (의도된 detect-only drift = submodule/symlink/encoding fail 제외). `docs/research/phase5-vault-after.md` 박음 + before/after 비교.
   - spec: `docs/specs/spec-domain-pitfalls.md` § Acceptance Criteria.
 
