@@ -304,15 +304,17 @@
   - Files: `crates/gitless-sync/src/commands/scan/hash_local.rs`.
   - 결과 (2026-05-09): `try_hash_local`에서 `try_decode_text` 결과가 `Utf16Bom { .. }`이면 `prepare_for_hash` + `blob_hash` skip + `Ok((String::new(), is_binary(&raw), Some(FailedReason::Encoding)))` early-return. caller (`pipeline/hash_pass.rs::build_one_pre_entry` line 103)가 SHA를 `_`로 discard하므로 production 기능 영향 0 + integration test (`tests/scan_failed_reasons.rs:62-63`)도 `local_sha` omit assert만 — empty placeholder 정합. **semantic shift (advisor 권고 명시)**: default Unspecified `.gitattributes` (테스트 케이스 + 99% vault)는 영향 0 — `apply_unspecified`가 이미 `is_binary(raw)` NUL probe 사용. `text=auto`/`eol=lf`/`eol=crlf` + UTF-16 BOM 코너 케이스에서 `is_binary` 값 `false → true` flip — `spec-output-schema.md` § null 정책 ("encoding-failure measured") + EE 의도 정합 (correctness improvement, 회귀 아님). doc comment에 KK paragraph 박제 (early-return 정책 + caller discard + raw NUL probe + 코너 케이스 명시). unit test (`try_hash_local_surfaces_utf16_bom_as_encoding_failure`) sha assertion 수정 — `blob_hash(&[0xFFu8, 0xFE, b'A', 0])` → `""` (KK comment 박음). is_binary + encoding 두 assertion 그대로 (의미 동등). import 추가 — `use crate::shared::normalize::{is_binary, prepare_for_hash};` (function `is_binary`는 이미 `pub`). destructure 변수명 `is_binary` → `bin`으로 rename (advisor flag — function shadowing 회피, naming 정합). validation: cargo fmt --check clean (G-016 mirror — bare `cargo fmt` 미사용. assert_eq!() 1줄 80자 초과로 5-line wrap 자동 적용 후 explicit edit 적용) + clippy 0 warnings + xtask check-line-limits (56 + 5 within 300, hash_local.rs 120 → 128 LOC) + xtask check-cycles (0/0, 51 modules) + cargo machete clean + cargo test 318 lib + 43 integration + 49 xtask = **410 tests pass** (JJ baseline 그대로 — pure refactor + test 1건 modify, count 변동 0) + tarpaulin **90.57%** (932/1029 lines, JJ baseline 90.58%/933/1030 대비 -0.01% / -1 line — `blob_hash(&prepared)` early-return path 미실행 cover loss). hash_local.rs 자체 6/6 = 100% covered. 다른 task scope 침범 없음 (Cargo.toml/spec/CHANGELOG 미변경, `Files` listed scope 정합).
 
-- [ ] **LL. tmp/ 정리 + .gitignore 추가 (cleanup)**
+- [x] **LL. tmp/ 정리 + .gitignore 추가 (cleanup)**
   - acceptance: tmp/ 디렉토리 (Phase 5 진행 중 생성된 race noise: `phase5-scan-baseline.{json,err}` / `phase5-scan-after.{json,err}` / `phase5-regression-*.{json,py,txt}` / `phase5-scan-v01baseline.{json,err}`) 정리 + `.gitignore`에 `tmp/` 추가 (재발 방지). 현재 tmp/는 gitignored 아님 — `git status`에 untracked로 surface (phase5-vault-baseline.md / phase5-vault-after.md / phase5-regression.md 본문에 race noise 명시).
   - 검증: `git status`에서 tmp/ untracked 0건 확인 + `.gitignore`에 `tmp/` 라인 추가. cargo fmt --check + clippy + check-line-limits + check-cycles + machete + test 통과 유지.
   - Files: `.gitignore`.
+  - 결과 (2026-05-09): commit `33ef520`. `.gitignore`에 `tmp/` 라인 추가 + `# Temporary scan artifacts (race noise from \`> tmp/X.json\` redirects; spec 본문에 명시. Phase 5.13.1 LL task 추가)` 코멘트. `rm -rf tmp/`로 race noise 9개 file 제거 (phase5-scan-baseline + after + regression 시리즈). 검증: `git status` tmp/ untracked 0건 확인. 다른 task scope 침범 없음.
 
-- [ ] **MM. 외부 worktree 제거 (cleanup)**
+- [x] **MM. 외부 worktree 제거 (cleanup)**
   - acceptance: `phase5-regression.md` § Worktree setup의 외부 worktree (`D:/00.Projects/02.Personal/gitless-sync-v01baseline`) 정리. 본 worktree는 W task에서 v0.1 baseline (commit `68fb0f0`) regression diff 측정용으로 생성됨, 본 task 후 영구 보존 의미 0. `git worktree remove --force D:/00.Projects/02.Personal/gitless-sync-v01baseline` 명령으로 제거.
   - 검증: `git worktree list`에 main worktree (`D:/00.Projects/02.Personal/05.gitless-sync`) 단일 표시 확인.
   - Files: (git command only — 코드 변경 없음).
+  - 결과 (2026-05-09): no-op (worktree 이미 제거된 상태였음). `git worktree list` 결과 — `D:/00.Projects/02.Personal/05.gitless-sync 33ef520 [main]` 단일 표시 + `D:/00.Projects/02.Personal/` 디렉토리에 `gitless-sync-v01baseline` 폴더 부재 확인. acceptance 자연 충족, commit 생략.
 
 ## 의존 순서
 
