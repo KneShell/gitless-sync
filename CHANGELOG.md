@@ -7,15 +7,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Phase 5 — 도메인 함정 정리 (in progress, 2026-05-09 ~)
+TBD — Phase 5 audit sweep (task Z) + Phase 7+ 진입 시점 박음.
 
-준비 중 — Phase 5 ralph 자율 진행 시 박음. 8 핵심 함정 + 4 추가 함정 (BOM / LFS pointer / Windows long path / `.gitignore` 정책) 처리. 자세한 진행은 git log + `docs/ralph/implementation-plan.md` 34 task.
+## [0.2.0] - 2026-05-09
 
-예상 변경:
-- `schema_version`: 1.0 → 1.1 (minor — 새 필드 `mode` + `failed_reason` + `lfs_pointer` 추가, 기존 호환)
-- `prepare_for_hash` 시그니처 변경 — `gitattr: &Arc<GitAttributes>` 인자 추가 (`shared::gitattributes` 모듈 박음)
-- 새 의존성: `unicode-normalization`, `encoding_rs` (Mozilla)
-- **`status="failed"` 의미 확장 (advisor flag 2)**: v0.1 = "hash IO 실패"만, v0.2 = 9 reasons (`hash_io` / `encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported`). 기존 호출자가 `status == "failed"` 단일 분기 박혀있으면 `failed_reason` 추가 분기 박을 가치 — 특히 LFS pointer를 hash 에러로 오인 위험.
+> Phase 5 — 도메인 함정 정리. 38 task ralph 자율 진행 본진 종료 (V1 CHANGELOG + Z audit sweep 잔여). 사람 개입 0회 (advisor BLOCKING fix 다수는 self-correct).
+
+### Added
+
+#### Pitfall handling — 8 핵심 + 신규 함정 4건
+
+- **NFC path normalization** — walker (`commands/scan/walker.rs`) + remote tree (`shared/github/trees.rs` 3 mode) 양쪽 박힘. NFD/NFC 입력은 NFC key로 collapse.
+- **case_collision detection** — 3 시나리오 박음 (canonical / diagonal / local-both). `commands/scan/case_collision.rs` (vertical slice 정합) + `compare.rs` 분류 진입.
+- **encoding_rs 다중 인코딩 변환 시도 후 detect-only** — UTF-8 1차 시도 → encoding_rs sniff (Shift_JIS / EUC_KR / GBK / Windows-1252) → binary fallback. **hash 입력은 항상 원본 raw bytes** (b-policy). `shared/decode.rs` 박음.
+- **Submodule (`160000`) detect-only** — `Status::Failed` + `failed_reason: "submodule"` + `mode: "160000"` JSON 출력.
+- **Symlink (`120000`) detect-only** — local symlink (lstat-only, dangling/circular 박은 graceful skip) + remote tree symlink entry 양쪽 detect.
+- **Empty file 실파일 검증** — 0-byte file ↔ remote empty blob → `Status::Identical` (G-010).
+- **Executable (`100755`) mode bit detect** — content 동일 시 `Status::Identical` 유지 + JSON `mode: "100755"` 박음.
+- **`.gitattributes` 파서 박음** — `shared/gitattributes.rs` (296 LOC, ※ Z task에서 module 폴더 분할 예정). project root + 하위 디렉토리 1회 로드 + glob pattern matching (gitignore-style) + 가장 깊은 `.gitattributes` 우선 + line-level 마지막 매칭 winner. `.git/info/attributes` / global 미지원.
+- **`.gitattributes` attribute 화이트리스트** — `AttributeMatch` enum 5 entry: `TextAuto / Binary / EolLf / EolCrlf / LfsPointer` + `Unspecified / Unsupported { attribute_name }`. 화이트리스트 외 (`working-tree-encoding`, `ident`, `filter=*` (lfs 외), macro attributes, legacy `crlf`) → `Unsupported`.
+- **`prepare_for_hash` 7 분기 helper** — `apply_text_auto` / `apply_binary` / `apply_eol_lf` / `apply_eol_crlf` / `apply_unspecified` 5 helper + `LfsPointer` / `Unsupported` caller-side `Status::Failed`. cognitive_complexity 15 deny 회피.
+- **BOM 처리** — UTF-8 BOM strip (text=auto + 미명시 정책) + UTF-16 BOM (`FF FE` LE / `FE FF` BE) detect → `Status::Failed` + `failed_reason: "encoding"`.
+- **git LFS pointer detection** — `.gitattributes` `filter=lfs` 매칭 path는 자동 `Status::Failed` + `failed_reason: "lfs_pointer"` + `lfs_pointer: {oid: "?", size: 0}`. **scan은 blob fetch 안 함** (Phase 4 batching 이득 보존). diff는 first-line signature `version https://git-lfs.github.com/spec/v1` 검증 + oid/size 정확 파싱 (defence-in-depth).
+- **Windows long path / 예약 파일명 detect-only** — 260자+ path 또는 예약 파일명 (`CON` / `PRN` / `NUL` / `AUX` / `COM1-9` / `LPT1-9`) detect → `Status::Failed` + `failed_reason: "long_path"`. `commands/scan/long_path.rs` 박음.
+
+#### Schema v1.1 (minor — backward compat)
+
+- 새 필드 — `mode` (4-digit octal: `100644` / `100755` / `120000` / `160000`) + `failed_reason` (skip_serializing on `None`) + `lfs_pointer` (skip_serializing on `None`).
+- v1.0 backward-compat lock test 박힘 (`output.rs::tests` 5 lock).
+- envelope `schema_version: "1.0"` → `"1.1"` minor bump.
+
+#### Dependencies
+
+- `unicode-normalization = "0.1"` — NFC normalize 박음.
+- `encoding_rs = "0.8"` (Mozilla, Apache-2.0/MIT) — 다중 인코딩 sniff 박음. cargo-bloat measurement: `.text` section attribution 0 KiB (LTO + strip + dead code elim, encoding shortlist 4종만 retain).
+
+#### Specs (신규)
+
+- `docs/specs/spec-domain-pitfalls.md` — Phase 5 모든 함정 spec hub.
+
+#### Research artifacts (신규)
+
+- `docs/research/phase5-vault-baseline.md` — Phase 5 진입 시점 vault scan baseline.
+- `docs/research/phase5-vault-after.md` — Phase 5 후 vault dogfood (T 결과: 117 files / 81 identical / 36 local_only_changed / 0 drift / 0 failed).
+- `docs/research/phase5-regression.md` — v0.1 vs v0.2 binary diff (W 결과: REGRESSION 0건, envelope W1/W2 정확화만, 121/121 path binary delta 0).
+- `docs/research/phase5-gitattributes-bench.md` — `.gitattributes` parser perf baseline (X 결과: 100 rules × 10K paths 박은 P95 50.2 µs).
+- `docs/research/phase5-scan-scale-bench.md` — large vault scale (R3 결과: 10K real-file scan, `.gitattributes` overhead 2.82x).
+- `docs/research/encoding-library-eval.md` — encoding_rs vs chardet 평가 + cargo-bloat 사후 측정 (Y).
+
+#### CI gate (Windows runner)
+
+- `.github/workflows/ci.yml` 4 게이트 박음 — `cargo fmt --check` + `cargo clippy --workspace --all-targets -- -D warnings` + `cargo test --workspace` + `cargo tarpaulin --engine llvm --workspace --out Stdout --fail-under 80`.
+
+### Changed
+
+- **`prepare_for_hash` 시그니처** — `gitattr: &Arc<GitAttributes>` + `path: &str` 인자 추가. caller 모두 갱신.
+- **`status="failed"` 의미 확장** — v0.1 = "hash IO 실패"만 박음, v0.2 = 9 reasons 박음 (`hash_io` / `encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported`). 기존 호출자가 `status == "failed"` 단일 분기 박혀있으면 `failed_reason` 추가 분기 박을 가치 — 특히 LFS pointer를 hash error로 오인 위험. ※ 5 reason은 코드 박힘 (`hash_io` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `case_collision`), 3 reason (`encoding` / `nfd_collision` / `gitattributes_unsupported`)은 enum-spec'd-but-unimplemented (caller-side plumbing follow-up).
+- **default LF normalize policy 변경** — v0.1 = 항상 LF normalize 박음, v0.2 = `.gitattributes` conditional + 화이트리스트 5 entry 만 적용. `Unspecified` (default) branch는 v0.1 정책 그대로 (호환).
+
+### Deprecated
+
+- 없음.
+
+### Removed
+
+- 없음.
+
+### Fixed
+
+- **G-005 mtime 휴리스틱 적용 정합** — `local_mtime == remote_last_commit_at` 동률은 `Status::Drift`로 격하. v0.1부터 spec 박혀있던 룰을 Phase 5 audit에서 각 함정 처리 후 정합 검증.
+
+### Security
+
+- 없음.
+
+### Verified
+
+- **vault dogfood (T, 2026-05-09)** — KneShell/gitless-sync@main 117 files / 0 drift / 0 failed (false drift 0건).
+- **v0.1 baseline regression diff (W, 2026-05-09)** — REGRESSION 0건 (envelope W1 schema_version + W2 mode field 정확화만). 자동 fail trigger 박지 않음.
+- **383 tests pass** — 293 lib + 41 integration + 49 xtask.
+- **tarpaulin 90.73%** (949/1046 lines).
+
+### Known limitations
+
+- **`failed_reason` enum-spec'd-but-unimplemented 3건** — `encoding` / `nfd_collision` / `gitattributes_unsupported`. detect 코드는 박혀있으나 caller-side `pipeline.rs` plumbing follow-up. Phase 5 후속 task로 박음.
+- **`.gitattributes` module 폴더 분할 미박힘** — `shared/gitattributes.rs` 단일 file (296 LOC) + sibling `gitattributes_tests.rs` + `gitattributes_classify_tests.rs` 박음. spec-architecture.md § 금지 패턴 (sibling test file) 위반 1건. **task Z** (audit + cleanup sweep)에서 `shared/gitattributes/{mod, parser, classify, matching}` 4 file 분할 + sibling 정리 박음.
+- **vault scale 1000+ path mtime cache 재검토 미박힘** — ADR 0008 § Future work 그대로 (50 path scale에선 noise floor, vault scale 측정은 v0.3+).
 
 ## [0.1.0] - Phase 6 완료 시점 (2026-05-09)
 
