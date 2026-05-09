@@ -20,3 +20,8 @@ desktop.ini
 
 # Logs
 *.log
+
+# Temporary scan artifacts (race noise from `> tmp/X.json` redirects;
+# spec phase5-vault-baseline.md / phase5-vault-after.md / phase5-regression.md
+# 본문에 명시. Phase 5.13.1 LL task 추가)
+tmp/
