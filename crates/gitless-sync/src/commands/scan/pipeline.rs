@@ -141,14 +141,10 @@ fn build_one_pre_entry(
 
 /// Cascade of failed short-circuits. Returns `Some((mode, reason))` for the
 /// first matching condition or `None` to fall through to the normal hash
-/// path. Order matters — see priority list:
-///   1. case collision (cross-set case mismatch detected upstream)
-///   2. submodule (`remote.mode == "160000"`)
-///   3. symlink (`remote.mode == "120000"` or `local.is_symlink`)
-///
-/// Submodule and symlink force their canonical mode bit into the result so
-/// local-only symlinks (no remote entry to copy mode from) still report
-/// `mode: "120000"` per `spec-output-schema.md` § v1.1.
+/// path. Priority: case collision (upstream) → submodule (`160000`) →
+/// symlink (`120000` or `local.is_symlink`). Submodule/symlink force their
+/// canonical mode bit so local-only symlinks still report `"120000"` per
+/// `spec-output-schema.md` § v1.1.
 fn try_short_circuit_failed(
     path: &str,
     local: Option<&LocalFile>,
@@ -286,9 +282,8 @@ enum PreState {
 
 struct PreEntry {
     path: String,
-    /// Tree mode bit propagated from the remote tree entry, defaulting to
-    /// `"100644"` for local-only paths (no remote mode to copy). Carried
-    /// through `finalize_entries` into `FileEntry::mode` (v1.1 schema).
+    /// Tree mode bit; defaults to `"100644"` for local-only paths and
+    /// flows into `FileEntry::mode` (v1.1 schema).
     mode: String,
     state: PreState,
 }
@@ -296,3 +291,7 @@ struct PreEntry {
 #[cfg(test)]
 #[path = "pipeline_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "pipeline_tests_modes.rs"]
+mod tests_modes;
