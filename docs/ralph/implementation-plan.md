@@ -101,7 +101,7 @@
   - acceptance: `prepare_for_hash` 함수 시그니처 변경 — `gitattr: &Arc<GitAttributes>` 인자 추가. **7 분기** (text=auto / binary / eol=lf / eol=crlf / **LfsPointer** / Unspecified / Unsupported) 박음. `Unspecified` default = v0.1 정책. `LfsPointer`/`Unsupported`는 caller가 `Status::Failed` 박음. **분기 helper fn 분리 박음** — `apply_text_auto`, `apply_binary`, `apply_eol_lf`, `apply_eol_crlf`, `apply_unspecified` 5 helper. Phase 6 `cognitive_complexity = 15` deny 회피 (advisor 권고). 모든 caller 갱신. unit test (단일 vault scan 1회 파싱 + N번 호출 reparse 0회 검증). tarpaulin 80% 유지 — 7 분기 모두 cover.
   - spec: `spec-hash-and-normalize.md` § Normalize 규칙 + § Lifetime 계약.
 
-- [ ] **K3. binary attribute 정확 적용**
+- [~] **K3. binary attribute 정확 적용**
   - acceptance: `.gitattributes`에 `binary` 명시된 file은 NUL byte 휴리스틱 무시 + raw bytes 해시. unit test (NUL byte 0개 binary fixture).
   - spec: `spec-hash-and-normalize.md` § Normalize 규칙.
 
