@@ -61,17 +61,19 @@ fn fetch_tree_returns_blob_entries_only() {
 
 #[test]
 fn fetch_tree_skips_unsupported_modes() {
-    // Phase 5 task G admits submodule (`160000`, type=commit). Task H now
-    // admits symlink (`120000`, type=blob). J will extend executable
-    // (`100755`); for now it remains skipped with the existing
-    // unsupported-mode warning.
+    // Phase 5 task G admits submodule (`160000`, type=commit). Task H admits
+    // symlink (`120000`, type=blob). Task J admits executable (`100755`).
+    // Any *other* blob mode (e.g., a malformed `100664` entry git itself
+    // does not emit) still routes through the unsupported-mode warning so
+    // the skip branch stays under test.
     let body = r#"{
         "sha": "root",
         "tree": [
             {"path": "ok.md",  "mode": "100644", "type": "blob",   "sha": "s1"},
-            {"path": "exec.sh","mode": "100755", "type": "blob",   "sha": "s2"},
-            {"path": "link",   "mode": "120000", "type": "blob",   "sha": "s3"},
-            {"path": "submod", "mode": "160000", "type": "commit", "sha": "s4"}
+            {"path": "weird",  "mode": "100664", "type": "blob",   "sha": "s2"},
+            {"path": "exec.sh","mode": "100755", "type": "blob",   "sha": "s3"},
+            {"path": "link",   "mode": "120000", "type": "blob",   "sha": "s4"},
+            {"path": "submod", "mode": "160000", "type": "commit", "sha": "s5"}
         ],
         "truncated": false
     }"#;
@@ -79,15 +81,19 @@ fn fetch_tree_skips_unsupported_modes() {
     mock.stub(tree_args("o/r", "main"), ok_resp(body.as_bytes()));
 
     let files = fetch_tree(&mock, "o/r", "main").unwrap();
-    assert_eq!(files.len(), 3);
+    assert_eq!(files.len(), 4);
+    assert!(!files.iter().any(|f| f.path == "weird"));
     assert_eq!(files[0].path, "ok.md");
     assert_eq!(files[0].mode, "100644");
-    assert_eq!(files[1].path, "link");
-    assert_eq!(files[1].mode, "120000");
+    assert_eq!(files[1].path, "exec.sh");
+    assert_eq!(files[1].mode, "100755");
     assert_eq!(files[1].sha, "s3");
-    assert_eq!(files[2].path, "submod");
-    assert_eq!(files[2].mode, "160000");
+    assert_eq!(files[2].path, "link");
+    assert_eq!(files[2].mode, "120000");
     assert_eq!(files[2].sha, "s4");
+    assert_eq!(files[3].path, "submod");
+    assert_eq!(files[3].mode, "160000");
+    assert_eq!(files[3].sha, "s5");
 }
 
 #[test]

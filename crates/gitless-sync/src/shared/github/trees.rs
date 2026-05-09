@@ -53,7 +53,12 @@ pub(crate) fn fetch_tree(
     let mut files = Vec::with_capacity(body.tree.len());
     for entry in body.tree {
         match (entry.entry_type.as_str(), entry.mode.as_str()) {
-            ("blob", "100644") => {
+            ("blob", "100644" | "100755") => {
+                // `100644` regular vs `100755` executable. Phase 5 task J:
+                // executables flow through the normal hash path — content
+                // determines status, mode bit is reported in v1.1 JSON for
+                // the caller (`spec-domain-pitfalls.md` § 실행 권한,
+                // `spec-output-schema.md` § v1.1 acceptance).
                 files.push(RemoteFile {
                     path: to_nfc(&entry.path),
                     sha: entry.sha,
