@@ -21,14 +21,14 @@ read-only CLI라도 호출자(특히 AI)가 안정적으로 다룰 수 있도록
 - `GitlessError` 7 variant (`Config / AuthFailed / RateLimitExceeded / TreesTruncated / Http / Io / PartialFailure`) — `core.rs::GitlessError` line 11~33 정의됨.
 - gh stderr substring 매칭 (`Bad credentials` / `secondary rate limit` / `API rate limit exceeded` / fallthrough) — `shared/github/error_map.rs::map_gh_error` line 9~20 구현. 우선순위 정합 (auth → secondary → primary → Http).
 - GraphQL error mapping (`RATE_LIMITED` / `UNAUTHENTICATED` / fallthrough) — `error/network.rs::map_graphql_error` line 39~50 구현. `NOT_FOUND` + 그 외 fallthrough Http 매핑.
-- `FailedReason` 5 variant — `compare.rs::FailedReason` line 20~26 정의 (`CaseCollision / Submodule / Symlink / LongPath / LfsPointer`).
+- `FailedReason` 8 variant — `compare.rs::FailedReason` 정의 (`CaseCollision / Submodule / Symlink / LongPath / LfsPointer / Encoding / NfdCollision / GitattributesUnsupported`). Phase 5.13 task AA에서 `Encoding / NfdCollision / GitattributesUnsupported` 3 variant 추가 + `pipeline.rs::try_short_circuit_failed` cascade 매핑.
 - `LfsPointer` placeholder `{oid: "?", size: 0}` — `compare.rs::LfsPointer` line 33~36 + `commands/scan/lfs.rs::placeholder_pointer_for` 구현.
 - 호출자 import path 호환: `use crate::shared::error::{GitlessError, GraphqlError, map_graphql_error};` — `error/mod.rs` line 13~14 re-export 정합.
 
-**미구현 (Phase 5 후속, hedge marker)**:
-- `failed_reason: "encoding"` — `shared/decode.rs::try_decode_text` sniff 구현 (line 53~76)이지만 `commands/scan/pipeline.rs` surface plumbing 미구현 (caller-side mapping follow-up). F task acceptance vs 구현 gap — 본 task에서 surface 마크.
-- `failed_reason: "nfd_collision"` — `walker.rs::relative_path` NFC normalize 구현이지만 NFD collision detect (precomposeunicode false 환경) 미구현. P/P1 fixture task 진행 후 implement follow-up. 본 task `enum-spec'd-but-unimplemented` align — `compare.rs::FailedReason`에 variant 미정의.
-- `failed_reason: "gitattributes_unsupported"` — `shared/gitattributes.rs::AttributeMatch::Unsupported` variant 정의됨 (line 161) + `shared/normalize.rs::prepare_for_hash` defensive fall-through to v0.1 default 적용 (line 67)이지만 `pipeline.rs` `Status::Failed` mapping plumbing 미구현. 동일 enum-spec'd-but-unimplemented align — `compare.rs::FailedReason`에 variant 미정의.
+**구현 정합 (Phase 5.13 task AA, 2026-05-09)**:
+- `failed_reason: "encoding"` — `commands/scan/hash_local.rs::try_hash_local`이 raw bytes 1회 read → `try_decode_text` 결과가 `Utf16Bom { .. }` 또는 `Unknown`이면 `Some(FailedReason::Encoding)` 반환 → `pipeline.rs::build_one_pre_entry`가 `PreState::Failed`로 격상. hash 입력은 항상 raw bytes (b-policy 정합).
+- `failed_reason: "nfd_collision"` — `commands/scan/nfd_collision.rs::detect`가 walker output `&[LocalFile]`을 group-by relative_path count ≥ 2 detect (HashMap dedup 전). `pipeline::try_short_circuit_failed` cascade 첫 분기에서 surface.
+- `failed_reason: "gitattributes_unsupported"` — `pipeline::try_short_circuit_failed`의 `.gitattributes` match arm이 `AttributeMatch::Unsupported { .. }` → `Some((mode(), FailedReason::GitattributesUnsupported))`. `prepare_for_hash`는 v0.1 default fall-through 그대로 (defensive — caller가 short-circuit으로 surface).
 
 **Drift surface (코드 fix follow-up — 본 task scope 밖)**:
 - `Http` exit code: 본 spec § Exit Code 매핑 line 58 정의 `1` vs `error/core.rs::exit_code()` line 49 구현 `3`. spec acceptance line ("5xx fallthrough → 도구 exit code 1") vs 코드 drift. ureq 시절 잔재 의심 (ADR 0002 마이그레이션 spec 갱신 시점에 코드 미반영 가능). 본 task fix 안 함 — code change는 다른 task scope (`error/core.rs` 변경은 task Q phase 6 영역).
@@ -180,14 +180,14 @@ GraphQL 응답 형식 (errors 동반 케이스):
 | reason | 상황 | 처리 정책 | 구현 |
 |---|---|---|---|
 | `hash_io` | 로컬 파일 read / 권한 실패 | v0.1 기존 동작 | `compare.rs::FailedReason` enum에 미정의 (None special case). `pipeline.rs::build_one_pre_entry` line 122~128 — `failed_reason: None` 적용. v1.0 backward-compat |
-| `encoding` | UTF-8 + 2차 detect 모두 실패 | spec-domain-pitfalls.md § Encoding | **enum-spec'd-but-unimplemented** — `shared/decode.rs::try_decode_text` sniff 구현이지만 `compare.rs::FailedReason`에 variant 미정의 + `pipeline.rs` surface mapping 미구현. Phase 5 후속 task로 처리 (caller-side plumbing follow-up) |
+| `encoding` | UTF-8 + 2차 detect 모두 실패 또는 UTF-16 BOM detect | spec-domain-pitfalls.md § Encoding | `compare.rs::FailedReason::Encoding` 정의됨 + `commands/scan/hash_local.rs::try_hash_local`가 raw read 1회 시점에 `try_decode_text` 결과 분기 (`Utf16Bom`/`Unknown` → `Some(Encoding)`) + `pipeline::build_one_pre_entry`가 PreState::Failed 격상. Phase 5.13 task AA |
 | `submodule` | Trees mode `160000` entry | spec-domain-pitfalls.md § Submodule | `compare.rs::FailedReason::Submodule` 정의됨 + `pipeline.rs::try_short_circuit_failed` line 158~159 구현 |
 | `symlink` | Trees mode `120000` entry 또는 local symlink | spec-domain-pitfalls.md § Symlink | `compare.rs::FailedReason::Symlink` 정의됨 + `pipeline.rs::try_short_circuit_failed` line 160~161 구현 |
 | `lfs_pointer` | LFS pointer text 시그니처 detect | spec-domain-pitfalls.md § LFS pointer | `compare.rs::FailedReason::LfsPointer` 정의됨 + `pipeline.rs::try_short_circuit_failed` line 162~163 구현 + `commands/scan/lfs.rs::placeholder_pointer_for` 구현 |
 | `long_path` | Windows 260자+ path 또는 예약 파일명 (CON/PRN/NUL/AUX 등) | spec-domain-pitfalls.md § Windows long path | `compare.rs::FailedReason::LongPath` 정의됨 + `pipeline.rs::try_short_circuit_failed` line 156~157 구현 |
-| `nfd_collision` | macOS NFD/NFC 동일 path 두 개 공존 (precomposeunicode false 환경) | spec-domain-pitfalls.md § NFD edge | **enum-spec'd-but-unimplemented** — `walker.rs::relative_path` NFC normalize 구현이지만 NFD collision detect (precomposeunicode false 환경) 미구현. `compare.rs::FailedReason`에 variant 미정의. Phase 5 후속 task로 처리 (P/P1 fixture task 진행 후 implement follow-up) |
+| `nfd_collision` | macOS NFD/NFC 동일 path 두 개 공존 (precomposeunicode false 환경) | spec-domain-pitfalls.md § NFD edge | `compare.rs::FailedReason::NfdCollision` 정의됨 + `commands/scan/nfd_collision.rs::detect` group-by NFC key count ≥ 2 (walker output `&[LocalFile]`, HashMap dedup 전) + `pipeline::try_short_circuit_failed` cascade 첫 분기. Phase 5.13 task AA |
 | `case_collision` | Windows local에서 case-sensitive 충돌 (`Foo.txt` + `foo.txt`) | spec-domain-pitfalls.md § Case | `compare.rs::FailedReason::CaseCollision` 정의됨 + `pipeline.rs::try_short_circuit_failed` line 154~155 구현 + `case_collision::detect` 구현 |
-| `gitattributes_unsupported` | `.gitattributes`에 화이트리스트 외 attribute 적용 (예: `working-tree-encoding`, `ident`, `filter`) | spec-domain-pitfalls.md § `.gitattributes` 화이트리스트 | **enum-spec'd-but-unimplemented** — `shared/gitattributes.rs::AttributeMatch::Unsupported` variant 정의됨 + `shared/normalize.rs::prepare_for_hash` defensive fall-through to v0.1 default 구현이지만 `pipeline.rs` `Status::Failed` mapping plumbing 미구현. `compare.rs::FailedReason`에 variant 미정의. Phase 5 후속 task로 처리 (caller-side plumbing follow-up) |
+| `gitattributes_unsupported` | `.gitattributes`에 화이트리스트 외 attribute 적용 (예: `working-tree-encoding`, `ident`, `filter` (lfs 외)) | spec-domain-pitfalls.md § `.gitattributes` 화이트리스트 | `compare.rs::FailedReason::GitattributesUnsupported` 정의됨 + `pipeline::try_short_circuit_failed` `.gitattributes` match arm이 `AttributeMatch::Unsupported { .. }` → `FailedReason::GitattributesUnsupported`. `prepare_for_hash`는 v0.1 default fall-through 그대로 (defensive). Phase 5.13 task AA |
 
 `failed_reason` 부재(`null`) 시 v0.1 baseline `hash_io` 동작과 일관 — 호출자 backward-compat.
 

@@ -16,11 +16,11 @@
 //! - binary: NUL-free CRLF file kept as raw bytes (no LF normalize).
 //! - eol=lf: CRLF normalized to LF.
 //! - eol=crlf: CRLF preserved (raw bytes hashed).
-//! - unsupported (`working-tree-encoding=...`): falls through to v0.1
-//!   default. Caller-side `failed_reason: "gitattributes_unsupported"`
-//!   plumbing is **out of K1.5 scope** (spec-hash-and-normalize.md line
-//!   168); this test pins current behavior. Follow-up task wires
-//!   Unsupported → `Status::Failed`.
+//! - unsupported (`working-tree-encoding=...`): pipeline short-circuits to
+//!   `Status::Failed` + `failed_reason: "gitattributes_unsupported"` (Phase
+//!   5.13 task AA). `prepare_for_hash` defensively still returns the v0.1
+//!   default output — the surface decision lives in `pipeline::
+//!   try_short_circuit_failed`'s `.gitattributes` match arm.
 //! - multi-level: nested `.gitattributes` overrides root via depth winner
 //!   + last-wins precedence (K4).
 //!
@@ -252,21 +252,25 @@ fn eol_crlf_branch_preserves_crlf_diverging_from_lf_default() {
 }
 
 #[test]
-fn unsupported_attribute_falls_through_to_default_until_caller_plumbing_lands() {
-    // Caller-side `failed_reason: "gitattributes_unsupported"` plumbing is
-    // out of K1.5 scope (spec-hash-and-normalize.md line 168). This test
-    // pins current behavior — the file is hashed via apply_unspecified.
-    // Follow-up task wires Unsupported → Status::Failed.
+fn unsupported_attribute_classifies_as_failed_with_gitattributes_unsupported_reason() {
+    // Phase 5.13 task AA: pipeline short-circuits Unsupported attribute paths
+    // to `Status::Failed` + `failed_reason: "gitattributes_unsupported"`.
+    // `prepare_for_hash` still returns v0.1 default output defensively, but
+    // the caller never publishes that hash — Failed entries omit local_sha.
     let (_dir, json) = scan_with_attributes();
     let files = files_by_path(&json);
     let entry = &files["weird.foo"];
 
-    assert_eq!(entry["status"], "identical");
-    assert_eq!(entry["local_sha"], unsupported_expected_hash());
+    assert_eq!(entry["status"], "failed");
+    assert_eq!(entry["failed_reason"], "gitattributes_unsupported");
     let obj = entry.as_object().unwrap();
     assert!(
-        !obj.contains_key("failed_reason"),
-        "follow-up task wires gitattributes_unsupported reason — until then, default fall-through"
+        !obj.contains_key("local_sha"),
+        "Failed entries must omit local_sha (pre_entry_to_file::PreState::Failed)"
+    );
+    assert!(
+        !obj.contains_key("lfs_pointer"),
+        "lfs_pointer companion is reserved for failed_reason=lfs_pointer"
     );
 }
 
@@ -296,11 +300,13 @@ fn gitattributes_aware_scan_reports_all_identical_with_v1_1_envelope() {
     let (_dir, json) = scan_with_attributes();
 
     assert_eq!(json["schema_version"], "1.1");
-    assert_eq!(json["summary"]["identical"], 9);
+    assert_eq!(json["summary"]["identical"], 8);
     assert_eq!(json["summary"]["local_only_changed"], 0);
     assert_eq!(json["summary"]["remote_only_changed"], 0);
     assert_eq!(json["summary"]["drift"], 0);
-    assert_eq!(json["summary"]["failed"], 0);
+    // Phase 5.13 AA: weird.foo (working-tree-encoding=UTF-16) is now
+    // surfaced as Failed with failed_reason=gitattributes_unsupported.
+    assert_eq!(json["summary"]["failed"], 1);
 
     let files = files_by_path(&json);
     assert_eq!(files.len(), 9);

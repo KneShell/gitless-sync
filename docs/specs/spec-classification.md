@@ -60,7 +60,7 @@ match (local_sha, remote_sha) {
 - **NFC 정규화**: 모든 path bytes를 Unicode NFC로 정규화 후 비교 key 생성. macOS HFS+/APFS NFD 저장(default `core.precomposeunicode = true`로 NFD → NFC 자동 변환) + GitHub Trees API path bytes 그대로 반환 — 우리 NFC 정규화로 양쪽 align.
 - **case-sensitive 비교**: Unix-style. `README.md` ≠ `Readme.md` (다른 path key). Windows NTFS는 case-insensitive로 동일 file 취급하지만 도구는 case-sensitive 그대로 적용 — drift로 표면화하는 게 정합.
 - **edge case**:
-  - macOS `core.precomposeunicode = false` + NFC/NFD 동일 path 두 개 (예: `가.txt` NFC + `가.txt` NFD) → NFC 정규화 후 두 path 같은 key 충돌 → `Status::Failed` + `failed_reason: "nfd_collision"`. **99% 케이스는 NFC 정규화로 자동 처리, 1% edge case detect-only는 Phase 5 후속** (`compare.rs::FailedReason::NfdCollision` enum variant + `pipeline.rs::try_short_circuit_failed` 매핑 미구현 — task N (`spec-error-contracts.md` `failed_reason` enum) 진행 후 implement task로 추가). spec-domain-pitfalls.md § Path 정규화 hedge 정합.
+  - macOS `core.precomposeunicode = false` + NFC/NFD 동일 path 두 개 (예: `가.txt` NFC + `가.txt` NFD) → NFC 정규화 후 두 path 같은 key 충돌 → `Status::Failed` + `failed_reason: "nfd_collision"`. 구현됨 (Phase 5.13 task AA, `commands/scan/nfd_collision.rs::detect` walker output Vec에서 같은 NFC key count ≥ 2 group-by + `pipeline::try_short_circuit_failed` cascade 첫 분기).
   - Windows NTFS local-side에서 같은 case-folded name 두 file (`Foo.txt` + `foo.txt`) → `Status::Failed` + `failed_reason: "case_collision"` (구현됨).
 
 자세한 처리 정책은 `docs/specs/spec-domain-pitfalls.md` § Path 정규화 참조.

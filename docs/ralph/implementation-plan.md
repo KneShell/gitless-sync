@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (Phase 5 본진 완료 → Phase 5.13 follow-up 진입 — 미완성 plumbing 3건 + sibling test cleanup 2건)
+- Last updated: 2026-05-09 (Phase 5.13 task AA 완료 → CC + DD 잔여)
 - Total tasks: 43
-- Completed: 40 / 43
+- Completed: 41 / 43
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -227,7 +227,7 @@
 
 > Z task audit + 사용자 지적으로 surface된 미완성 plumbing 3건 + 추가 sibling test 정리 2건.
 
-- [~] **AA. `failed_reason` plumbing 3건 추가 (encoding / nfd_collision / gitattributes_unsupported)**
+- [x] **AA. `failed_reason` plumbing 3건 추가 (encoding / nfd_collision / gitattributes_unsupported)**
   - acceptance: `compare.rs::FailedReason` enum에 `Encoding` / `NfdCollision` / `GitattributesUnsupported` 3 variant 추가 (snake_case serde rename 적용). `commands/scan/pipeline.rs::try_short_circuit_failed`에서 다음 3 경로 surface:
     - **Encoding**: `shared/decode.rs::try_decode_text` 결과가 `Failed` (UTF-8 + 2차 detect 모두 fail) → `Status::Failed` + `failed_reason: "encoding"`. `prepare_for_hash` 시그니처 변경 또는 caller가 `try_decode_text` 직접 호출 후 분기.
     - **NfdCollision**: `walker.rs` 또는 `pipeline.rs`에서 같은 NFC key를 가진 entry 2건 이상 detect (precomposeunicode false 환경 시뮬레이션) → 충돌 entry 모두 `Status::Failed` + `failed_reason: "nfd_collision"`.
@@ -236,6 +236,7 @@
   - unit test: 3 reason 각각 detect → Status::Failed + failed_reason 매핑 round-trip. integration test: 각 시나리오 fixture (encoding fail UTF-16 BOM / NFC/NFD collision tempfile / .gitattributes Unsupported attribute) → JSON 출력 정합.
   - 검증: cargo fmt + clippy + check-line-limits + check-cycles + machete + test (385+ pass) + tarpaulin 80% 유지. Phase 6 hard gate 그대로.
   - spec: `docs/specs/spec-error-contracts.md` § Per-file Pitfall Reasons + `spec-output-schema.md` § v1.1 신규 + `spec-classification.md` § Path 정규화 + `spec-domain-pitfalls.md` § Encoding/NFD/.gitattributes 화이트리스트 + `spec-hash-and-normalize.md` § BOM 호출 지점.
+  - 결과 (2026-05-09): `compare.rs::FailedReason` enum에 3 variant 추가 (`Encoding` / `NfdCollision` / `GitattributesUnsupported`, snake_case serde rename round-trip 3 unit test). plumbing 3건 분산 — (1) **encoding**: `commands/scan/hash_local.rs::try_hash_local`이 raw read 1회 시점에 `try_decode_text` 결과 분기 (`Utf16Bom { .. }` / `Unknown` → `Some(FailedReason::Encoding)`) 반환 + `pipeline::build_one_pre_entry`가 `PreState::Failed` 격상. (advisor 권고 — `Unknown`은 `decode.rs` Windows-1252 cover로 unreachable, `Utf16Bom` only fireable surface). (2) **nfd_collision**: `commands/scan/nfd_collision.rs` 신규 sibling (advisor 권고 — `case_collision.rs` mirror, walker output `&[LocalFile]`을 NFC key로 group-by count ≥ 2, HashMap dedup 전). `pipeline::try_short_circuit_failed` cascade 첫 분기. (3) **gitattributes_unsupported**: `try_short_circuit_failed`의 `.gitattributes` match arm이 `AttributeMatch::LfsPointer` / `Unsupported { .. }` 두 분기 통합 (LFS predicate `lfs::is_lfs` 제거 + `lfs.rs`는 `placeholder_pointer_for`만 retain). `prepare_for_hash`는 v0.1 default fall-through 그대로 (defensive — caller가 short-circuit으로 surface). LOC fit (advisor BLOCKING — `pipeline.rs` 299→315 over-budget): doc compaction 8 sites + `#[rustfmt::skip]` PreState enum compact. ClassifyContext 확장 (`case_collisions` / `nfd_collisions` 두 field). spec hedge marker 제거 5 spec — `spec-classification.md` § Path 정규화 § edge case (1% hedge) + `spec-error-contracts.md` § N-task audit § 미구현 + § Per-file Pitfall Reasons 표 3 row + `spec-output-schema.md` § O-task audit § 미구현 + § 안정성 보장 line 108 + § Acceptance § v1.1 신규 line 140 + `spec-domain-pitfalls.md` § Path 정규화 (1% hedge) + `spec-hash-and-normalize.md` § 현재 상태 line 15/18 + § 호출 지점 line 76~77 + § Acceptance line 168 (전부 구현 완료 marker로 flip). unit test 추가 — `compare.rs` round-trip 3 + `hash_local.rs::try_hash_local_surfaces_utf16_bom_as_encoding_failure` 1 + `nfd_collision.rs` 5. integration test 추가 — `tests/scan_failed_reasons.rs` 신규 (encoding UTF-16 BOM file + NFC/NFD coexist tempfile fixture, 2 tests). `tests/scan_gitattributes.rs` 갱신 (S task `until_caller_plumbing_lands` test → `classifies_as_failed_with_gitattributes_unsupported_reason` rename + envelope 8 identical / 1 failed). validation: cargo fmt clean + clippy 0 warnings + xtask check-line-limits (54 + 5 within 300, pipeline.rs 300) + xtask check-cycles (0/0, 44 modules) + cargo machete clean + cargo test 300 lib + 43 integration + 49 xtask = **392 tests pass** (S baseline 385 → +7 net: +3 round-trip + 1 encoding + 5 nfd_collision + 2 integration + 2 lfs placeholder − 6 lfs is_lfs removed) + tarpaulin **90.79%** (956/1053 lines, +0.13% change vs Z baseline 90.66%). 다른 task scope 침범 없음 (Cargo.toml/CHANGELOG 미변경, `Files` listed scope 정합).
 
 - [ ] **CC. shared/github/trees module 폴더 분할 + sibling test 제거**
   - acceptance: `shared/github/trees.rs` (123 LOC) + `shared/github/trees_tests.rs` (288 LOC) sibling pattern 정리. `shared/github/trees/{mod.rs, parse.rs, fetch.rs}` module 폴더 분할 권고 (또는 책임 단위에 따른 다른 분할 — parse 로직 + fetch 로직 + tree mode 처리 등). 각 sub-module에 `#[cfg(test)] mod tests` 추가. `trees_tests.rs` 제거 (spec-architecture.md § 금지 패턴 정합).

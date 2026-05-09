@@ -12,11 +12,12 @@ use super::compare::{FailedReason, FileEntry, Status, classify};
 use super::hash_local::try_hash_local;
 use super::lfs;
 use super::long_path;
+use super::nfd_collision;
 use super::output::Summary;
 use super::walker::LocalFile;
 use crate::shared::error::GitlessError;
 use crate::shared::gh::GhClient;
-use crate::shared::gitattributes::GitAttributes;
+use crate::shared::gitattributes::{AttributeMatch, GitAttributes};
 use crate::shared::github::RemoteFile;
 
 /// GitHub call context — client + repo + backend.
@@ -27,16 +28,14 @@ pub(super) struct GitHubContext<'a, C: GhClient + Sync> {
     pub(super) backend: Backend,
 }
 
-/// Per-path classification context — collisions + `.gitattributes` —
-/// bundled to keep `try_short_circuit_failed` within the 5-arg gate.
-/// `gitattr: &Arc` honors K2's lifetime contract (no reparse per call).
+/// Classify cascade context — collisions + `.gitattributes` (`&Arc` honors K2's lifetime contract).
 struct ClassifyContext<'a> {
-    collisions: &'a HashSet<String>,
+    case_collisions: &'a HashSet<String>,
+    nfd_collisions: &'a HashSet<String>,
     gitattr: &'a Arc<GitAttributes>,
 }
 
-/// Compare local/remote files → per-entry rows. REST uses rayon (ADR 0003);
-/// GraphQL uses alias batching (ADR 0005). Hash failures → [`Status::Failed`].
+/// Compare files → entries. REST=rayon (ADR 0003), GraphQL=alias batching (ADR 0005).
 pub(super) fn assemble_entries<C: GhClient + Sync>(
     local_files: &[LocalFile],
     remote_files: &[RemoteFile],
@@ -55,9 +54,11 @@ pub(super) fn assemble_entries<C: GhClient + Sync>(
     all_paths.extend(local_map.keys().copied());
     all_paths.extend(remote_map.keys().copied());
 
-    let collisions = case_collision::detect(&all_paths, &local_map, &remote_map);
+    let case_collisions = case_collision::detect(&all_paths, &local_map, &remote_map);
+    let nfd_collisions = nfd_collision::detect(local_files);
     let cctx = ClassifyContext {
-        collisions: &collisions,
+        case_collisions: &case_collisions,
+        nfd_collisions: &nfd_collisions,
         gitattr,
     };
     let pending = build_pre_entries(&all_paths, &local_map, &remote_map, keep_bom, &cctx);
@@ -67,8 +68,7 @@ pub(super) fn assemble_entries<C: GhClient + Sync>(
     Ok(finalize_entries(pending, &commit_map))
 }
 
-/// Pass 1: hash local files, no Commits API. Per-path composition in
-/// [`build_one_pre_entry`].
+/// Pass 1: hash local files. No Commits API.
 fn build_pre_entries(
     all_paths: &BTreeSet<&str>,
     local_map: &HashMap<&str, &LocalFile>,
@@ -86,7 +86,6 @@ fn build_pre_entries(
         .collect()
 }
 
-/// Compose one [`PreEntry`] — short-circuit, then hash → `PreState`.
 fn build_one_pre_entry(
     path: &str,
     local: Option<&LocalFile>,
@@ -113,7 +112,12 @@ fn build_one_pre_entry(
     let mode = remote.map_or_else(|| "100644".to_string(), |r| r.mode.clone());
     let state = match local {
         Some(lf) => match try_hash_local(&lf.absolute_path, keep_bom, cctx.gitattr, path) {
-            Ok((sha, is_binary)) => PreState::Hashed {
+            Ok((_, _, Some(reason))) => PreState::Failed {
+                remote_sha,
+                local_mtime,
+                failed_reason: Some(reason),
+            },
+            Ok((sha, is_binary, None)) => PreState::Hashed {
                 local_sha: Some(sha),
                 remote_sha,
                 local_mtime,
@@ -142,8 +146,7 @@ fn build_one_pre_entry(
     }
 }
 
-/// Cascade: case collision → `long_path` → submodule (`160000`) → symlink
-/// (`120000`) → LFS pointer. Submodule/symlink force canonical mode bit.
+/// Cascade: nfd → case → `long_path` → submodule (`160000`) → symlink (`120000`) → LFS / Unsupported.
 fn try_short_circuit_failed(
     path: &str,
     local: Option<&LocalFile>,
@@ -151,7 +154,9 @@ fn try_short_circuit_failed(
     cctx: &ClassifyContext<'_>,
 ) -> Option<(String, FailedReason)> {
     let mode = || remote.map_or_else(|| "100644".to_string(), |r| r.mode.clone());
-    if cctx.collisions.contains(path) {
+    if cctx.nfd_collisions.contains(path) {
+        Some((mode(), FailedReason::NfdCollision))
+    } else if cctx.case_collisions.contains(path) {
         Some((mode(), FailedReason::CaseCollision))
     } else if long_path::is_invalid(path) {
         Some((mode(), FailedReason::LongPath))
@@ -159,14 +164,17 @@ fn try_short_circuit_failed(
         Some(("160000".to_string(), FailedReason::Submodule))
     } else if remote.is_some_and(|r| r.mode == "120000") || local.is_some_and(|lf| lf.is_symlink) {
         Some(("120000".to_string(), FailedReason::Symlink))
-    } else if lfs::is_lfs(path, cctx.gitattr) {
-        Some((mode(), FailedReason::LfsPointer))
     } else {
-        None
+        match cctx.gitattr.classify_path(path) {
+            AttributeMatch::LfsPointer => Some((mode(), FailedReason::LfsPointer)),
+            AttributeMatch::Unsupported { .. } => {
+                Some((mode(), FailedReason::GitattributesUnsupported))
+            }
+            _ => None,
+        }
     }
 }
 
-/// Pass 2 input: keep only paths whose SHA differs on both sides.
 fn extract_commit_paths(pending: &[PreEntry]) -> Vec<String> {
     pending
         .iter()
@@ -181,7 +189,6 @@ fn extract_commit_paths(pending: &[PreEntry]) -> Vec<String> {
         .collect()
 }
 
-/// Pass 3: classify pending entries → [`FileEntry`] in input order.
 fn finalize_entries(
     pending: Vec<PreEntry>,
     commit_map: &HashMap<String, DateTime<Utc>>,
@@ -198,7 +205,6 @@ fn finalize_entries(
     (entries, summary, failed_count)
 }
 
-/// [`PreEntry`] → [`FileEntry`] + summary update.
 fn pre_entry_to_file(
     pre: PreEntry,
     commit_map: &HashMap<String, DateTime<Utc>>,
@@ -263,24 +269,14 @@ fn pre_entry_to_file(
     }
 }
 
-/// Pass-1 hash result carried into pass-3 classification.
+#[rustfmt::skip]
 enum PreState {
-    Failed {
-        remote_sha: Option<String>,
-        local_mtime: Option<DateTime<Utc>>,
-        failed_reason: Option<FailedReason>,
-    },
-    Hashed {
-        local_sha: Option<String>,
-        remote_sha: Option<String>,
-        local_mtime: Option<DateTime<Utc>>,
-        is_binary: bool,
-    },
+    Failed { remote_sha: Option<String>, local_mtime: Option<DateTime<Utc>>, failed_reason: Option<FailedReason> },
+    Hashed { local_sha: Option<String>, remote_sha: Option<String>, local_mtime: Option<DateTime<Utc>>, is_binary: bool },
 }
 
 struct PreEntry {
     path: String,
-    /// Tree mode bit (`"100644"` default for local-only); flows into v1.1.
     mode: String,
     state: PreState,
 }

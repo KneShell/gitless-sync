@@ -12,10 +12,10 @@
 - **Phase 5 K1~K4 + K1.5 구현됨** (2026-05-09):
   - `.gitattributes` 파서 구현 (`shared/gitattributes.rs` 신규, K1).
   - `AttributeMatch` enum 정의됨 — `TextAuto / Binary / EolLf / EolCrlf / LfsPointer / Unspecified / Unsupported { attribute_name }` 7 variant (K1.5, advisor BLOCKING fix로 `LfsPointer` variant 추가).
-  - `prepare_for_hash` 시그니처 확정 — `(raw, keep_bom, gitattr: &Arc<GitAttributes>, path: &str) -> (Vec<u8>, bool)` 4 인자 (K2). 내부 분기는 7 variant → 5 helper 매핑(`LfsPointer`/`Unsupported`/`Unspecified`는 `apply_unspecified` 공유). caller(`pipeline.rs`)가 `LfsPointer`는 `Status::Failed` 단락(via `lfs::is_lfs`), `Unsupported`는 caller-side 단락 미구현 — 본 task 외 follow-up 대상.
+  - `prepare_for_hash` 시그니처 확정 — `(raw, keep_bom, gitattr: &Arc<GitAttributes>, path: &str) -> (Vec<u8>, bool)` 4 인자 (K2). 내부 분기는 7 variant → 5 helper 매핑(`LfsPointer`/`Unsupported`/`Unspecified`는 `apply_unspecified` 공유). caller(`pipeline.rs::try_short_circuit_failed`)가 `.gitattributes` match arm에서 `LfsPointer` → `FailedReason::LfsPointer` + `Unsupported { .. }` → `FailedReason::GitattributesUnsupported`로 단락 (Phase 5.13 task AA에서 `is_lfs` predicate를 `classify_path` match 단일 arm으로 통합).
   - binary attribute 정확 적용 (NUL byte 휴리스틱 무시 + raw bytes 해시, K3).
   - `.gitattributes` 우선순위 (root < sub-dir depth < line-level last-wins) 정합 (K4).
-  - encoding (b) 정책 + detector 구현 (`shared/decode.rs::try_decode_text` — UTF-16 BOM detect + non-UTF-8 shortlist). hash는 raw bytes 정합 검증 invariant test 통과. **production caller plumbing은 follow-up** — pipeline.rs는 현재 encoding 단락 미구현.
+  - encoding (b) 정책 + detector 구현 (`shared/decode.rs::try_decode_text` — UTF-16 BOM detect + non-UTF-8 shortlist). hash는 raw bytes 정합 검증 invariant test 통과. caller plumbing은 Phase 5.13 task AA에서 구현 — `commands/scan/hash_local.rs::try_hash_local`가 raw read 1회 시점에 `try_decode_text` 결과를 분기 (`Utf16Bom { .. }` / `Unknown` → `Some(FailedReason::Encoding)` 반환) + `pipeline::build_one_pre_entry`가 `PreState::Failed` 격상.
 
 ## 작업 범위
 
@@ -73,8 +73,8 @@ UTF-8 BOM과 UTF-16 BOM을 분기 처리:
 #### 호출 지점
 
 - `try_decode_text` (`shared/decode.rs`)가 UTF-16 BOM 검사 진입점. UTF-16 BOM detected → `TextDecodeResult::Utf16Bom { little_endian: bool }` variant 반환.
-- caller-side `Utf16Bom` variant → `failed_reason: "encoding"` 매핑은 **별도 follow-up task에서 처리** — 현재 `pipeline.rs::try_short_circuit_failed` cascade는 case_collision / long_path / submodule / symlink / lfs_pointer 5 분기만 구현. encoding/Unsupported caller plumbing은 K1~K4 범위 외, task F/N 또는 후속 caller-plumbing task 책임.
-- `try_decode_text`는 production code에서 미호출 (현재). detector + decode 결과 invariant test (`utf16_bom_passes_through_unchanged_for_hashing_and_normalize`)로 raw bytes 정합 검증만 통과.
+- caller-side `Utf16Bom`/`Unknown` variant → `failed_reason: "encoding"` 매핑은 Phase 5.13 task AA에서 구현 — `commands/scan/hash_local.rs::try_hash_local`가 raw read 1회 시점에 `try_decode_text` 결과를 분기해 `Some(FailedReason::Encoding)` 반환 + `pipeline::build_one_pre_entry`가 `PreState::Failed` 격상. cascade는 nfd_collision / case_collision / long_path / submodule / symlink / lfs_pointer / gitattributes_unsupported 7 분기 + encoding (hash_local 단계)으로 8 reason 모두 surface.
+- `try_decode_text`는 production code(`hash_local.rs`)에서 호출됨 (Phase 5.13 task AA). detector + decode 결과 invariant test (`utf16_bom_passes_through_unchanged_for_hashing_and_normalize`)는 raw bytes 정합 검증으로 회귀 가드.
 - UTF-8 BOM 처리는 `normalize_text`가 담당 (v0.1 그대로).
 
 #### 우선순위
@@ -165,7 +165,7 @@ GitHub Trees API가 반환하는 blob SHA는 working tree 바이트의 해시이
 - `[AUTO]` `.gitattributes`에 `*.txt eol=lf` 적용 상태에서 CRLF/LF 차이 무시.
 - `[AUTO]` 가장 깊은 디렉토리 `.gitattributes`가 root보다 우선.
 - `[AUTO]` `.gitattributes` 미존재 시 v0.1 정책 그대로 적용.
-- `[AUTO]` 화이트리스트 외 attribute (예: `*.foo working-tree-encoding=UTF-16`) 매칭 시 `GitAttributes::classify_path` 결과가 `AttributeMatch::Unsupported { attribute_name: "working-tree-encoding" }`. caller-side `Status::Failed` + `failed_reason: "gitattributes_unsupported"` 매핑은 `spec-error-contracts.md` § Per-file Pitfall Reasons + 별도 caller-plumbing follow-up task에서 처리 (K1.5 classifier scope 외).
+- `[AUTO]` 화이트리스트 외 attribute (예: `*.foo working-tree-encoding=UTF-16`) 매칭 시 `GitAttributes::classify_path` 결과가 `AttributeMatch::Unsupported { attribute_name: "working-tree-encoding" }`. caller-side `Status::Failed` + `failed_reason: "gitattributes_unsupported"` 매핑은 Phase 5.13 task AA에서 구현 — `pipeline::try_short_circuit_failed`의 `.gitattributes` match arm이 `Unsupported { .. }` → `FailedReason::GitattributesUnsupported` (`prepare_for_hash`는 v0.1 default fall-through 그대로 — defensive, caller가 short-circuit으로 surface).
 
 ### Phase 5 시나리오 (Lifetime 계약)
 
