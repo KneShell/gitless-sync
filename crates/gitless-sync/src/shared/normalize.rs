@@ -207,6 +207,16 @@ mod tests {
     }
 
     #[test]
+    fn binary_attribute_diverges_from_default_for_crlf_text() {
+        // K3: explicit `binary` keeps CRLF raw; default LF-normalizes → diverging hash.
+        let (_dir, attrs_bin) = attrs_with("*.txt binary\n");
+        let raw = b"hello\r\nworld\r\n";
+        let (bin_out, _) = prepare_for_hash(raw, false, &attrs_bin, "notes.txt");
+        let (def_out, _) = prepare_for_hash(raw, false, &empty_attrs(), "notes.txt");
+        assert_ne!(blob_hash(&bin_out), blob_hash(&def_out));
+    }
+
+    #[test]
     fn eol_lf_branch_normalizes_crlf() {
         let (_dir, attrs) = attrs_with("*.sh eol=lf\n");
         let (out, is_bin) = prepare_for_hash(b"line\r\n", false, &attrs, "run.sh");
