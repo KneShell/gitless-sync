@@ -1,11 +1,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-//! Path-key normalization scenarios for `gitless-sync scan` (Phase 5 D).
+//! Path-key normalization scenarios for `gitless-sync scan` (Phase 5 D + D1).
 //!
-//! Asserts the case-sensitive comparison policy from `spec-classification.md`:
-//! `README.md` and `Readme.md` are different path keys even though Windows NTFS
-//! treats them as the same file. The pipeline keys local/remote maps with
-//! exact-bytes strings, so the two cases must surface as separate entries.
+//! Asserts the case-sensitive comparison policy from `spec-classification.md`
+//! plus the case-collision promotion introduced in D1: when a path appears on
+//! exactly one side AND the other side has a different-case sibling, the
+//! unmatched path is promoted to `Status::Failed` + `failed_reason:
+//! "case_collision"` per `spec-domain-pitfalls.md` § Windows NTFS local-side
+//! case detection.
 
 mod common;
 
@@ -15,11 +17,11 @@ use tempfile::TempDir;
 
 use common::{TestGhClient, args_for, lf_blob_hash, ok_resp, run_to_json, tree_args};
 
-// ---- 케이스 1: 로컬 한 case + 원격 다른 case (같은 내용) → 양쪽 분리 ---------
+// ---- 케이스 1: 로컬 한 case + 원격 다른 case → 양쪽 case_collision (D1) -----
 //
-// Linux origin은 `Foo.txt` / `foo.txt`를 따로 박을 수 있고, NTFS는
-// case-preserving + case-insensitive로 둘 중 하나만 표면화. 도구는 case-sensitive
-// 비교를 박아 한쪽은 local_only_changed, 다른 쪽은 remote_only_changed로 분리.
+// 로컬 `Foo.txt` + 원격 `foo.txt` 같은 diagonal mismatch는 양쪽 모두 unmatched
+// + 상대측에 case-folded sibling이 박혀있는 case. D1은 두 path 모두 Failed +
+// failed_reason: "case_collision"로 promote.
 
 #[test]
 fn case_difference_between_local_and_remote_surfaces_as_separate_paths() {
@@ -32,36 +34,31 @@ fn case_difference_between_local_and_remote_surfaces_as_separate_paths() {
         r#"{{"sha":"x","tree":[{{"path":"foo.txt","mode":"100644","type":"blob","sha":"{same_sha}","size":6}}],"truncated":false}}"#
     );
     mock.stub(tree_args("o/r", "main"), ok_resp(trees_body.as_bytes()));
-    // Both entries hit the (None, Some) / (Some, None) branches in `classify`,
-    // which short-circuits before the Commits API — no commits stub needed.
+    // case_collision short-circuits before the Commits API — no commits stub.
 
     let json = run_to_json(&args_for(dir.path(), "o/r"), &mock);
     assert_eq!(json["summary"]["identical"], 0);
-    assert_eq!(json["summary"]["local_only_changed"], 1);
-    assert_eq!(json["summary"]["remote_only_changed"], 1);
+    assert_eq!(json["summary"]["local_only_changed"], 0);
+    assert_eq!(json["summary"]["remote_only_changed"], 0);
     assert_eq!(json["summary"]["drift"], 0);
-    assert_eq!(json["summary"]["failed"], 0);
+    assert_eq!(json["summary"]["failed"], 2);
 
     let files = json["files"].as_array().unwrap();
     let by_path: std::collections::HashMap<&str, &serde_json::Value> = files
         .iter()
         .map(|e| (e["path"].as_str().unwrap(), e))
         .collect();
-    assert_eq!(
-        by_path["Foo.txt"]["status"], "local_only_changed",
-        "Foo.txt exists locally but not at remote case"
-    );
-    assert_eq!(
-        by_path["foo.txt"]["status"], "remote_only_changed",
-        "foo.txt exists remotely but not at local case"
-    );
+    assert_eq!(by_path["Foo.txt"]["status"], "failed");
+    assert_eq!(by_path["Foo.txt"]["failed_reason"], "case_collision");
+    assert_eq!(by_path["foo.txt"]["status"], "failed");
+    assert_eq!(by_path["foo.txt"]["failed_reason"], "case_collision");
 }
 
-// ---- 케이스 2: 원격에 두 case 박힘 + 로컬은 한 case만 박힘 ------------------
+// ---- 케이스 2: 원격에 두 case 박힘 + 로컬은 한 case만 박힘 (canonical D1) ---
 //
-// Linux origin이 `README.md` / `Readme.md` 둘 다 박을 수 있는 vault. 로컬은
-// `README.md`만 박혀있을 때, 일치하는 case는 identical + 다른 case는
-// remote_only_changed로 분리.
+// 원격 `README.md` + `Readme.md` 둘 다 박힌 case + 로컬은 `README.md`만 박힘
+// (case-insensitive volume이 두 case 박는 걸 허용 안 함). 일치하는 case는
+// identical + 다른 case는 case_collision (D1).
 
 #[test]
 fn remote_with_two_cases_keeps_them_distinct_against_single_local() {
@@ -78,10 +75,10 @@ fn remote_with_two_cases_keeps_them_distinct_against_single_local() {
 
     let json = run_to_json(&args_for(dir.path(), "o/r"), &mock);
     assert_eq!(json["summary"]["identical"], 1);
-    assert_eq!(json["summary"]["remote_only_changed"], 1);
+    assert_eq!(json["summary"]["remote_only_changed"], 0);
     assert_eq!(json["summary"]["local_only_changed"], 0);
     assert_eq!(json["summary"]["drift"], 0);
-    assert_eq!(json["summary"]["failed"], 0);
+    assert_eq!(json["summary"]["failed"], 1);
 
     let files = json["files"].as_array().unwrap();
     let by_path: std::collections::HashMap<&str, &serde_json::Value> = files
@@ -89,5 +86,6 @@ fn remote_with_two_cases_keeps_them_distinct_against_single_local() {
         .map(|e| (e["path"].as_str().unwrap(), e))
         .collect();
     assert_eq!(by_path["README.md"]["status"], "identical");
-    assert_eq!(by_path["Readme.md"]["status"], "remote_only_changed");
+    assert_eq!(by_path["Readme.md"]["status"], "failed");
+    assert_eq!(by_path["Readme.md"]["failed_reason"], "case_collision");
 }

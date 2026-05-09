@@ -1,19 +1,16 @@
-//! Three-pass classification pipeline — domain logic.
-//!
-//! 1. `build_pre_entries`: hash local files, capture per-path state.
-//! 2. `fetch_commit_map` (delegated to [`super::commits`]): fetch commit dates
-//!    only for paths whose SHA differs on both sides.
-//! 3. `finalize_entries`: classify and emit `FileEntry` rows.
-//!
-//! [`assemble_entries`] is the orchestrator-facing entry point.
+//! Three-pass classification pipeline. [`assemble_entries`] is the entry
+//! point: hash local files (pass 1), fetch commit dates for differing
+//! paths only (pass 2 via [`super::commits`]), classify and emit
+//! [`FileEntry`] rows (pass 3).
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
 
 use super::args::Backend;
+use super::case_collision;
 use super::commits;
-use super::compare::{FileEntry, Status, classify};
+use super::compare::{FailedReason, FileEntry, Status, classify};
 use super::hash_local::try_hash_local;
 use super::output::Summary;
 use super::walker::LocalFile;
@@ -31,12 +28,9 @@ pub(super) struct GitHubContext<'a, C: GhClient + Sync> {
 }
 
 /// Compare matched local/remote files and produce per-entry report rows.
-///
-/// Calls a Commits API lookup only for paths whose SHA differs on both sides.
-/// Backend choice (`Backend::Rest` / `Backend::Graphql`) decides between rayon
-/// 8c REST per-path calls (ADR 0003) and a single GraphQL alias-batched
-/// request (ADR 0005). Hash failures are recorded as [`Status::Failed`]
-/// without aborting.
+/// `Backend::Rest` uses rayon 8c per-path calls (ADR 0003); `Backend::Graphql`
+/// uses a single alias-batched request (ADR 0005). Hash failures and case
+/// collisions are recorded as [`Status::Failed`] without aborting.
 pub(super) fn assemble_entries<C: GhClient + Sync>(
     local_files: &[LocalFile],
     remote_files: &[RemoteFile],
@@ -54,28 +48,42 @@ pub(super) fn assemble_entries<C: GhClient + Sync>(
     all_paths.extend(local_map.keys().copied());
     all_paths.extend(remote_map.keys().copied());
 
-    let pending = build_pre_entries(&all_paths, &local_map, &remote_map, keep_bom);
+    let collisions = case_collision::detect(&all_paths, &local_map, &remote_map);
+    let pending = build_pre_entries(&all_paths, &local_map, &remote_map, keep_bom, &collisions);
     let commit_paths = extract_commit_paths(&pending);
     let commit_map =
         commits::fetch_commit_map(&commit_paths, ctx.client, ctx.repo, ctx.branch, ctx.backend)?;
     Ok(finalize_entries(pending, &commit_map))
 }
 
-/// Pass 1: hash local files and capture per-path state without calling the
-/// Commits API.
-///
-/// Hash failures are recorded as [`PreState::Failed`].
+/// Pass 1: hash local files, no Commits API call. Hash failures map to
+/// [`PreState::Failed`] with `failed_reason: None` (v1.0 `hash_io` default).
+/// Paths in `collisions` short-circuit to [`FailedReason::CaseCollision`]
+/// without invoking [`try_hash_local`].
 fn build_pre_entries(
     all_paths: &BTreeSet<&str>,
     local_map: &HashMap<&str, &LocalFile>,
     remote_map: &HashMap<&str, &RemoteFile>,
     keep_bom: bool,
+    collisions: &HashSet<String>,
 ) -> Vec<PreEntry> {
     let mut pending: Vec<PreEntry> = Vec::with_capacity(all_paths.len());
     for path in all_paths {
         let local = local_map.get(path).copied();
         let remote = remote_map.get(path).copied();
         let remote_sha = remote.map(|r| r.sha.clone());
+
+        if collisions.contains(*path) {
+            pending.push(PreEntry {
+                path: (*path).to_string(),
+                state: PreState::Failed {
+                    remote_sha,
+                    local_mtime: local.map(|lf| lf.mtime),
+                    failed_reason: Some(FailedReason::CaseCollision),
+                },
+            });
+            continue;
+        }
 
         let state = match local {
             Some(lf) => match try_hash_local(&lf.absolute_path, keep_bom) {
@@ -90,6 +98,7 @@ fn build_pre_entries(
                     PreState::Failed {
                         remote_sha,
                         local_mtime: Some(lf.mtime),
+                        failed_reason: None,
                     }
                 }
             },
@@ -139,6 +148,7 @@ fn finalize_entries(
             PreState::Failed {
                 remote_sha,
                 local_mtime,
+                failed_reason,
             } => {
                 summary.failed += 1;
                 failed_count += 1;
@@ -150,6 +160,7 @@ fn finalize_entries(
                     local_mtime,
                     remote_last_commit_at: None,
                     is_binary: false,
+                    failed_reason,
                 }
             }
             PreState::Hashed {
@@ -180,6 +191,7 @@ fn finalize_entries(
                     local_mtime,
                     remote_last_commit_at,
                     is_binary,
+                    failed_reason: None,
                 }
             }
         };
@@ -195,6 +207,7 @@ enum PreState {
     Failed {
         remote_sha: Option<String>,
         local_mtime: Option<DateTime<Utc>>,
+        failed_reason: Option<FailedReason>,
     },
     Hashed {
         local_sha: Option<String>,
@@ -210,77 +223,5 @@ struct PreEntry {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::commands::scan::test_helpers::{COMMITS_BODY, mtime, stub_commits};
-    use crate::shared::gh::MockGhClient;
-    use crate::shared::hash::blob_hash;
-    use std::fs;
-    use tempfile::TempDir;
-
-    #[test]
-    fn assemble_entries_marks_unreadable_local_as_failed() {
-        let dir = TempDir::new().unwrap();
-        let bogus = LocalFile {
-            relative_path: "ghost.md".to_string(),
-            absolute_path: dir.path().join("ghost-not-here.md"),
-            mtime: mtime(1_700_000_000),
-        };
-        let remote = RemoteFile {
-            path: "ghost.md".to_string(),
-            sha: "remote-sha".to_string(),
-        };
-
-        let mut mock = MockGhClient::new();
-        stub_commits(&mut mock, "o/r", "main", "ghost.md", COMMITS_BODY);
-
-        let ctx = GitHubContext {
-            client: &mock,
-            repo: "o/r",
-            branch: "main",
-            backend: Backend::Rest,
-        };
-        let (entries, summary, failed) =
-            assemble_entries(&[bogus], &[remote], &ctx, false).unwrap();
-
-        assert_eq!(failed, 1);
-        assert_eq!(summary.failed, 1);
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].status, Status::Failed);
-        assert!(entries[0].local_sha.is_none());
-        assert_eq!(entries[0].remote_sha.as_deref(), Some("remote-sha"));
-    }
-
-    #[test]
-    fn assemble_entries_skips_commits_for_identical() {
-        let dir = TempDir::new().unwrap();
-        fs::write(dir.path().join("ok.md"), "hi\n").unwrap();
-        let sha = blob_hash(b"hi\n");
-
-        let local = LocalFile {
-            relative_path: "ok.md".to_string(),
-            absolute_path: dir.path().join("ok.md"),
-            mtime: mtime(1_700_000_000),
-        };
-        let remote = RemoteFile {
-            path: "ok.md".to_string(),
-            sha: sha.clone(),
-        };
-
-        // No commits stub; if assemble_entries hits the Commits API anyway, it
-        // would surface as an Http error (MockGhClient default).
-        let mock = MockGhClient::new();
-        let ctx = GitHubContext {
-            client: &mock,
-            repo: "o/r",
-            branch: "main",
-            backend: Backend::Rest,
-        };
-        let (entries, summary, failed) =
-            assemble_entries(&[local], &[remote], &ctx, false).unwrap();
-
-        assert_eq!(failed, 0);
-        assert_eq!(summary.identical, 1);
-        assert_eq!(entries[0].status, Status::Identical);
-    }
-}
+#[path = "pipeline_tests.rs"]
+mod tests;

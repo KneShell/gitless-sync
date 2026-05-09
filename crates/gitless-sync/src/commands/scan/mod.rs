@@ -3,6 +3,7 @@
 //! domain (`pipeline`) and IO (`commits`, `hash_local`) live in siblings.
 
 pub mod args;
+pub mod case_collision;
 pub mod commits;
 pub mod compare;
 pub mod graphql;
