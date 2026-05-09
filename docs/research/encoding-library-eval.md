@@ -212,59 +212,17 @@ caller 정책 (`prepare_for_hash` 또는 호출자):
 
 ### encoding_rs attribution (cargo-bloat)
 
-```
-$ cargo bloat --release -p gitless-sync --crates -n 50
- File  .text     Size Crate
-12.3%  15.0% 297.8KiB regex_automata
-12.3%  15.0% 296.6KiB std
-10.5%  12.7% 252.7KiB clap_builder
-10.3%  12.5% 248.2KiB gitless_sync
- 7.9%   9.6% 190.9KiB aho_corasick
- 6.6%   8.1% 159.7KiB regex_syntax
- 6.0%   7.3% 144.3KiB similar
- 4.2%   5.1% 101.8KiB toml_edit
- 2.5%   3.0%  60.1KiB globset
- 1.5%   1.8%  35.7KiB serde_json
- ...
- 0.1%   0.1%   2.2KiB unicode_normalization
- ...
- 0.0%   0.0%       1B log
-82.0% 100.0%   1.9MiB .text section size, the file size is 2.4MiB
-```
+`cargo bloat --release -p gitless-sync --crates -n 50`: encoding_rs는 top 50 entries 미포함 (마지막 entry `log = 1 byte`). top 5 crates는 `regex_automata` 297.8 KiB / `std` 296.6 KiB / `clap_builder` 252.7 KiB / `gitless_sync` 248.2 KiB / `aho_corasick` 190.9 KiB. `.text` section 합 1.9 MiB / file 2.4 MiB.
 
-**encoding_rs는 top 50 entries에 포함 안 됨** — 마지막 entry는 `log = 1 byte`. 즉 `.text` section attribution은 1 byte 미만.
-
-```
-$ cargo bloat --release -p gitless-sync --filter encoding_rs -n 100
-File .text Size Crate Name
-0.0%  0.0%   0B       filtered data size, the file size is 2.4MiB
-```
-
-`--filter encoding_rs`로 직접 검색 — `.text` section에 encoding_rs 심볼 attribution **0 bytes**.
+`--filter encoding_rs` 직접 검색 결과 — `.text` section attribution **0 bytes** (LTO + dead code elimination + strip).
 
 ### Reverse dependency tree
 
-```
-$ cargo tree -p gitless-sync -i encoding_rs
-encoding_rs v0.8.35
-└── gitless-sync v0.1.0
-```
-
-encoding_rs는 직접 dep만 — transitive 0건 (Option A 결정 정합).
+`cargo tree -p gitless-sync -i encoding_rs`: encoding_rs v0.8.35 직접 dep만 (transitive 0건, Option A 정합).
 
 ### PE section breakdown (objdump)
 
-```
-$ objdump -h target/release/gitless-sync.exe
-Idx Name          Size
-  0 .text         001ef714  (2,029,332 bytes ≈ 1.9 MiB)
-  1 .rdata        000624ac    (402,604 bytes ≈ 393 KiB)
-  2 .data         00000200        (512 bytes)
-  3 .pdata        00008550     (34,128 bytes)
-  4 .reloc        00001cf8      (7,416 bytes)
-```
-
-전체 `.exe` size: **2,476,032 bytes (~2.4 MiB)**. 정적 데이터가 들어가는 `.rdata` section 전체가 **393 KiB** — README "fairly large" + ~1MB 가정과 정렬 안 됨 (전체 정적 데이터 자체가 1 MB 미만).
+`objdump -h target/release/gitless-sync.exe`: `.text` 2,029,332 bytes (~1.9 MiB) + `.rdata` 402,604 bytes (~393 KiB) + `.data`/`.pdata`/`.reloc` 합 ~42 KiB = `.exe` 2,476,032 bytes (~2.4 MiB). 정적 데이터 들어가는 `.rdata` 전체가 393 KiB — README "fairly large" + ~1MB 가정과 정렬 안 됨 (전체 정적 데이터 자체가 1 MB 미만).
 
 ### 결론
 
@@ -281,11 +239,7 @@ Idx Name          Size
 
 ### 의사결정 영향 요약
 
-clean-context §5 의심점 ("encoding_rs ~1MB binary size delta") **사후 검증 완료** — 정량 부정. Option A (encoding_rs 단독) 결정 그대로 confirmed. § Limitations item 3에 있던 [unverified] → verified 갱신 적용.
-
-향후 재검토 트리거:
-- Phase 6+ `working-tree-encoding` attribute 지원 시 — full WHATWG encoding 사용 시점, 본 measurement 재실행 (`.rdata` 정적 테이블 추가).
-- vault dogfooding (task T)에서 vault에 비-UTF-8 encoding 발견 시점 — shortlist 확장 cascade로 measurement 변동.
+clean-context §5 의심점 (`~1MB binary size delta`) **사후 검증 완료** — 정량 부정. Option A confirmed. 재검토 트리거: Phase 6+ `working-tree-encoding` attribute (full WHATWG, `.rdata` 정적 테이블 추가) + vault dogfood에서 비-UTF-8 발견 (shortlist 확장 cascade).
 
 ## Limitations
 

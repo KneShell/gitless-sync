@@ -2,7 +2,7 @@
 
 > Snapshot at task T commit time (2026-05-09). Phase 5 진행 종료 직후 실행한 dogfood scan. Phase 5 task A baseline (commit `68fb0f0`, 92 files / 0 drift / 0 failed) 위에 task B~S까지 23 task가 적용된 v0.2 코드에서 재실행.
 >
-> **Vault unavailable note** (baseline mirror): 이 머신(`C:\Users\dasgut`)에서 vault path(`C:\Users\admin\iCloudDrive\iCloud~md~obsidian`) 접근 불가. dogfood target은 `KneShell/gitless-sync` 자체 repo (92 files baseline → 117 files 현재) 한정. 함정 surface는 ~0건 예상되며 실제로 그렇게 측정됨 (아래 § Drift Source Analysis). pitfall handling 검증은 본 dogfood가 아닌 cross-reference integration tests (R/R2/S/P/P1/Q) chain이 담당.
+> **Vault unavailable note** (baseline mirror): 본 머신은 vault path(`<vault path>`) 접근 불가 (머신 user ≠ vault user). dogfood target은 `KneShell/gitless-sync` 자체 repo (92 files baseline → 117 files 현재) 한정. 함정 surface는 ~0건 예상되며 실제로 그렇게 측정됨 (아래 § Drift Source Analysis). pitfall handling 검증은 본 dogfood가 아닌 cross-reference integration tests (R/R2/S/P/P1/Q) chain이 담당.
 
 ## Measurement Setup
 
@@ -109,7 +109,7 @@ W task 입력:
 ## Limitations
 
 1. **Baseline JSON 미보존**: A task 시점 작성된 `tmp/phase5-scan-baseline.json`은 `tmp/` race noise 정리 시점에 누락. baseline doc은 summary count + path 결과만 작성됨, **per-file regression diff는 미작성** (W task scope, baseline 작성 commit `68fb0f0` 시점 v0.1 코드 재실행으로 별도 작성).
-2. **Vault 접근 불가**: 머신 한정 (`C:\Users\dasgut`). vault path(`C:\Users\admin\...`) 접근 가능 환경에서 별도 vault dogfood task 추가 가능 (Phase 5+).
+2. **Vault 접근 불가**: 머신 한정 (머신 user ≠ vault user). vault path 접근 가능 환경에서 별도 vault dogfood task 추가 가능 (Phase 5+).
 3. **함정 surface 0건**: KneShell/gitless-sync에는 NFD path / `.gitattributes` / LFS / submodule / symlink / 비-UTF-8 / Windows long path 모두 결여 — dogfood가 pitfall handling 정확성을 검증 못 함. § Pitfall Verification Chain의 cross-reference integration tests로 검증.
 4. **Schema 1.1 lock test는 unit-level**: O task의 v1.0 backward-compat lock test 5건은 `output.rs::tests`에 위치 (synthetic envelope). production v1.0 parser 사용 호출자 정합은 W task 자동 비교에서 검증.
 

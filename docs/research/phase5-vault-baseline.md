@@ -2,7 +2,7 @@
 
 > Snapshot at task A commit time (2026-05-09). Phase 5 진입 직전 baseline. v0.1 시점의 vault 검증(356 files, 0 drift, 2026-04-29, ureq) 이후 ADR 0001~0008 + Phase 4/6 변경 누적된 v0.2 코드로 재실행.
 >
-> **Vault unavailable note**: 이 머신(`C:\Users\dasgut`)에는 vault path(`C:\Users\admin\iCloudDrive\iCloud~md~obsidian`) 접근 불가. dogfooding target은 KneShell/gitless-sync 자체 repo (43 files baseline → 92 files 현재) 한정. 함정 surface는 ~0건 예상되며 실제로 그렇게 측정됨 (아래 § Drift Source Analysis). Phase 5 우선순위 입력은 fact check 3건이 분석 무게 중심을 담당.
+> **Vault unavailable note**: 본 머신은 vault path(`<vault path>`) 접근 불가 (머신 user ≠ vault user). dogfooding target은 KneShell/gitless-sync 자체 repo (43 files baseline → 92 files 현재) 한정. 함정 surface는 ~0건 예상되며 실제로 그렇게 측정됨 (아래 § Drift Source Analysis). Phase 5 우선순위 입력은 fact check 3건이 분석 무게 중심을 담당.
 
 ## Measurement Setup
 
@@ -159,7 +159,7 @@ vault 데이터 부재로 본 task의 우선순위 입력은 제한적. task B�
 
 ## Limitations
 
-1. **Vault 접근 불가**: 머신 환경 한정 (C:\Users\dasgut, vault는 `C:\Users\admin` 경로). Phase 5 진행 중 vault 접근 환경 확보 시 본 task 결과를 task T에서 추가 baseline으로 갱신 가능.
+1. **Vault 접근 불가**: 머신 환경 한정 (vault는 별도 user 경로). Phase 5 진행 중 vault 접근 환경 확보 시 본 task 결과를 task T에서 추가 baseline으로 갱신 가능.
 2. **encoding_rs binary delta 미측정**: cargo-bloat 미설치 상태. Y task에서 cargo-bloat 설치 + 정량 측정.
 3. **schema_version 1.0 한계**: `mode` / `failed_reason` / `lfs_pointer` 필드 미적용 — 본 baseline은 v0.1 4분류 한정. task O 시점 1.1 적용 → 본 baseline 비교 시 schema diff 정확화로 분류 (W task 자동 비교).
 
