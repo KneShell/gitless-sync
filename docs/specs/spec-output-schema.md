@@ -27,15 +27,11 @@
 - `failed_reason == "lfs_pointer"` 한정 `lfs_pointer` 필드 포함 — `pipeline.rs` line 226 `lfs::placeholder_pointer_for(failed_reason)` + `lfs.rs::placeholder_pointer_for` 구현됨 (`Some(LfsPointer { oid: "?", size: 0 })` for `LfsPointer` reason, `None` 외). `pipeline_tests_lfs.rs` line 87~130 검증 통과.
 - spec § acceptance line 117 `mode == "100755"` + content 동일 → `Status::Identical` — `pipeline_tests_modes.rs::assemble_entries_keeps_identical_when_only_mode_differs_executable` 검증됨.
 
-**미구현 (Phase 5 후속, hedge marker — task N drift mirror)**:
-- `failed_reason` 9 reason 중 3건 `enum-spec'd-but-unimplemented` align (task N audit과 동일 — fix scope follow-up):
-  - `encoding` — `shared/decode.rs::try_decode_text` sniff 구현됨이지만 `compare.rs::FailedReason`에 variant 미정의 + `pipeline.rs` surface mapping 미구현.
-  - `nfd_collision` — `walker.rs::relative_path` NFC normalize 구현됨이지만 NFD collision detect (precomposeunicode false 환경) 미구현.
-  - `gitattributes_unsupported` — `shared/gitattributes::AttributeMatch::Unsupported` variant 정의됨 + `prepare_for_hash` defensive fall-through 구현됨이지만 `pipeline.rs` `Status::Failed` mapping plumbing 미구현.
-- `compare.rs::FailedReason` 5 variant (`CaseCollision / Submodule / Symlink / LongPath / LfsPointer`) + `None` special case (`hash_io` v1.0 baseline) = 6 cover. 9 reason 중 3건 enum-spec'd-but-unimplemented는 task N의 fix scope follow-up과 동일 — 본 task 코드 fix 안 함.
-
-**Spec self-consistency fix (본 task에서 진행)**:
-- § Acceptance Criteria § v1.1 신규 `enum 9 값 중 하나` line + § 안정성 보장 `Phase 5에서 정의된 9 reason` line 양쪽 hedge marker 추가 — 구현 5 variant + None special case 정합 + 3 enum-spec'd-but-unimplemented (task N audit drift mirror, fix scope follow-up). § 안정성 보장 동결 정책 자체는 그대로 (호출자 backward-compat 정책 line은 변경 없음 — 9 reason enum 동결은 spec contract 그대로).
+**구현 정합 (Phase 5.13 task AA, 2026-05-09)**:
+- `failed_reason` 9 reason 모두 구현 — `compare.rs::FailedReason` 8 variant (`CaseCollision / Submodule / Symlink / LongPath / LfsPointer / Encoding / NfdCollision / GitattributesUnsupported`) + `None` special case (`hash_io` v1.0 baseline) = 9 cover.
+- `encoding` plumbing — `commands/scan/hash_local.rs::try_hash_local`가 raw read 1회 + `try_decode_text` 결과 분기 (`Utf16Bom { .. }` / `Unknown` → `Some(FailedReason::Encoding)`).
+- `nfd_collision` plumbing — `commands/scan/nfd_collision.rs::detect`가 walker output `&[LocalFile]` group-by NFC key count ≥ 2 (HashMap dedup 전).
+- `gitattributes_unsupported` plumbing — `pipeline::try_short_circuit_failed`의 `.gitattributes` match arm이 `AttributeMatch::Unsupported { .. }` → `FailedReason::GitattributesUnsupported`.
 
 ## 작업 범위
 
@@ -105,7 +101,7 @@
 ### 안정성 보장
 - `schema_version`: 호환성 깨는 변경 시 major 증가. v0.1은 `"1.0"`, Phase 5는 `"1.1"` (minor).
 - `status` enum 동결: `identical` / `local_only_changed` / `remote_only_changed` / `drift` / `failed`. 추가는 minor 버전, 제거·이름 변경은 major. **Phase 5에서 새 status 미추가** — LFS/submodule/symlink는 모두 `failed` + `failed_reason` 분류.
-- `failed_reason` enum 동결 정책: 추가는 minor, 제거·이름 변경은 major. Phase 5에서 정의된 9 reason (`hash_io` / `encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported`). **O-task audit hedge (2026-05-09)**: 9 reason 중 6건 구현됨 (`hash_io` None special case + `submodule` / `symlink` / `lfs_pointer` / `long_path` / `case_collision` 5 enum variant), 3건 (`encoding` / `nfd_collision` / `gitattributes_unsupported`) enum-spec'd-but-unimplemented — task N audit drift mirror, fix scope follow-up. spec § 동결 정책은 contract 그대로 (호출자 backward-compat 보호).
+- `failed_reason` enum 동결 정책: 추가는 minor, 제거·이름 변경은 major. Phase 5에서 정의된 9 reason (`hash_io` / `encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported`) 모두 구현 (Phase 5.13 task AA, 2026-05-09 — `compare.rs::FailedReason` 8 variant + `None` special case `hash_io`).
 - 시간 필드: 모두 ISO-8601 UTC (`Z` suffix). 로컬 타임존 출력 금지.
 - null 정책:
   - 원격 only 파일: `local_sha=null`, `local_mtime=null`.
@@ -137,7 +133,7 @@
 
 - `[AUTO]` `report.schema_version` == `"1.1"`.
 - `[AUTO]` `files[].mode` 필드가 모든 entry에 포함 (`"100644"` / `"100755"` / `"160000"` / `"120000"`).
-- `[AUTO]` `Status::Failed` entry에 `failed_reason` 필드 포함. enum 9 값 중 하나. **O-task audit hedge (2026-05-09)**: 구현 5 variant (`CaseCollision / Submodule / Symlink / LongPath / LfsPointer`) + `None` special case (`hash_io`) = 6 cover. `encoding` / `nfd_collision` / `gitattributes_unsupported` 3건 enum-spec'd-but-unimplemented (task N audit drift mirror) — fix scope follow-up.
+- `[AUTO]` `Status::Failed` entry에 `failed_reason` 필드 포함. enum 9 값 중 하나 — 구현 8 variant (`CaseCollision / Submodule / Symlink / LongPath / LfsPointer / Encoding / NfdCollision / GitattributesUnsupported`) + `None` special case (`hash_io`) = 9 cover. Phase 5.13 task AA 구현 완료 (2026-05-09).
 - `[AUTO]` `failed_reason == "lfs_pointer"` entry에 `lfs_pointer` 필드 포함 (`{oid, size}` 형식).
 - `[AUTO]` `failed_reason != "lfs_pointer"` entry는 `lfs_pointer` 필드 omit.
 - `[AUTO]` `Status` 외 entry (Identical / LocalOnlyChanged 등)는 `failed_reason` 필드 omit.

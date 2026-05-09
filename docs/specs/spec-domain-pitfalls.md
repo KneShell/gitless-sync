@@ -36,7 +36,7 @@ GitHub repo와 로컬 디렉토리 간 비교에서 OS / 인코딩 / git 메타�
 
 - **NFD → NFC**: 모든 path를 NFC로 정규화 후 비교 key 생성. `unicode-normalization` crate 사용.
 - **macOS default 환경** (`core.precomposeunicode = true`): NFD → NFC 자동 변환. 우리 NFC 정규화로 정합 [source: https://git.vger.kernel.narkive.com/OJcWG1uy/patch-v8-on-mac-os-and-precomposed-unicode].
-- **macOS `false` edge case**: NFC/NFD 동일 path 두 개 공존 vault → NFC 정규화 후 같은 key 충돌 → `Status::Failed` + `failed_reason: "nfd_collision"`. 99% 케이스는 NFC 정규화로 자동 처리, 1% edge case만 detect-only fallback.
+- **macOS `false` edge case**: NFC/NFD 동일 path 두 개 공존 vault → NFC 정규화 후 같은 key 충돌 → `Status::Failed` + `failed_reason: "nfd_collision"`. 99% 케이스는 NFC 정규화로 자동 처리, 1% edge case는 detect-only fallback 구현 (Phase 5.13 task AA, `commands/scan/nfd_collision.rs::detect`가 walker output `&[LocalFile]`을 NFC key로 group-by count ≥ 2, HashMap dedup 전).
 - **Case 정책**: case-sensitive 비교 (Unix-style). Windows NTFS는 normalize 안 하고 NFC/NFD 둘 다 저장 가능 [source: https://unicodefyi.com/guide/unicode-in-filenames/] — 우리 도구가 NFC 정규화 + case-sensitive로 통일.
 - **Windows NTFS local-side case detection** (clean-context §1): local에 `Foo.txt` + `foo.txt` 두 file 존재 케이스 → walker가 두 entry catch (NTFS는 case-preserving), case-sensitive 비교로 두 path key 생성. 한쪽 side에 다른 case sibling이 있으면 unmatched side는 `Status::Failed` + `failed_reason: "case_collision"`로 promote (D1, spec-classification.md § edge case + spec-output-schema.md § `failed_reason` 정합 — `failed_reason`은 `Status::Failed` 한정). 검출은 symmetric: (a) canonical case-insensitive volume(1개 entry만 catch + remote 두 case 존재) → unmatched remote-side 1개 promote, (b) local 두 case 모두 존재하는데 remote 1개 case → unmatched local-side promote, (c) local/remote가 서로 다른 case 1개씩만 존재하는 diagonal mismatch → 양쪽 모두 promote.
 

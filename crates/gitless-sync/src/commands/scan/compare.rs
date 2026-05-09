@@ -23,6 +23,9 @@ pub enum FailedReason {
     Symlink,
     LongPath,
     LfsPointer,
+    Encoding,
+    NfdCollision,
+    GitattributesUnsupported,
 }
 
 /// LFS pointer companion for a [`Status::Failed`] entry whose
@@ -191,6 +194,24 @@ mod tests {
     #[test]
     fn failed_reason_lfs_pointer_serializes_snake_case() {
         assert_failed_reason_round_trip(FailedReason::LfsPointer, "lfs_pointer");
+    }
+
+    #[test]
+    fn failed_reason_encoding_serializes_snake_case() {
+        assert_failed_reason_round_trip(FailedReason::Encoding, "encoding");
+    }
+
+    #[test]
+    fn failed_reason_nfd_collision_serializes_snake_case() {
+        assert_failed_reason_round_trip(FailedReason::NfdCollision, "nfd_collision");
+    }
+
+    #[test]
+    fn failed_reason_gitattributes_unsupported_serializes_snake_case() {
+        assert_failed_reason_round_trip(
+            FailedReason::GitattributesUnsupported,
+            "gitattributes_unsupported",
+        );
     }
 
     fn sample_entry(failed_reason: Option<FailedReason>) -> FileEntry {

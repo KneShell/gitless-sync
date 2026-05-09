@@ -10,6 +10,7 @@ pub mod graphql;
 pub mod hash_local;
 pub mod lfs;
 pub mod long_path;
+pub mod nfd_collision;
 pub mod output;
 pub mod pipeline;
 pub mod status_filter;
