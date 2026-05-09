@@ -8,12 +8,7 @@ GitHub Trees / Blobs / Commits API를 `gh api` subprocess로 호출 (ADR 0001 + 
 
 ## 현재 상태
 
-- ADR 0001: `gh` subprocess 단일 통로 + read-only 영구.
-- ADR 0002: v0.1 ureq baseline → gh subprocess 마이그레이션 완료 (2026-05-07). ureq + mockito 의존성 제거. 단일 baseline.
-- ADR 0003: rayon 8 concurrent 유지 결정 (M5a 측정 4.86x speedup) — REST backend 단독 시점.
-- ADR 0005: rayon은 REST backend 한정. GraphQL backend는 alias batching 단독 (Phase 4).
-- ADR 0006: default backend `rest` → `graphql` 전환 (Phase 4). REST는 `--backend rest` explicit fallback으로 유지.
-- ADR 0007: GraphQL alias batch size default 200 confirmed (P6a raw data 기반, 2026-05-07).
+ADR 0001 (gh subprocess 단일 통로 + read-only 영구) + ADR 0002 (ureq → gh 마이그레이션 단일 baseline, 2026-05-07) 완료. backend 정책: REST는 rayon 8 concurrent (ADR 0003), GraphQL backend는 alias batching 단독 (ADR 0005). default backend `rest` → `graphql` 전환 (ADR 0006), batch size 200 default confirmed (ADR 0007).
 
 ## 작업 범위
 
@@ -120,8 +115,6 @@ v0.1 ureq baseline 시그니처에서 `token` 인자 제거 + `client: &impl GhC
 
 ### Backend 선택
 
-> **갱신 (ADR 0006, 2026-05-07)**: default backend `rest` → `graphql` 전환. v0.1 stub은 obsolete (P3a에서 본체 구현됨). GraphQL backend 본체 정의는 본 spec § GraphQL backend.
-
 - `--backend graphql` (default): § GraphQL backend 정의대로 `fetch_last_commit_at_batch` 진입점. 인증·rate limit·재시도 모두 gh 위임 (ADR 0001 일관).
 - `--backend rest` (explicit fallback): 본 spec § fetch_tree / fetch_blob / fetch_last_commit_at + § 병렬 호출 정책 (REST 분기) 그대로 동작. v0.1/v0.2 자산 보존, GraphQL 운영 이슈(rate limit, alias batching 응답 정합성, partial errors 등) 발생 시 즉시 fallback (ADR 0006 § Decision).
 - `fetch_tree` / `fetch_blob`은 GraphQL backend에서도 REST를 그대로 사용 (Trees / Blobs API는 GraphQL 대체 우위 0). backend 분기는 commits API 호출에 한정.
@@ -189,15 +182,7 @@ query {
 ```
 
 - `ref(qualifiedName: "refs/heads/{branch}").target` 분기는 한 batch에 1회. 그 안의 N alias가 모두 같은 Commit 위에서 평가됨 (`object(expression: "{branch}:{path}")`처럼 path별로 중복 분기하지 않음).
-- 호출 args 빌드 예 (`gh api graphql -f query=...`):
-  ```rust
-  vec![
-      "api".to_string(),
-      "graphql".to_string(),
-      "-f".to_string(),
-      format!("query={query_string}"),
-  ]
-  ```
+- 호출 args 빌드: `["api", "graphql", "-f", "query={query_string}"]` 4-element `Vec<String>`. `-f`는 form parameter (string-typed) — graphql endpoint에 query body로 전달.
 
 #### Path quote (GraphQL string escape)
 
@@ -256,8 +241,6 @@ batch size 변경 시 본 § GraphQL backend + ADR 0007 동시 갱신 (P6a raw d
 - vault scale (수백~천 path) 측정에서 batch 100 vs 200 식별 가능한 차이 surface 시 raw data 기록 후 재결정.
 
 ### 병렬 호출 정책 (Latency)
-
-> **갱신 (ADR 0005, 2026-05-07)**: backend별 분기. REST는 ADR 0003대로 rayon 8c 유지, GraphQL은 alias batching 자체가 병렬 효과라 rayon 미사용.
 
 | Backend | 정책 | 근거 |
 |---|---|---|
