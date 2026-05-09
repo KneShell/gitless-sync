@@ -1,7 +1,7 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 6.1 UU 완료 — cognitive_complexity vs LOC proxy 둘 다 유지 결정 + ADR 0010)
+- Last updated: 2026-05-10 (Phase 6.1 VV [~] mark — CI 안정성 1차 검증 시작)
 - Total tasks: 59
 - Completed: 58 / 59
 
@@ -372,7 +372,7 @@
   - Files: `docs/adr/0010-cognitive-vs-loc-proxy.md` (신규), `docs/specs/spec-architecture.md`, `CLAUDE.md` (필요 시).
   - 결과 (2026-05-10): **option (a) 둘 다 유지** 채택 — 셋 다 인지부하 frame이지만 서로 다른 escape hatch 차단 (함수 단위 branching dense / 함수 단위 LOC sprawl / file 단위 누적 sprawl). proxy 3건 (`clippy::cognitive_complexity = 15` + `clippy::too_many_lines = 60` + `xtask check-line-limits = 300`)로 직교성 frame 확장. advisor 권고 mirror — task title이 cog_comp vs LOC 300 단 2건만 singling out하지만 실제 proxy 가족은 3건 (`too_many_lines` 동시 deny 박제, `Cargo.toml:18`). `docs/adr/0010-cognitive-vs-loc-proxy.md` 신규 (88 LOC, ADR 0008 구조 mirror — Status/Date/Related/Context/Decision/Consequences/References) — 3 proxy 직교성 표 + 한 쪽 제거 시 빠지는 케이스 3건 + 비판의 부분 인정 + 박제 자료 (위반 0건 + override 0건 + 6 file 290-299 LOC + LOC 300 단독 fire 사례 task AA/GG/HH + cog_comp + too_many_lines 동시 fire 사례 task R) + 박제 expiration 재평가 트리거 3건. `docs/specs/spec-architecture.md` § Function-level complexity gates 신규 섹션 추가 (§ LOC 임계 § Enforcement와 § Panic escape hatch 차단 사이) — 3 proxy table + 직교성 1 paragraph + ADR 0010 cross-ref + 면제 카테고리 (test 코드 panic 검출 한정 면제 + doc-heavy file LOC 50% 룰). **`CLAUDE.md` 미변경** (advisor 권고 — § 사용자 취향 결정 (박제)이 이미 spec-architecture.md pointer라 spec 갱신으로 cascade, OO 직후 slim 상태 보존). validation: cargo fmt --check clean (G-016 mirror) + cargo clippy 0 warnings + cargo xtask check-line-limits (56 + 5 within 300) + cargo xtask check-cycles (51 modules, 0 cycle / 0 cross-slice ref) + cargo machete clean + cargo test --workspace **410 tests pass** (318 lib + 43 integration + 49 xtask, TT baseline 그대로) + tarpaulin G-012 spec-only 일반화 면제 (코드 변동 0, 90.57% baseline 유지 자동 통과). 다른 task scope 침범 없음 (Cargo.toml/clippy.toml/CHANGELOG/code 미변경, `Files` listed scope 정합).
 
-- [ ] **VV. CI 안정성 1차 검증 — GitHub Actions Windows runner tarpaulin LLVM**
+- [~] **VV. CI 안정성 1차 검증 — GitHub Actions Windows runner tarpaulin LLVM**
   - acceptance: `.github/workflows/ci.yml` Windows runner에서 1회 CI run 성공 + tarpaulin LLVM 백엔드 안정성 1차 검증 (G-007 follow-up). roadmap § Open Questions "CI 플랫폼 — GitHub Actions Windows 러너에서 tarpaulin LLVM 백엔드 안정성 1차 검증 필요" 해소. tarpaulin LLVM 백엔드 함정 (non-zero exit code / thread safety) surface 시 G-018 신규 entry 작성. README.md CI badge 추가 (선택).
   - 검증: 1회 GitHub Actions Windows run 성공 (commit push trigger) + tarpaulin coverage 80%+ 통과 + 사례 surface 시 G-018 entry 추가.
   - Files: `.github/workflows/ci.yml` (필요 시 갱신), `README.md` (badge 선택), `docs/ralph/guardrails.md` (G-018 신규 시).
