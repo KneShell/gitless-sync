@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 6.1 진입 — v0.2.x cleanup)
+- Last updated: 2026-05-10 (Phase 6.1 UU 완료 — cognitive_complexity vs LOC proxy 둘 다 유지 결정 + ADR 0010)
 - Total tasks: 59
-- Completed: 57 / 59
+- Completed: 58 / 59
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -366,10 +366,11 @@
 
 > Phase 5.14 종료 후 v0.2.0 release 직전 마무리. 사용자 우려 (clean-context §5-3 명시, roadmap § Open Questions) 처리.
 
-- [~] **UU. Phase 6 박제 expiration 재검토 — cognitive_complexity vs LOC 300 proxy 중복**
+- [x] **UU. Phase 6 박제 expiration 재검토 — cognitive_complexity vs LOC 300 proxy 중복**
   - acceptance: Phase 6 박제 항목 `clippy::cognitive_complexity = 15` + `xtask check-line-limits ≤ 300` proxy 중복 정당성 재검토. clean-context §5-3 명시 ("Phase 7 진입 시 재검토 — proxy 두 개 동시 deny가 정당한지"). 결정 1건 — (a) 둘 다 유지 (orthogonal proxy: cognitive_complexity는 함수 단위 분기 복잡도, LOC는 file 단위 인지부하), (b) 한 쪽 제거 (proxy 중복 — 동일 인지부하 측정 frame, 1건만 deny). 합리적 판단으로 결정 + ADR-style narrative 작성 (`docs/adr/0010-cognitive-vs-loc-proxy.md` 신규 권장).
   - 검증: 결정 + spec-architecture.md § LOC 임계 / § cognitive_complexity 갱신 + CLAUDE.md 박제 정책 갱신 (필요 시). validation pipeline 통과 (cargo fmt --check + clippy + check-line-limits + check-cycles + machete + test 410+ + tarpaulin 80%+).
   - Files: `docs/adr/0010-cognitive-vs-loc-proxy.md` (신규), `docs/specs/spec-architecture.md`, `CLAUDE.md` (필요 시).
+  - 결과 (2026-05-10): **option (a) 둘 다 유지** 채택 — 셋 다 인지부하 frame이지만 서로 다른 escape hatch 차단 (함수 단위 branching dense / 함수 단위 LOC sprawl / file 단위 누적 sprawl). proxy 3건 (`clippy::cognitive_complexity = 15` + `clippy::too_many_lines = 60` + `xtask check-line-limits = 300`)로 직교성 frame 확장. advisor 권고 mirror — task title이 cog_comp vs LOC 300 단 2건만 singling out하지만 실제 proxy 가족은 3건 (`too_many_lines` 동시 deny 박제, `Cargo.toml:18`). `docs/adr/0010-cognitive-vs-loc-proxy.md` 신규 (88 LOC, ADR 0008 구조 mirror — Status/Date/Related/Context/Decision/Consequences/References) — 3 proxy 직교성 표 + 한 쪽 제거 시 빠지는 케이스 3건 + 비판의 부분 인정 + 박제 자료 (위반 0건 + override 0건 + 6 file 290-299 LOC + LOC 300 단독 fire 사례 task AA/GG/HH + cog_comp + too_many_lines 동시 fire 사례 task R) + 박제 expiration 재평가 트리거 3건. `docs/specs/spec-architecture.md` § Function-level complexity gates 신규 섹션 추가 (§ LOC 임계 § Enforcement와 § Panic escape hatch 차단 사이) — 3 proxy table + 직교성 1 paragraph + ADR 0010 cross-ref + 면제 카테고리 (test 코드 panic 검출 한정 면제 + doc-heavy file LOC 50% 룰). **`CLAUDE.md` 미변경** (advisor 권고 — § 사용자 취향 결정 (박제)이 이미 spec-architecture.md pointer라 spec 갱신으로 cascade, OO 직후 slim 상태 보존). validation: cargo fmt --check clean (G-016 mirror) + cargo clippy 0 warnings + cargo xtask check-line-limits (56 + 5 within 300) + cargo xtask check-cycles (51 modules, 0 cycle / 0 cross-slice ref) + cargo machete clean + cargo test --workspace **410 tests pass** (318 lib + 43 integration + 49 xtask, TT baseline 그대로) + tarpaulin G-012 spec-only 일반화 면제 (코드 변동 0, 90.57% baseline 유지 자동 통과). 다른 task scope 침범 없음 (Cargo.toml/clippy.toml/CHANGELOG/code 미변경, `Files` listed scope 정합).
 
 - [ ] **VV. CI 안정성 1차 검증 — GitHub Actions Windows runner tarpaulin LLVM**
   - acceptance: `.github/workflows/ci.yml` Windows runner에서 1회 CI run 성공 + tarpaulin LLVM 백엔드 안정성 1차 검증 (G-007 follow-up). roadmap § Open Questions "CI 플랫폼 — GitHub Actions Windows 러너에서 tarpaulin LLVM 백엔드 안정성 1차 검증 필요" 해소. tarpaulin LLVM 백엔드 함정 (non-zero exit code / thread safety) surface 시 G-018 신규 entry 작성. README.md CI badge 추가 (선택).
