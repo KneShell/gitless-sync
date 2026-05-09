@@ -208,7 +208,7 @@
   - spec: 없음 (docs).
   - 결과 (2026-05-09): CLAUDE.md § Current State 박스 갱신 — Phase 5 완료 박스 박음 (Phase 6 박스 패턴 mirror) + 다음 세션 진입점 갱신 (V1/Z 잔여 → vault scale 1000+ path / Phase 7+). roadmap.md § Phase 5 section CONFIRMED → COMPLETED 갱신 + Phase 6 박스 패턴 mirror로 결과 박스 박음 (8 함정 + 신규 함정 BOM/LFS pointer/long path / NFC 정규화 walker+remote / case_collision 3 시나리오 / encoding_rs detect-only / .gitattributes 5 module 폴더 + 화이트리스트 5 entry + 7 분기 helper / schema 1.0→1.1 / T 117 files 0 drift / W REGRESSION 0건 / U CI 4 게이트). 박힌 baseline: 38 task ralph 자율 본진 종료 (V1 CHANGELOG + Z audit sweep 잔여) / 383 tests pass / tarpaulin 90.73% / 사람 개입 0회 (advisor BLOCKING fix 다수는 self-correct). advisor 권고 박음 4건: V1/Z 잔여 명시 (Z는 audit이 아니라 실제 코드 변경 — gitattributes 296 LOC module 폴더 분할 박힘) / 카운트 산식 38/40 정확 / 사람 개입 0회 + advisor BLOCKING fix self-correct 박은 metric 분리 / baseline 383·90.73% 박음. validation: cargo fmt --check clean (코드 변경 0 — G-012 spec-only 일반화 적용, baseline 유지 자동 통과 — clippy/test/check-line-limits/check-cycles/machete/tarpaulin 박은 코드 0 박은 박은 baseline 그대로). 다른 task scope 침범 없음.
 
-- [ ] **V1. CHANGELOG.md v0.2 박음**
+- [~] **V1. CHANGELOG.md v0.2 박음**
   - acceptance: `CHANGELOG.md` 신규 박힘 (이미 Phase 5 docs 갱신에서 박힘). v0.2 entry 박음 — Phase 5 함정 처리 + spec 변경 + breaking changes (schema_version 1.1 minor bump 박힘, 호환).
   - spec: 없음 (docs).
 
