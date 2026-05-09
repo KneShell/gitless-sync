@@ -109,7 +109,7 @@
   - acceptance: project root `.gitattributes` < sub-directory `.gitattributes` < line-level pattern 마지막 매칭 winner 정합. unit test로 검증 (3-level fixture).
   - spec: `spec-hash-and-normalize.md` § `.gitattributes` 파서.
 
-- [ ] **X. `.gitattributes` parser performance gate**
+- [~] **X. `.gitattributes` parser performance gate**
   - acceptance: 큰 vault 시뮬레이션 (10K+ files × 100+ rules) per-file glob fnmatch P95 측정. baseline 박음. Phase 6 hard gate에 perf regression 임계 박음 (P95 X ms 초과 시 fail).
   - 검증: cargo bench (criterion) + Phase 6 CI gate.
   - spec: 없음 (perf gate, R3 task와 통합 가능).
