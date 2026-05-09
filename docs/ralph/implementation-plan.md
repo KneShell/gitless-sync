@@ -93,7 +93,7 @@
   - acceptance: `shared/gitattributes.rs` 박음. project root + 하위 디렉토리의 `.gitattributes` 파일 1회 로드 + glob pattern matching (gitignore-style). 우선순위: 가장 깊은 `.gitattributes` 우선 + line-level 마지막 매칭 winner. `.git/info/attributes` / global 미지원. unit test (multi-level fixture). tarpaulin 80% 유지 — 신규 모듈 cover 책임.
   - spec: `spec-hash-and-normalize.md` § `.gitattributes` 파서 + `spec-config.md` § 위치 정책.
 
-- [ ] **K1.5. `.gitattributes` 지원 attribute 화이트리스트 박음 (5 entry, advisor BLOCKING fix)**
+- [~] **K1.5. `.gitattributes` 지원 attribute 화이트리스트 박음 (5 entry, advisor BLOCKING fix)**
   - acceptance: `AttributeMatch` enum 박음 — `TextAuto / Binary / EolLf / EolCrlf / LfsPointer / Unspecified / Unsupported { attribute_name }`. **`filter=lfs`는 LfsPointer variant** (advisor BLOCKING fix — git-lfs 표준 마커). 화이트리스트 외 (`working-tree-encoding`, `ident`, `filter=*` (lfs 외), macro attributes, `crlf` legacy) 매칭 시 `Unsupported` 박음. unit test (5 화이트리스트 + 5 unsupported fixture). tarpaulin 80% 유지.
   - spec: `docs/specs/spec-domain-pitfalls.md` § `.gitattributes` 화이트리스트 + `spec-hash-and-normalize.md` § 화이트리스트 강제 + § LFS pointer.
 
