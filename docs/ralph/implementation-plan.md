@@ -53,7 +53,7 @@
   - acceptance: `normalize.rs`에 `try_decode_text` 함수 박음. 1차 UTF-8 디코드 시도 → 2차 다른 인코딩 detect → 3차 binary 취급 (`Status::Failed` + `failed_reason: "encoding"`). **hash 입력은 항상 원본 raw bytes** (clean-context (b) 정책). detect는 reason 마크 + JSON 출력 정보만. unit test (EUC-KR / Shift_JIS / Latin-1 fixture + identical raw bytes 검증). tarpaulin 80% 유지 — encoding detect 분기 cover.
   - spec: `docs/specs/spec-domain-pitfalls.md` § Encoding (hash 입력 (b)) + `spec-hash-and-normalize.md`.
 
-- [ ] **F1. BOM 처리 정책 박음 (UTF-8 + UTF-16)**
+- [~] **F1. BOM 처리 정책 박음 (UTF-8 + UTF-16)**
   - acceptance: UTF-8 BOM은 v0.1 그대로 처리 (text=auto + 미명시에서 strip). UTF-16 BOM (`FF FE` LE / `FE FF` BE) detect 시 `Status::Failed` + `failed_reason: "encoding"`. unit test (UTF-8 BOM strip + UTF-16 BOM detect).
   - spec: `docs/specs/spec-hash-and-normalize.md` § BOM + `spec-domain-pitfalls.md`.
 
