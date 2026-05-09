@@ -41,6 +41,17 @@ crates/gitless-sync/src/
 
 강제 메커니즘: naming convention + `pub(crate)`/`pub(super)` 가시성. **manifest 박지 않음** (yagni — 18 files 프로젝트에 deviation 거의 없음, clean-context §4 격하).
 
+### Module 폴더 단위 정책 (sub-module 분할)
+
+Module 폴더 (예: `shared/gitattributes/`, `shared/error/`)는 **단일 책임 묶음** — vertical slice 박은 directional discipline 적용 X. 같은 도메인의 file 분할이라 mediator 강제는 oversize.
+
+- **`mod.rs`**: re-export hub 또는 thin orchestrator. LOC 게이트 안 박힘 (300줄 자연 통과).
+- **sub-module 간 sibling cross-ref 허용**: `use super::parser::Rule;` 같은 직접 참조. Rust 관용 정합.
+- **acyclic 강제**: Phase 6 `cargo xtask check-cycles` 게이트가 sub-module 단위에도 자연 박힘 — cycle 0 보장.
+- **directional discipline 적용 X**: orchestrator/domain/IO 분류는 vertical slice 단위 정책. module 폴더는 단일 책임이라 sub-module 간 같은 layer 박는 게 자연.
+
+근거: `std`/`tokio`/`serde` 등 큰 crate도 sub-module 간 sibling cross-ref 자연 박음. mediator 강제하면 mod.rs 비대화 + Phase 6 LOC 300 게이트 위반 위험.
+
 ### Horizontal layer 영구 제외
 
 CLI/Domain/IO 전체 분층은 채택 안 함. vertical slice 박제와 충돌 + 작은 CLI에 oversize.
