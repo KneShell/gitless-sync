@@ -57,8 +57,12 @@ struct AttributesFile {
 /// All `.gitattributes` discovered under one working tree root, sorted
 /// shallowest-first so flat accumulation in [`Self::match_path`] yields the
 /// deepest matching line at the tail (K1.5 reduces with last-wins).
+///
+/// `pub` (not `pub(crate)`) so `benches/gitattributes_match.rs` can construct
+/// fixtures via the public API; the type is otherwise an internal detail.
+#[doc(hidden)]
 #[derive(Debug, Default)]
-pub(crate) struct GitAttributes {
+pub struct GitAttributes {
     files: Vec<AttributesFile>,
 }
 

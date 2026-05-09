@@ -3,7 +3,7 @@
 ## Status
 - Last updated: 2026-05-09 (Phase 5 진입 — 8 도메인 함정 + clean-context 보강 12 task 박힘)
 - Total tasks: 34
-- Completed: 20 / 34
+- Completed: 21 / 34
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -109,10 +109,11 @@
   - acceptance: project root `.gitattributes` < sub-directory `.gitattributes` < line-level pattern 마지막 매칭 winner 정합. unit test로 검증 (3-level fixture).
   - spec: `spec-hash-and-normalize.md` § `.gitattributes` 파서.
 
-- [~] **X. `.gitattributes` parser performance gate**
+- [x] **X. `.gitattributes` parser performance gate**
   - acceptance: 큰 vault 시뮬레이션 (10K+ files × 100+ rules) per-file glob fnmatch P95 측정. baseline 박음. Phase 6 hard gate에 perf regression 임계 박음 (P95 X ms 초과 시 fail).
   - 검증: cargo bench (criterion) + Phase 6 CI gate.
   - spec: 없음 (perf gate, R3 task와 통합 가능).
+  - 결과 (2026-05-09): `crates/gitless-sync/benches/gitattributes_match.rs` 박음 (criterion 0.5 default-features off, `harness = false`). 100 rules × 10K paths fixture에서 baseline P50=40.7µs / MEAN=41.9µs / **P95=50.2µs** / P99=62.1µs. `docs/research/phase5-gitattributes-bench.md` 박음. CI 게이트는 R3에서 — 본 task는 record-only (advisor: GitHub windows-latest noise로 절대 임계는 R3에서 ratio 또는 vault-scale 기반으로 박음).
 
 ### Phase 5.8 — spec 갱신 cascade
 
