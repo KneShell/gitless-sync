@@ -227,7 +227,7 @@
 
 > Z task audit + 사용자 지적으로 surface된 미완성 plumbing 3건 + 추가 sibling test 정리 2건.
 
-- [ ] **AA. `failed_reason` plumbing 3건 추가 (encoding / nfd_collision / gitattributes_unsupported)**
+- [~] **AA. `failed_reason` plumbing 3건 추가 (encoding / nfd_collision / gitattributes_unsupported)**
   - acceptance: `compare.rs::FailedReason` enum에 `Encoding` / `NfdCollision` / `GitattributesUnsupported` 3 variant 추가 (snake_case serde rename 적용). `commands/scan/pipeline.rs::try_short_circuit_failed`에서 다음 3 경로 surface:
     - **Encoding**: `shared/decode.rs::try_decode_text` 결과가 `Failed` (UTF-8 + 2차 detect 모두 fail) → `Status::Failed` + `failed_reason: "encoding"`. `prepare_for_hash` 시그니처 변경 또는 caller가 `try_decode_text` 직접 호출 후 분기.
     - **NfdCollision**: `walker.rs` 또는 `pipeline.rs`에서 같은 NFC key를 가진 entry 2건 이상 detect (precomposeunicode false 환경 시뮬레이션) → 충돌 entry 모두 `Status::Failed` + `failed_reason: "nfd_collision"`.
