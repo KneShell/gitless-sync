@@ -122,7 +122,7 @@
   - spec: `spec-hash-and-normalize.md`.
   - 결과 (2026-05-09): K1~K4 + K1.5 구현 vs spec 정합 audit 5 drift 박음 + 수정. (1) `현재 상태` section 박힌 K-task 박힘 marker 박음 (K1/K2/K3/K4/K1.5 박힘 + commands/scan 경로 + decode.rs 경로 박음). (2) `Lifetime 계약` section signature 4 인자 박음 (`path: &str` 추가, 구현 정합). (3) Acceptance criterion `Unsupported → Status::Failed` 매핑 박음 — K1.5 classifier scope만 cover, caller-side `pipeline.rs` 단락 plumbing은 follow-up. (4) `Arc<GitAttributes>` rayon worker 공유 criterion 박음 — sequential `.iter().map()` 현실 + 1000+ path scale에서 활성화 가능 박음. (5) BOM `호출 지점` section path 오류(`shared/normalize.rs` → `shared/decode.rs`) + caller mapping 미구현 명시. validation: cargo fmt clean (spec-only, G-012 적용). 코드 변경 0 — baseline 유지.
 
-- [ ] **M. spec-classification.md path 정규화 정합**
+- [~] **M. spec-classification.md path 정규화 정합**
   - acceptance: spec 본문에 NFC 정규화 + case-sensitive 정책 박혀있음 (이미 Phase 5 spec 갱신). 4분류 판정 정합 검증.
   - spec: `spec-classification.md`.
 
