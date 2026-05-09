@@ -286,4 +286,13 @@ mod tests {
         let key = relative_path(root, nfc_path).unwrap();
         assert_eq!(key, "가.txt");
     }
+
+    #[test]
+    fn nfd_and_nfc_synthetic_paths_collapse_to_same_key() {
+        // Hangul (algorithmic LV/LVT) + Latin ñ (decomposition table) — distinct normalization paths.
+        let root = Path::new("/root");
+        let p = |s: &str| relative_path(root, &root.join(s));
+        assert_eq!(p("\u{1100}\u{1161}.txt"), p("\u{AC00}.txt"));
+        assert_eq!(p("n\u{0303}.txt"), p("\u{00F1}.txt"));
+    }
 }
