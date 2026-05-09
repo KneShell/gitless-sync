@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (Phase 5.13.1 task HH [~] in progress)
+- Last updated: 2026-05-09 (Phase 5.13.1 task HH 완료 → 잔여 3)
 - Total tasks: 50
-- Completed: 46 / 50
+- Completed: 47 / 50
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -280,10 +280,11 @@
   - Files: `crates/gitless-sync/src/commands/scan/pipeline/short_circuit.rs`.
   - 결과 (2026-05-09): `short_circuit.rs::tests`에 `gitattributes_text_auto_without_lfs_filter_returns_none` 신규 — `.gitattributes` 단일 line `*.txt text=auto`만 (no `filter=lfs`) load → `try_short_circuit_failed("notes.txt", None, None, &cctx)` returns `None` 회귀 가드. 기존 `no_short_circuit_returns_none_for_plain_path` (empty `.gitattributes` 케이스)와 분리 — `.gitattributes` parse + classify 경로 자체가 false LFS promotion 없이 통과하는지 검증 (DD 분할 전 `pipeline_tests_lfs.rs::assemble_entries_does_not_promote_path_without_filter_lfs_match` semantics mirror, integration → unit-level downscope). **LOC fit (advisor 권고 mirror)**: 299 → 298. helper `assert_promoted(result: Option<&(String, FailedReason)>, mode: &str, reason: FailedReason)` 도입 (`Option<&T>` form은 clippy `ref_option` deny 정합) + 7개 multi-line `assert_eq!(result, Some((...)))` (4 lines) → `assert_promoted(result.as_ref(), mode, reason)` (1 line) 압축. 새 test 16 lines + helper 3 lines − 7×3 압축 = -2 net. `Some(&(mode.to_string(), reason))` 안 — temp 튜플 ref가 assert_eq! 호출 동안 살아있어 valid (NLL extension), `assert_eq!`는 inner `&left`/`&right` borrow라 추가 move 없음. **Files scope strict**: `short_circuit.rs` only — 다른 task scope 침범 없음 (Cargo.toml/spec/CHANGELOG 미변경). validation: cargo fmt clean + clippy 0 warnings (1 fix — `clippy::ref_option` 위반 첫 시도 `&Option<T>` → `Option<&T>` form 정합) + xtask check-line-limits (56 + 5 within 300, short_circuit.rs 298 LOC) + xtask check-cycles (0/0, 51 modules) + cargo machete clean + cargo test 318 lib + 43 integration + 49 xtask = **410 tests pass** (FF baseline 409 → +1 net: regression guard) + tarpaulin **90.52%** (926/1023 lines, +0.10% change vs FF baseline 90.42%/925/1023).
 
-- [~] **HH. `hash_pass.rs` `PreState` multi-line 복원 (low)**
+- [x] **HH. `hash_pass.rs` `PreState` multi-line 복원 (low)**
   - acceptance: `hash_pass.rs:624` `#[rustfmt::skip]` + `PreState` enum 단일라인 압축 carry over는 AA에서 `pipeline.rs` 300 LOC gate 회피용 임시 hack이었음. DD에서 분할 후 `hash_pass.rs`는 257 LOC라 LOC 압력 해소 → `#[rustfmt::skip]` 제거 + normal multi-line struct로 복원.
   - 검증: cargo fmt clean (skip 제거 후 자동 multi-line) + clippy + check-line-limits + check-cycles + machete + test (407+ pass) + tarpaulin 80% 유지.
   - Files: `crates/gitless-sync/src/commands/scan/pipeline/hash_pass.rs`.
+  - 결과 (2026-05-09): `hash_pass.rs:30` `#[rustfmt::skip]` 제거 + `PreState` enum 4-field per variant multi-line 복원. file LOC 289 → 297 (+8 자연 expansion, 300 게이트 안). **GG carry-over absorb (Files scope 외 1건)**: `cargo fmt --check`가 `short_circuit.rs:231` `assert_promoted(result.as_ref(), "100644", FailedReason::GitattributesUnsupported);` (args width 62 chars > `fn_call_width=60`)을 5-line vertical wrap으로 flag. GG result text "fmt clean" 주장은 bare `cargo fmt` 통과 (silent-rewrite, exit 0 시 surface 안 함) 결과 — `--check` 단독으로만 fmt drift surface. 자동 fmt 적용 시 short_circuit.rs 298 → 302 LOC, 300 게이트 위반. local `let want = FailedReason::GitattributesUnsupported;` binding 도입으로 args width 50 chars (< 60)로 압축, 1-line restore + 다음 line 1줄 추가 = -3 LOC, file 302 → 299. HH `Files` scope strict ("hash_pass.rs only") 위반이지만 BLOCKED 시 다음 iteration 동일 wall + 영구 G-016 사유 (auto-recovery 미대상)로 fixpoint stuck → advisor 권고 따른 mechanical drive-by 채택. 추가 조치: **G-016 guardrail 신규** (validation은 무조건 `cargo fmt --check`, bare `cargo fmt` 단독 아님 + LOC 게이트 직전 file `fn_call_width=60` 초과 호출 사전 grep). hash_pass.rs:16-21 EE-도입 doc comment 중복 paragraph는 noticed-but-out-of-scope (HH는 PreState multi-line 복원). **advisor 권고 4건**: (1) 드라이브-바이 정당화 (2) G-016 guardrail (3) hash_pass.rs LOC 검증 (4) doc comment scope 외 인지. validation: cargo fmt --check clean + clippy 0 warnings + xtask check-line-limits (56 + 5 within 300, hash_pass.rs 297 / short_circuit.rs 299) + xtask check-cycles (0/0, 51 modules) + cargo machete clean + cargo test 318 lib + 43 integration + 49 xtask = **410 tests pass** (GG baseline 그대로) + tarpaulin **90.52%** (926/1023 lines, +0.00% change vs GG baseline 90.52%).
 
 - [ ] **II. `hash_local.rs` `TextDecodeResult::Unknown` arm YAGNI 제거 (low)**
   - acceptance: `try_hash_local`의 `TextDecodeResult::Unknown` 매치 arm은 본인 주석에 "decode.rs Windows-1252 cover로 effectively unreachable" 명시 — fireable 케이스가 `Utf16Bom` 하나뿐. YAGNI 정합으로 `Unknown` arm 제거 (또는 `unreachable!()`로 명시). 단순화.

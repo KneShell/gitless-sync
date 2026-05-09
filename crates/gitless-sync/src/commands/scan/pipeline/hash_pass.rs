@@ -27,10 +27,19 @@ use crate::shared::github::RemoteFile;
 /// honest value (no measurement). `Hashed` always has a measured value;
 /// the `local: None` arm (remote-only path) carries `false` for the same
 /// "no measurement" reason.
-#[rustfmt::skip]
 pub(super) enum PreState {
-    Failed { remote_sha: Option<String>, local_mtime: Option<DateTime<Utc>>, failed_reason: Option<FailedReason>, is_binary: bool },
-    Hashed { local_sha: Option<String>, remote_sha: Option<String>, local_mtime: Option<DateTime<Utc>>, is_binary: bool },
+    Failed {
+        remote_sha: Option<String>,
+        local_mtime: Option<DateTime<Utc>>,
+        failed_reason: Option<FailedReason>,
+        is_binary: bool,
+    },
+    Hashed {
+        local_sha: Option<String>,
+        remote_sha: Option<String>,
+        local_mtime: Option<DateTime<Utc>>,
+        is_binary: bool,
+    },
 }
 
 pub(super) struct PreEntry {
