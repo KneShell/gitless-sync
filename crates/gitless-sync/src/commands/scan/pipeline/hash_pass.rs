@@ -16,9 +16,6 @@ use crate::shared::github::RemoteFile;
 /// Per-path intermediate state — either short-circuited (no hash, fail
 /// reason already locked in) or hashed (caller will classify against
 /// remote sha + commit timestamp in [`super::finalize`]).
-/// Per-path intermediate state — either short-circuited (no hash, fail
-/// reason already locked in) or hashed (caller will classify against
-/// remote sha + commit timestamp in [`super::finalize`]).
 ///
 /// `is_binary` semantics (spec-output-schema.md § null 정책 + EE):
 /// reflects the local-bytes NUL heuristic when a local read occurred. For
