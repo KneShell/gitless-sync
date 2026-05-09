@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-09 (Phase 5.13.1 task JJ 완료 → 잔여 1)
+- Last updated: 2026-05-09 (Phase 5.13.1 task KK 완료 → 잔여 0, Phase 5 strict 완료)
 - Total tasks: 50
-- Completed: 49 / 50
+- Completed: 50 / 50
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -298,10 +298,11 @@
   - Files: `crates/gitless-sync/src/shared/github/trees/classify.rs`, `crates/gitless-sync/src/shared/github/trees/fetch.rs` (caller 정합 시).
   - 결과 (2026-05-09): **option (a) ownership move 복원** 채택 — 테스트 8건 모두 `entry()` helper로 새 `TreeEntry` 1회 생성 + 단일 `classify_tree_entry` 호출 패턴 (reuse 0건), acceptance criterion "테스트 fixture 박음 정합 시" 정확 매핑. 변경 2건 — (1) `classify.rs::classify_tree_entry(entry: TreeEntry)` ownership 인자 + 본문은 `matches!`로 supported-arm 분류 후 move (NLL borrow 해제 필요로 match-arm을 `if matches! ... return Some(make_remote(entry))` + post-check `entry.entry_type == "blob"` 패턴으로 재작성, 의미 동등). `make_remote(entry: TreeEntry)`도 ownership move + struct literal에서 `entry.sha`/`entry.mode` 직접 move (clone 0건, `to_nfc(&entry.path)` borrow는 함수 호출 끝에서 해제 후 sha/mode field move — Rust struct literal 좌→우 evaluation order 정합). doc comment에 ownership move 의도 박제 (matches! arm + post-check 패턴 + clone 회피 근거). (2) `fetch.rs::fetch_tree`의 `body.tree.iter().filter_map(...)` → `body.tree.into_iter().filter_map(...)`. line width 100자 초과로 rustfmt가 5-line vertical wrap 적용 (3 line → 5 line, fetch.rs 187 → 191 LOC, 300 게이트 안). 8 unit tests in classify.rs는 `&entry(...)` → `entry(...)` 호출 갱신 (8 callsite). 의미 변동 0 — 같은 path/sha/mode 검증, fetch 통합 8 tests 그대로 통과 (mode-arm 라우팅 정합). **성능 효과**: 10K-file tree 기준 entry당 sha (40 byte) + mode (6 byte) String clone 2건 회피 — small allocation 20K건 절약, 도메인 기능 영향 0. validation: cargo fmt --check clean (G-016 mirror, bare `cargo fmt` 미사용 — fetch.rs 1줄 wrap drift surface 후 explicit edit 적용) + clippy 0 warnings + xtask check-line-limits (56 + 5 within 300, classify.rs 159 / fetch.rs 191) + xtask check-cycles (0/0, 51 modules) + cargo machete clean + cargo test 318 lib + 43 integration + 49 xtask = **410 tests pass** (II baseline 410 그대로 — pure refactor, 도메인 기능 0 변경) + tarpaulin **90.58%** (933/1030 lines, +0.06% / +7 covered vs II baseline 90.52%/926/1023 — clone fields 제거로 라인 자연 변동, classify.rs 14/14 + fetch.rs 13/13 + parse.rs 6/6 = trees module 33/33 = 100%). 다른 task scope 침범 없음 (Cargo.toml/CHANGELOG/spec 미변경, `Files` listed scope 정합).
 
-- [~] **KK. `try_hash_local` encoding failure early return (low)**
+- [x] **KK. `try_hash_local` encoding failure early return (low)**
   - acceptance: `try_hash_local` encoding failure (`Some(FailedReason::Encoding)`) 분기 시에도 `prepare_for_hash` + `blob_hash` 비용 그대로 발생 (early return 없음). 기능 영향 0이나 미세 비효율 — `Some(reason)` 시 hash skip + early return으로 수정.
   - 검증: cargo fmt + clippy + check-line-limits + check-cycles + machete + test (407+ pass) + tarpaulin 80% 유지.
   - Files: `crates/gitless-sync/src/commands/scan/hash_local.rs`.
+  - 결과 (2026-05-09): `try_hash_local`에서 `try_decode_text` 결과가 `Utf16Bom { .. }`이면 `prepare_for_hash` + `blob_hash` skip + `Ok((String::new(), is_binary(&raw), Some(FailedReason::Encoding)))` early-return. caller (`pipeline/hash_pass.rs::build_one_pre_entry` line 103)가 SHA를 `_`로 discard하므로 production 기능 영향 0 + integration test (`tests/scan_failed_reasons.rs:62-63`)도 `local_sha` omit assert만 — empty placeholder 정합. **semantic shift (advisor 권고 명시)**: default Unspecified `.gitattributes` (테스트 케이스 + 99% vault)는 영향 0 — `apply_unspecified`가 이미 `is_binary(raw)` NUL probe 사용. `text=auto`/`eol=lf`/`eol=crlf` + UTF-16 BOM 코너 케이스에서 `is_binary` 값 `false → true` flip — `spec-output-schema.md` § null 정책 ("encoding-failure measured") + EE 의도 정합 (correctness improvement, 회귀 아님). doc comment에 KK paragraph 박제 (early-return 정책 + caller discard + raw NUL probe + 코너 케이스 명시). unit test (`try_hash_local_surfaces_utf16_bom_as_encoding_failure`) sha assertion 수정 — `blob_hash(&[0xFFu8, 0xFE, b'A', 0])` → `""` (KK comment 박음). is_binary + encoding 두 assertion 그대로 (의미 동등). import 추가 — `use crate::shared::normalize::{is_binary, prepare_for_hash};` (function `is_binary`는 이미 `pub`). destructure 변수명 `is_binary` → `bin`으로 rename (advisor flag — function shadowing 회피, naming 정합). validation: cargo fmt --check clean (G-016 mirror — bare `cargo fmt` 미사용. assert_eq!() 1줄 80자 초과로 5-line wrap 자동 적용 후 explicit edit 적용) + clippy 0 warnings + xtask check-line-limits (56 + 5 within 300, hash_local.rs 120 → 128 LOC) + xtask check-cycles (0/0, 51 modules) + cargo machete clean + cargo test 318 lib + 43 integration + 49 xtask = **410 tests pass** (JJ baseline 그대로 — pure refactor + test 1건 modify, count 변동 0) + tarpaulin **90.57%** (932/1029 lines, JJ baseline 90.58%/933/1030 대비 -0.01% / -1 line — `blob_hash(&prepared)` early-return path 미실행 cover loss). hash_local.rs 자체 6/6 = 100% covered. 다른 task scope 침범 없음 (Cargo.toml/spec/CHANGELOG 미변경, `Files` listed scope 정합).
 
 ## 의존 순서
 

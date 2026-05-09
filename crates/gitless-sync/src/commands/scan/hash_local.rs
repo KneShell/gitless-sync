@@ -17,7 +17,7 @@ use super::compare::FailedReason;
 use crate::shared::decode::{TextDecodeResult, try_decode_text};
 use crate::shared::gitattributes::GitAttributes;
 use crate::shared::hash::blob_hash;
-use crate::shared::normalize::prepare_for_hash;
+use crate::shared::normalize::{is_binary, prepare_for_hash};
 
 /// Hash a local file and surface encoding failures using the same byte read.
 ///
@@ -25,8 +25,15 @@ use crate::shared::normalize::prepare_for_hash;
 /// carry a UTF-16 BOM (out of scope for v0.2; see `spec-hash-and-normalize.md`
 /// § BOM). `Unknown` is logically unreachable per `decode.rs` (Windows-1252
 /// covers all bytes). The caller demotes `Hashed` → `Failed` on `Some(_)`.
-/// SHA + `is_binary` are still computed because they remain valid for the
-/// raw-bytes hash policy.
+///
+/// KK: on encoding failure the SHA is skipped (caller discards via `_` —
+/// `pipeline/hash_pass.rs::build_one_pre_entry`) and an empty placeholder is
+/// returned. `is_binary` is still measured from raw bytes via the NUL probe
+/// (`spec-output-schema.md` § null 정책 — encoding-failure measured), keeping
+/// wire JSON honest. Default Unspecified `.gitattributes` is unaffected
+/// (`apply_unspecified` already does the NUL probe); for `text=auto` /
+/// `eol=lf` / `eol=crlf` + UTF-16 BOM the value flips `false → true` —
+/// correctness improvement aligning the implementation with the spec.
 pub(super) fn try_hash_local(
     path: &Path,
     keep_bom: bool,
@@ -34,14 +41,11 @@ pub(super) fn try_hash_local(
     relative_path: &str,
 ) -> Result<(String, bool, Option<FailedReason>), std::io::Error> {
     let raw = fs::read(path)?;
-    let encoding_failure = match try_decode_text(&raw) {
-        TextDecodeResult::Utf16Bom { .. } => Some(FailedReason::Encoding),
-        TextDecodeResult::Utf8 | TextDecodeResult::Detected { .. } | TextDecodeResult::Unknown => {
-            None
-        }
-    };
-    let (prepared, is_binary) = prepare_for_hash(&raw, keep_bom, gitattr, relative_path);
-    Ok((blob_hash(&prepared), is_binary, encoding_failure))
+    if let TextDecodeResult::Utf16Bom { .. } = try_decode_text(&raw) {
+        return Ok((String::new(), is_binary(&raw), Some(FailedReason::Encoding)));
+    }
+    let (prepared, bin) = prepare_for_hash(&raw, keep_bom, gitattr, relative_path);
+    Ok((blob_hash(&prepared), bin, None))
 }
 
 #[cfg(test)]
@@ -103,18 +107,22 @@ mod tests {
 
     #[test]
     fn try_hash_local_surfaces_utf16_bom_as_encoding_failure() {
-        // UTF-16 LE BOM (FF FE) — `try_decode_text` returns `Utf16Bom`, hash
-        // is still computed over raw bytes (b-policy). UTF-16 conversion
-        // is out of v0.2 scope; encoding failure is the surface signal.
-        // `Unknown` is effectively unreachable per `decode.rs` (Windows-1252
-        // covers all bytes) — this case targets the only fireable branch.
+        // UTF-16 LE BOM (FF FE) — `try_decode_text` returns `Utf16Bom`,
+        // KK skips `prepare_for_hash` + `blob_hash` (caller discards SHA via
+        // `_` in `pipeline/hash_pass.rs`). is_binary still measured from raw
+        // bytes (NUL probe). `Unknown` is effectively unreachable per
+        // `decode.rs` (Windows-1252 covers all bytes); UTF-16 BOM is the only
+        // fireable branch.
         let dir = TempDir::new().unwrap();
         let p = dir.path().join("utf16.txt");
         fs::write(&p, [0xFFu8, 0xFE, b'A', 0]).unwrap();
         let attrs = empty_attrs();
         let (sha, is_bin, encoding) = try_hash_local(&p, false, &attrs, "utf16.txt").unwrap();
         assert!(is_bin, "UTF-16 with embedded NUL must be marked binary");
-        assert_eq!(sha, blob_hash(&[0xFFu8, 0xFE, b'A', 0]));
+        assert_eq!(
+            sha, "",
+            "KK: encoding failure short-circuits hash; sha is empty placeholder"
+        );
         assert_eq!(encoding, Some(FailedReason::Encoding));
     }
 }
