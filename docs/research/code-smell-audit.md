@@ -133,24 +133,11 @@ spec § Per-file Pitfall Reasons (line 162-191) 9 reason vs 구현 5 variant —
 
 ### 4-1. Inappropriate `pub` (over-exposure)
 
-14 site가 `pub` → `pub(crate)`/`pub(super)` 후보:
+14 site `pub` demote 후보 — 권장 visibility별 group:
 
-| Site | 권장 visibility |
-|---|---|
-| `commands/scan/compare.rs:64` `classify` fn | `pub(super)` |
-| `commands/scan/walker.rs:38` `walk` fn | `pub(super)` |
-| `commands/scan/walker.rs:11` `LocalFile` struct | `pub(super)` |
-| `commands/scan/long_path.rs:35` `is_invalid` fn | `pub(super)` |
-| `commands/scan/output.rs:6` `SCHEMA_VERSION` const | `pub(super)` |
-| `shared/ignore.rs:7` `BUILTIN_IGNORES` const | private (drop `pub`) |
-| `shared/ignore.rs:16` `IgnoreMatcher` struct | `pub(crate)` |
-| `commands/init/mod.rs:20` `STDERR_HINT` const | private |
-| `shared/normalize.rs:18` `is_binary` fn | `pub(crate)` |
-| `shared/normalize.rs:24` `normalize_text` fn | `pub(crate)` |
-| `shared/config.rs:23` `load` fn | `pub(crate)` |
-| `shared/gitattributes.rs:31` `RawAttribute` enum | `pub(crate)` |
-| `shared/gitattributes.rs:154` `AttributeMatch` enum | `pub(crate)` |
-| `shared/error/network.rs:25` `GraphqlErrorExtensions` struct | `pub(crate)` |
+- `pub(super)`: `scan/compare.rs:64` (classify), `scan/walker.rs:11` (LocalFile) + `:38` (walk), `scan/long_path.rs:35` (is_invalid), `scan/output.rs:6` (SCHEMA_VERSION).
+- `pub(crate)`: `shared/ignore.rs:16` (IgnoreMatcher), `shared/normalize.rs:18` (is_binary) + `:24` (normalize_text), `shared/config.rs:23` (load), `shared/gitattributes.rs:31` (RawAttribute) + `:154` (AttributeMatch), `shared/error/network.rs:25` (GraphqlErrorExtensions).
+- private (drop `pub`): `shared/ignore.rs:7` (BUILTIN_IGNORES), `commands/init/mod.rs:20` (STDERR_HINT).
 
 ### 4-2. Over-broad `pub mod`
 

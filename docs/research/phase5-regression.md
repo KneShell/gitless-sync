@@ -172,7 +172,7 @@ OVERALL: PASS
 ## Limitations
 
 1. **Dogfood target 함정 surface 0건**: KneShell/gitless-sync는 NFD path / `.gitattributes` / LFS / submodule / symlink / 비-UTF-8 / Windows long path 모두 결여. W3/W4/W5/W6 화이트리스트 분기는 0건만 측정 — 각 분기 trigger 검증은 W가 아닌 cross-reference integration tests chain (`tests/scan_modes.rs`, `tests/scan_gitattributes.rs`, `tests/scan_nfd_real_file.rs`, `tests/scan_robustness.rs`, `pipeline_tests_lfs.rs`, `pipeline_tests_long_path.rs`, `decode.rs::tests`)이 담당. 본 task는 화이트리스트 trigger 검증이 아닌 **회귀 0건 자동 검출 framework** 작성이 scope.
-2. **Vault 접근 불가**: 본 W run은 self-dogfood (KneShell/gitless-sync) 한정. Vault (`C:\Users\admin\iCloudDrive\iCloud~md~obsidian`) 접근 가능 환경에서 본 framework 그대로 재실행 시 W3~W5 화이트리스트 분기에 entry surface 가능 — Phase 5+ 별도 task 추가.
+2. **Vault 접근 불가**: 본 W run은 self-dogfood (KneShell/gitless-sync) 한정. Vault path 접근 가능 환경에서 본 framework 그대로 재실행 시 W3~W5 화이트리스트 분기에 entry surface 가능 — Phase 5+ 별도 task 추가.
 3. **첫 try timing artifact**: 첫 v0.1 binary run은 main worktree cwd + tmp/ 사용 (advisor 권고 따른 외부 worktree와 별개) — T after.json (06:32:02) vs W baseline (06:47:44) 15분 간격이라 local 변동 발생 (3 REGRESSION + 2 status-same-sha-drift surface). 본 doc은 timing-aligned 재실행 (06:49:54 vs 06:49:56) 결과 사용. timing artifact 흔적은 `tmp/phase5-scan-v01baseline.{json,err}` 그대로 commit (process reproducibility).
 4. **v0.1 binary 정의 모호**: 본 task는 v0.1 = commit `68fb0f0` (task A 시점, gh subprocess 적용 v0.2 마이그레이션 완료 후) 사용. ureq 시절 v0.1 (2026-04-29 vault 검증 시점) 별도 binary build는 시도 안 함 — gh subprocess vs ureq backend는 ScanReport 동일 (ADR 0002 마이그레이션 acceptance). v0.1 → v0.2 핵심 변화는 (a) gh subprocess 마이그레이션 (출력 동일) + (b) Phase 5 함정 처리 추가 — (b)만 본 W의 scope.
 
