@@ -149,7 +149,7 @@
   - spec: `docs/specs/spec-domain-pitfalls.md` § 검증 환경.
   - 결과 (2026-05-09): `walker.rs::tests`에 `nfd_and_nfc_synthetic_paths_collapse_to_same_key` 박음 — Hangul (algorithmic LV/LVT composition `\u{AC00}` ≡ `\u{1100}\u{1161}`) + Latin ñ (canonical decomposition table `\u{00F1}` ≡ `n\u{0303}`) 두 케이스 직접 collapse 박음 (advisor flag — Hangul 단일 cover는 `unicode-normalization` 한 코드 경로만 박는 tautology). 박힌 두 NFD/NFC 단일 검증 테스트 (`relative_path_normalizes_nfd_to_nfc` + `relative_path_nfc_input_is_preserved`) 그대로 유지 — 새 테스트는 collapse(=) delta 박음. `Files` scope walker.rs 한정 — remote-side `shared/github/trees.rs` 정합 검증은 R task scope (advisor: P scope 외). validation: cargo fmt clean + clippy 0 warnings + xtask check-line-limits (52 files within 300, walker.rs 290 → 299) + xtask check-cycles (0/0) + cargo machete clean + cargo test 292 lib + 25 integration + 49 xtask = **366 tests pass** (+1) + tarpaulin **90.34%** (945/1046 lines, +0.00% change).
 
-- [ ] **P1. NFD NTFS 실파일 fixture (clean-context §5 fact check)**
+- [~] **P1. NFD NTFS 실파일 fixture (clean-context §5 fact check)**
   - acceptance: NTFS는 normalize 안 함 — NFD/NFC 실파일 직접 생성 가능. `tempfile` 박음 + walker가 정확 NFC 정규화 + NFC 정규화로 동일 key 검증. integration test.
   - spec: `docs/specs/spec-domain-pitfalls.md` § 검증 환경.
 
