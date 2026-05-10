@@ -11,7 +11,7 @@ use crate::shared::github;
 
 use super::args::DiffArgs;
 use super::io::read_local_optional;
-use super::render::{DiffOutcome, both_sides, one_sided};
+use super::render::{DiffOutcome, Side, both_sides, both_sides_json, one_sided, one_sided_json};
 
 /// Compute the diff between the local file and the remote blob for `args.path`
 /// without writing to stdout/stderr.
@@ -52,13 +52,18 @@ pub(crate) fn compute_diff<C: GhClient>(
         None => None,
     };
 
-    match (local_raw, remote_raw) {
-        (None, None) => Err(GitlessError::Config(format!(
+    match (local_raw, remote_raw, args.json) {
+        (None, None, _) => Err(GitlessError::Config(format!(
             "path not found locally or remotely: {key}"
         ))),
-        (Some(local), None) => Ok(one_sided(&local, "(local only)", args.keep_bom)),
-        (None, Some(remote)) => Ok(one_sided(&remote, "(remote only)", args.keep_bom)),
-        (Some(local), Some(remote)) => Ok(both_sides(&local, &remote, &key, args.keep_bom)),
+        (Some(local), None, false) => Ok(one_sided(&local, "(local only)", args.keep_bom)),
+        (Some(local), None, true) => Ok(one_sided_json(&local, Side::LocalOnly, args.keep_bom)),
+        (None, Some(remote), false) => Ok(one_sided(&remote, "(remote only)", args.keep_bom)),
+        (None, Some(remote), true) => Ok(one_sided_json(&remote, Side::RemoteOnly, args.keep_bom)),
+        (Some(local), Some(remote), false) => Ok(both_sides(&local, &remote, &key, args.keep_bom)),
+        (Some(local), Some(remote), true) => {
+            Ok(both_sides_json(&local, &remote, &key, args.keep_bom))
+        }
     }
 }
 
