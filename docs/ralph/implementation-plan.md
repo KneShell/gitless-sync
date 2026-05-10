@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.2 task Q 완료 — `output.rs::tests` 안에 v1.2 신규 Acceptance Criteria 7 시나리오 unit test 추가. P task의 client struct 모방 backward-compat (integration)과 직교 layer — 본 unit test는 `ScanReport` JSON 직렬화 결과의 wire-format invariant 직접 검증. 7 test: schema_version "1.2" + `FailedReason` enum 11 값 wire snake_case + file_too_large/memory_exceeded entry size_bytes 직렬화 + non-size-gate entry size_bytes omit + size_gate entry is_binary:false + v1.0/v1.1 envelope+entry 필수 field 박힘 invariant. `lib.rs` `#[cfg_attr(test, allow(...))]` 면제 자연 적용 + LOC 300 게이트 47→226 안전. 전체 91.35% coverage (변동 0, baseline 유지).)
+- Last updated: 2026-05-10 (Phase 7.2 task R 완료 — CHANGELOG.md `[Unreleased]` v0.3.0 prep entry 갱신. 기존 "TBD — Phase 7+ 진입 시점 추가" placeholder를 Phase 7.1 (Trees sub-tree fallback) + Phase 7.2 (큰 파일 임계치) 누적 결과로 교체. Added 7 entry (Phase 7.1 / 7.2 본진 / Schema v1.2 minor bump / TreeEntry size field / specs / ADR 0011-0013 / G-019) + Changed 2 entry (G-002 정책 update / FailedReason enum 8→10 variant) + Verified 3 entry (Phase 7.1 unit+integration / Phase 7.2 4 시나리오 / v1.2 acceptance 7 시나리오) + Known limitations 2 entry (vault scale dogfood / release tag). v0.2.1 entry 형식 정합. final v0.3.0 entry는 task Y에서 finalize 명시. doc-only — 모든 validation 자연 통과 (fmt/clippy/test/cycles/LOC/machete clean), tarpaulin 91.35% baseline 유지 (G-012 spec-only 정합).)
 - Total tasks: 86
-- Completed: 77 / 86
+- Completed: 78 / 86
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -53,7 +53,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 - [x] **O**: unit test 4 시나리오 — 49MB local (정상 hash) + 51MB local (memory_exceeded) + 101MB local (file_too_large) + 30MB LFS pointer (LFS 우선순위). fixture file `tests/fixtures/large-files/`.
 - [x] **P**: `output.rs::SCHEMA_VERSION` "1.1" → "1.2" + lock test 갱신 (v1.0/v1.1 backward-compat 검증). spec-output-schema.md § v1.2 신규 Acceptance Criteria 정합.
 - [x] **Q**: spec-output-schema.md § v1.2 신규 Acceptance Criteria 7 시나리오 unit test (`output.rs::tests`). schema_version "1.2" + size_bytes field 정확 직렬화 + omit 검증.
-- [~] **R**: CHANGELOG.md `[Unreleased]` → v0.3.0 prep entry — schema v1.2 + 2 reason + size_bytes field 포함 prep section.
+- [x] **R**: CHANGELOG.md `[Unreleased]` → v0.3.0 prep entry — schema v1.2 + 2 reason + size_bytes field 포함 prep section.
 
 #### Phase 7.3 — vault scale 1000+ dogfood (5 task)
 
