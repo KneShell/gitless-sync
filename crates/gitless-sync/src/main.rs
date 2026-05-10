@@ -54,6 +54,9 @@ enum Commands {
     },
     Diff {
         path: String,
+
+        #[arg(long)]
+        json: bool,
     },
     #[command(
         about = "Print a gitless-sync.toml template to stdout (you redirect to a file)",
@@ -85,13 +88,14 @@ fn main() -> ExitCode {
             };
             commands::scan::run_with_client(&scan_args, &client)
         }
-        Commands::Diff { path } => commands::diff::run_with_client(
+        Commands::Diff { path, json } => commands::diff::run_with_client(
             &commands::diff::DiffArgs {
                 repo: cli.repo,
                 branch: cli.branch.unwrap_or_else(|| "main".to_string()),
                 local: cli.local,
                 keep_bom: cli.keep_bom,
                 path,
+                json,
             },
             &client,
         ),

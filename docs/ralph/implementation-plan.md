@@ -3,7 +3,7 @@
 ## Status
 - Phase 8 진입 (2026-05-10)
 - Tasks: 31 (Phase 8)
-- Completed: 13 / 31
+- Completed: 14 / 31
 
 ## Notes for Build Mode
 - ralph build mode는 첫 미완료 task (`[ ]`)부터 처리. 의존 순서가 본 plan에 명시 안 됐으면 acceptance + spec 본문에 잠재 의존 명시 (e.g., "X task 결과 위에서 진행").
@@ -63,7 +63,7 @@ vault scale + Trees sub-tree fallback + 큰 파일 임계치 + clean-context aud
 
 #### Phase 8.3 — F3 (diff --json) (5 task)
 
-- [~] **N**: `commands/diff/args.rs` clap struct에 `--json` flag 추가. spec-cli-interface.md `diff --json` 정합.
+- [x] **N**: `commands/diff/args.rs` clap struct에 `--json` flag 추가. spec-cli-interface.md `diff --json` 정합.
 - [ ] **O** (deps: N): `commands/diff/render.rs` (또는 동등) — `--json` 분기 시 JSON 형식 직렬화 (side / unified / raw / binary). 기존 unified text path 유지 (default, opt-out).
 - [ ] **P** (deps: O): unit test 4 시나리오 — both normalize-equal + --json (`{"side":"both","unified":"","raw":null,"binary":false}`), local_only + --json (`{"side":"local_only","unified":null,"raw":"...","binary":false}`), both normalize-diff + --json (unified populated), binary + --json (`binary:true`).
 - [ ] **Q** (deps: P): integration test — eval F3 evidence 케이스 (local-only) + diff --json 호출 + JSON 형식 검증.
