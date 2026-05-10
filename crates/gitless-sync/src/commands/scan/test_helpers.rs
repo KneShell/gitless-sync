@@ -7,6 +7,8 @@
 
 use std::path::Path;
 
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use chrono::{DateTime, TimeZone, Utc};
 
 use crate::shared::gh::{GhResponse, MockGhClient};
@@ -92,6 +94,20 @@ pub(super) fn stub_commits(
     body: &str,
 ) {
     mock.stub(commits_args(repo, branch, path), ok_resp(body.as_bytes()));
+}
+
+/// Stub `gh api repos/<repo>/git/blobs/<sha>` with `content` base64-encoded.
+/// Phase 8 task I: scan now fetches remote blobs for sha-differ Hashed
+/// entries to compute `normalize_equal`. Tests that exercise drift paths
+/// must register a blob stub for each remote sha.
+pub(super) fn stub_blob(mock: &mut MockGhClient, repo: &str, sha: &str, content: &[u8]) {
+    let b64 = BASE64_STANDARD.encode(content);
+    let body = format!(
+        r#"{{"sha":"{sha}","content":"{b64}","encoding":"base64","size":{},"url":"u"}}"#,
+        content.len()
+    );
+    let args = vec!["api".to_string(), format!("repos/{repo}/git/blobs/{sha}")];
+    mock.stub(args, ok_resp(body.as_bytes()));
 }
 
 /// Stub the sub-tree fallback chain (`refs/heads/{branch}` →

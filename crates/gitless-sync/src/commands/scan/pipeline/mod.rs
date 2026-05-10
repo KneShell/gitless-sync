@@ -13,6 +13,7 @@
 
 mod finalize;
 mod hash_pass;
+mod normalize_pass;
 mod orchestrator;
 mod short_circuit;
 

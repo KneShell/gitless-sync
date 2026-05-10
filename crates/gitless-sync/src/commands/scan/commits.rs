@@ -72,7 +72,9 @@ mod tests {
     use super::*;
     use crate::commands::scan::build_report;
     use crate::commands::scan::compare::Status;
-    use crate::commands::scan::test_helpers::{COMMITS_BODY, args_for, stub_commits, stub_tree};
+    use crate::commands::scan::test_helpers::{
+        COMMITS_BODY, args_for, stub_blob, stub_commits, stub_tree,
+    };
     use crate::shared::gh::MockGhClient;
     use crate::shared::hash::blob_hash;
 
@@ -161,6 +163,8 @@ mod tests {
         let mut mock = MockGhClient::new();
         let trees_body = r#"{"sha":"x","tree":[{"path":"d.md","mode":"100644","type":"blob","sha":"sha-remote","size":6}],"truncated":false}"#;
         stub_tree(&mut mock, "o/r", "main", trees_body);
+        // Phase 8 task I: sha differ → normalize_pass fetches the remote blob.
+        stub_blob(&mut mock, "o/r", "sha-remote", b"remote\n");
         stub_commits(&mut mock, "o/r", "main", "d.md", COMMITS_BODY);
 
         let args = args_for(dir.path(), Some("o/r"));
@@ -188,6 +192,10 @@ mod tests {
             {"path":"c.md","mode":"100644","type":"blob","sha":"remote-c","size":6}
         ],"truncated":false}"#;
         stub_tree(&mut mock, "o/r", "main", trees_body);
+        // Phase 8 task I: sha differ → normalize_pass fetches remote blobs.
+        stub_blob(&mut mock, "o/r", "remote-a", b"remote-alpha\n");
+        stub_blob(&mut mock, "o/r", "remote-b", b"remote-beta\n");
+        stub_blob(&mut mock, "o/r", "remote-c", b"remote-gamma\n");
         stub_commits(&mut mock, "o/r", "main", "a.md", COMMITS_BODY);
         stub_commits(&mut mock, "o/r", "main", "b.md", COMMITS_BODY);
         stub_commits(&mut mock, "o/r", "main", "c.md", COMMITS_BODY);

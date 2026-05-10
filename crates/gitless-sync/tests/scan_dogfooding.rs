@@ -16,7 +16,7 @@ use tempfile::TempDir;
 
 use common::{
     TestGhClient, args_for, commits_args, commits_body_with_date, lf_blob_hash, ok_resp,
-    read_mtime_rfc3339, run_to_json, tree_args,
+    read_mtime_rfc3339, run_to_json, stub_blob, tree_args,
 };
 
 // ---- PRD 시나리오 1: 양쪽 SHA 동일 → Identical ----------------------------
@@ -57,6 +57,7 @@ fn scenario_2_local_only_changed_when_remote_commit_older() {
     let mut mock = TestGhClient::new();
     let trees_body = r#"{"sha":"x","tree":[{"path":"a.md","mode":"100644","type":"blob","sha":"deadbeef","size":12}],"truncated":false}"#;
     mock.stub(tree_args("o/r", "main"), ok_resp(trees_body.as_bytes()));
+    stub_blob(&mut mock, "o/r", "deadbeef", b"alpha-remote\n");
     mock.stub(
         commits_args("o/r", "main", "a.md"),
         ok_resp(commits_body_with_date("2020-01-01T00:00:00Z").as_bytes()),
@@ -82,6 +83,7 @@ fn scenario_3_remote_only_changed_when_local_mtime_older() {
     let mut mock = TestGhClient::new();
     let trees_body = r#"{"sha":"x","tree":[{"path":"a.md","mode":"100644","type":"blob","sha":"deadbeef","size":12}],"truncated":false}"#;
     mock.stub(tree_args("o/r", "main"), ok_resp(trees_body.as_bytes()));
+    stub_blob(&mut mock, "o/r", "deadbeef", b"alpha-remote\n");
     mock.stub(
         commits_args("o/r", "main", "a.md"),
         ok_resp(commits_body_with_date("2099-01-01T00:00:00Z").as_bytes()),
@@ -106,6 +108,7 @@ fn scenario_4_drift_when_times_tie() {
     let mut mock = TestGhClient::new();
     let trees_body = r#"{"sha":"x","tree":[{"path":"a.md","mode":"100644","type":"blob","sha":"deadbeef","size":12}],"truncated":false}"#;
     mock.stub(tree_args("o/r", "main"), ok_resp(trees_body.as_bytes()));
+    stub_blob(&mut mock, "o/r", "deadbeef", b"alpha-remote\n");
     mock.stub(
         commits_args("o/r", "main", "a.md"),
         ok_resp(commits_body_with_date(&mtime_str).as_bytes()),

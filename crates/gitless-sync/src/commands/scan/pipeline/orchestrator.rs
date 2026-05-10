@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use super::finalize::{extract_commit_paths, finalize_entries};
 use super::hash_pass::build_pre_entries;
+use super::normalize_pass::fetch_normalize_equal_map;
 use super::short_circuit::ClassifyContext;
 use crate::commands::scan::args::Backend;
 use crate::commands::scan::case_collision;
@@ -68,10 +69,15 @@ pub(crate) fn assemble_entries<C: GhClient + Sync>(
         gitattr,
     };
     let pending = build_pre_entries(&all_paths, &local_map, &remote_map, keep_bom, &cctx);
+    // Pass 1.5 (Phase 8 task I) — normalize_equal verification for sha-differ
+    // Hashed entries. Identical / single-side / Failed entries skip the fetch
+    // entirely (`spec-output-schema.md` § v1.3 — diff_meaningful 4-case lock).
+    let normalize_eq_map =
+        fetch_normalize_equal_map(&pending, ctx.client, ctx.repo, keep_bom, gitattr)?;
     let commit_paths = extract_commit_paths(&pending);
     let commit_map =
         commits::fetch_commit_map(&commit_paths, ctx.client, ctx.repo, ctx.branch, ctx.backend)?;
-    Ok(finalize_entries(pending, &commit_map))
+    Ok(finalize_entries(pending, &commit_map, &normalize_eq_map))
 }
 
 #[cfg(test)]

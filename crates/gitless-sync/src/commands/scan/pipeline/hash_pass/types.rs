@@ -5,7 +5,7 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::commands::scan::compare::FailedReason;
+use crate::commands::scan::compare::{FailedReason, Presence};
 
 /// Per-path intermediate state — either short-circuited (no hash, fail
 /// reason already locked in) or hashed (caller will classify against
@@ -37,5 +37,10 @@ pub(in crate::commands::scan::pipeline) enum PreState {
 pub(in crate::commands::scan::pipeline) struct PreEntry {
     pub(in crate::commands::scan::pipeline) path: String,
     pub(in crate::commands::scan::pipeline) mode: String,
+    /// Local/remote existence — derived from `(local.is_some(), remote.is_some())`
+    /// in `build_one_pre_entry`. Stays accurate for `Failed` entries where the
+    /// SHA-derived presence in `compare::compare` would lose information
+    /// (short-circuit reasons drop both shas to `None`).
+    pub(in crate::commands::scan::pipeline) presence: Presence,
     pub(in crate::commands::scan::pipeline) state: PreState,
 }
