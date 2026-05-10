@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.6 task GG — spec-domain-pitfalls.md § lifetime 계약 `prepare_for_hash` 시그니처 3-arg → 4-arg (`path: &str` 4번째 인자 추가, 코멘트 `working-tree-relative + forward slash, K1.5 classify_path 입력` mirror). normalize.rs:55-60 실 시그니처 + spec-hash-and-normalize.md:103-109 authoritative spec과 정합. Validation 1~7 본 task 통과 (spec-only G-012 면제 일반화 — code change 0, coverage 91.40% baseline 유지).)
-- Total tasks: 94
-- Completed: 91 / 94
+- Last updated: 2026-05-10 (Phase 7.6 task HH — clean-context audit re-run 2nd round 결과 3 신규 finding 보고 (LLM auditor) + grep cross-check로 추가 5건 surface (auditor가 long line/scan range miss, 총 8 stale `*.rs` ref). 모두 doc-only Phase 5.13.1 module-folder split (`pipeline.rs`/`gitattributes.rs`/`trees.rs` → `*/`) aftermath stale path. G-019 0 finding 미충족 → Phase 7.7 chain depth 3/3 (cap) 진입. Phase 7.7은 LLM audit 대신 **deterministic grep 검증**으로 sampling blind spot 차단 (advisor 권고 — LLM audit는 round마다 다른 finding 표면, sampling이라 수렴 안 함).)
+- Total tasks: 96
+- Completed: 92 / 96
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -68,7 +68,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 > Task 순서 swap (2026-05-10): Y(CHANGELOG finalize) → X(tag) → Z(plan 갱신). semver release 정합 — `[Unreleased]` → `[0.3.0]` heading commit 후 그 commit 위에 v0.3.0 tag 박힘. plan 본문 task ID는 보존, position만 swap.
 
 - [x] **Y**: CHANGELOG.md v0.3.0 entry finalize — Added (sub-tree fallback / file_too_large / memory_exceeded / size_bytes / schema v1.2 / 합성 vault generator) + Changed (G-002 obsolete) + Verified (vault dogfood) + Known limitations.
-- [ ] **X** (deps: Phase 7.6 HH): v0.3.0 release tag — `git tag v0.3.0 -m "..." && git push origin v0.3.0`. 사전 sub-claude clean-context 검증 + 0 finding CONVERGE PASS 확인. (2026-05-10 [~]→[ ] revert: 첫 audit 3 finding → Phase 7.5 chain depth 2 진입, fix + DD audit 결과 3 신규 finding → Phase 7.6 chain depth 3 진입. HH CONVERGE PASS 후 X 자연 진행. Tag message + main push 패턴은 v0.2.1 정합 (origin/main..v0.2.1 ancestor=0 검증).)
+- [ ] **X** (deps: Phase 7.7 JJ): v0.3.0 release tag — `git tag v0.3.0 -m "..." && git push origin v0.3.0`. 사전 deterministic grep 검증 + 0 stale ref CONVERGE PASS 확인. (2026-05-10 [~]→[ ] revert: 첫 audit 3 finding → Phase 7.5 chain depth 2 진입, fix + DD audit 결과 3 신규 finding → Phase 7.6 chain depth 3 진입, fix + HH audit 결과 grep cross-check로 8 stale ref surface → Phase 7.7 chain depth 3/3 deterministic grep 검증으로 전환. JJ CONVERGE PASS 후 X 자연 진행. Tag message + main push 패턴은 v0.2.1 정합 (origin/main..v0.2.1 ancestor=0 검증).)
 - [ ] **Z** (deps: X): 본 plan Phase 7 task 모두 [x] mark + § 갱신 (Active → Completed Phases).
 
 #### Phase 7.5 — clean-context audit finding fix (4 task)
@@ -87,7 +87,25 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 - [x] **EE**: implementation-plan.md:36 task A 설명 `shared/github/trees/parse.rs::ResponseEntry` → `TreeEntry` typo fix (실제 struct 이름 정합, AA가 CHANGELOG에서 fix한 동일 typo 누락분; 라인 78 AA task 설명의 `ResponseEntry::size` → `TreeEntry::size` 표기는 typo fix 자체를 documenting 의도라 보존). Files: docs/ralph/implementation-plan.md.
 - [x] **FF** (deps: EE): spec-error-contracts.md Per-file Pitfall Reasons 표 5 row `pipeline.rs::try_short_circuit_failed line N~N` → `pipeline/short_circuit.rs::try_short_circuit_failed` (Phase 5.13.1 module 폴더 분할 후 `pipeline.rs` 단일 파일 부재 + 라인 넘버 drift 회피 위해 라인 제거). 영향 row: submodule(line 158) / symlink(159) / lfs_pointer(160) / long_path(161) / case_collision(163). Files: docs/specs/spec-error-contracts.md.
 - [x] **GG** (deps: FF): spec-domain-pitfalls.md:80-86 § lifetime 계약 `prepare_for_hash` 시그니처 3-arg → 4-arg (`path: &str` 4번째 인자 추가). normalize.rs:55-60 실 시그니처 + spec-hash-and-normalize.md:103-109 authoritative spec과 정합. Files: docs/specs/spec-domain-pitfalls.md.
-- [~] **HH** (deps: GG): clean-context audit re-run 2nd round + CONVERGE PASS 검증. 0 finding이면 X dep 해소 mark (X 본문 "(deps: Phase 7.6 HH)" 문구 제거). ≥1 finding이면 G-019 수렴 기준 ("동일 finding 2회 연속 + 신규 0건") 적용 또는 cap 도달 escape hatch (BLOCK + 다음 세션 wake-up 시 사용자 surface). Files: docs/ralph/implementation-plan.md.
+- [x] **HH** (deps: GG): clean-context audit re-run 2nd round + CONVERGE PASS 검증. **결과**: LLM auditor 3 신규 finding 보고 (모두 stale `pipeline.rs::*` ref), grep cross-check로 추가 5건 surface (auditor long-line miss + 다른 split aftermath miss). 총 8 stale ref — 4 `pipeline.rs` (spec-error-contracts.md:156, spec-hash-and-normalize.md:15/114/257) + 3 `gitattributes.rs` (spec-domain-pitfalls.md:73, spec-hash-and-normalize.md:13/90) + 1 `trees.rs` (spec-classification.md:10). 모두 Phase 5.13.1 module-folder split aftermath stale path, doc-only, spec semantics 변경 X. G-019 0 finding 미충족 → Phase 7.7 chain depth 3/3 진입. **Phase 7.7은 LLM audit 대체 deterministic grep 검증** — sampling blind spot 차단 (advisor 권고). Files: docs/ralph/implementation-plan.md.
+
+#### Phase 7.7 — Phase 5.13.1 split aftermath stale path comprehensive fix (2 task)
+
+> Phase 7.6 HH(audit) 결과 LLM auditor 3 finding 보고 + grep cross-check 추가 5건 surface (총 8 stale ref). 패턴: 매 audit round마다 다른 finding (sampling blind spot — long line miss / 다른 split aftermath miss). Phase 7.5/7.6는 LLM auditor 결과 list 기반 narrow scope fix → 다음 round에서 다른 ref 노출 cycle. **본 phase는 deterministic grep으로 cycle 차단** (advisor 권고): II에서 grep으로 잡힌 모든 stale ref 일괄 fix + JJ에서 grep return 0 검증. Chain depth 3/3 (cap). JJ에서 grep return 0이면 CONVERGE PASS → X. ≥1 stale ref 잔존이면 escape hatch BLOCK + 다음 세션 wake-up 시 사용자 surface (G-019 cap 초과). Token loose (≪ 200k), wall-clock loose (≪ 6h).
+>
+> Phase 5.13.1 split target 박제 (grep 검증 패턴 base): `pipeline.rs` → `pipeline/{mod, orchestrator, short_circuit, finalize, hash_pass}` (commit `09bd5e6`), `shared/github/trees.rs` → `shared/github/trees/{mod, parse, classify, fetch, fallback}` (`445f1ec`), `shared/gitattributes.rs` → `shared/gitattributes/{mod, parser, classify, matching}` (Phase 5.13 Z `07aa888`). 향후 추가 split 발생 시 본 phase grep 패턴 갱신 — 본 plan에 base 박제.
+
+- [ ] **II** (deps: HH): 8 stale `*.rs` ref 일괄 fix (grep `\b(pipeline|gitattributes|github/trees)\.rs` `docs/specs/` 기반). 매핑:
+  - spec-error-contracts.md:156 `pipeline.rs::build_one_pre_entry` line 122~128 → `pipeline/hash_pass::build_one_pre_entry` (line range drop, FF style)
+  - spec-hash-and-normalize.md:15 `pipeline.rs::try_short_circuit_failed` → `pipeline/short_circuit::try_short_circuit_failed`
+  - spec-hash-and-normalize.md:114 `commands/scan/pipeline.rs::assemble_entries` → `commands/scan/pipeline::assemble_entries` (module path, 향후 internal split survive)
+  - spec-hash-and-normalize.md:257 `commands/scan/pipeline.rs는 sequential` → `commands/scan/pipeline/hash_pass::build_pre_entries는 sequential`
+  - spec-domain-pitfalls.md:73 `shared/gitattributes.rs` 구현 → `shared/gitattributes/` 구현
+  - spec-hash-and-normalize.md:13 `shared/gitattributes.rs` 신규 → `shared/gitattributes/` 신규
+  - spec-hash-and-normalize.md:90 `shared/gitattributes.rs` 구현 → `shared/gitattributes/` 구현
+  - spec-classification.md:10 `shared/github/trees.rs` (line 63/75/87, remote 3 mode) → `shared/github/trees/classify.rs::to_nfc` (line range drop)
+  - Files: docs/specs/spec-error-contracts.md, docs/specs/spec-hash-and-normalize.md, docs/specs/spec-domain-pitfalls.md, docs/specs/spec-classification.md.
+- [ ] **JJ** (deps: II): deterministic grep 검증 — `grep -rn '\b(pipeline|gitattributes|github/trees)\.rs' docs/specs/` 결과 0 hit이면 CONVERGE PASS mark (X dep 해소 — X 본문 "(deps: Phase 7.7 JJ)" 문구 제거 + Phase 7 task 모두 [x] mark + § 갱신 Active → Completed Phases). ≥1 hit이면 II 재실행 필요 — grep output을 본 task 결과 noting + escape hatch BLOCK ([!]) + 사용자 wake-up surface (chain depth 3/3 cap 도달, G-019 escape hatch). Files: docs/ralph/implementation-plan.md.
 
 ## Pending Phases (v0.4+)
 
