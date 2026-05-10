@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.6 task FF — spec-error-contracts.md Per-file Pitfall Reasons 표 5 row(submodule/symlink/lfs_pointer/long_path/case_collision) `pipeline.rs::try_short_circuit_failed line N~N` → `pipeline/short_circuit.rs::try_short_circuit_failed` 정합 (Phase 5.13.1 module 폴더 분할 후 단일 파일 부재 + 라인 넘버 drift 회피). Validation 1~7 본 task 통과 (spec-only G-012 면제 일반화 — code change 0, coverage 91.40% baseline 유지).)
+- Last updated: 2026-05-10 (Phase 7.6 task GG — spec-domain-pitfalls.md § lifetime 계약 `prepare_for_hash` 시그니처 3-arg → 4-arg (`path: &str` 4번째 인자 추가, 코멘트 `working-tree-relative + forward slash, K1.5 classify_path 입력` mirror). normalize.rs:55-60 실 시그니처 + spec-hash-and-normalize.md:103-109 authoritative spec과 정합. Validation 1~7 본 task 통과 (spec-only G-012 면제 일반화 — code change 0, coverage 91.40% baseline 유지).)
 - Total tasks: 94
-- Completed: 90 / 94
+- Completed: 91 / 94
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -86,7 +86,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 
 - [x] **EE**: implementation-plan.md:36 task A 설명 `shared/github/trees/parse.rs::ResponseEntry` → `TreeEntry` typo fix (실제 struct 이름 정합, AA가 CHANGELOG에서 fix한 동일 typo 누락분; 라인 78 AA task 설명의 `ResponseEntry::size` → `TreeEntry::size` 표기는 typo fix 자체를 documenting 의도라 보존). Files: docs/ralph/implementation-plan.md.
 - [x] **FF** (deps: EE): spec-error-contracts.md Per-file Pitfall Reasons 표 5 row `pipeline.rs::try_short_circuit_failed line N~N` → `pipeline/short_circuit.rs::try_short_circuit_failed` (Phase 5.13.1 module 폴더 분할 후 `pipeline.rs` 단일 파일 부재 + 라인 넘버 drift 회피 위해 라인 제거). 영향 row: submodule(line 158) / symlink(159) / lfs_pointer(160) / long_path(161) / case_collision(163). Files: docs/specs/spec-error-contracts.md.
-- [~] **GG** (deps: FF): spec-domain-pitfalls.md:80-86 § lifetime 계약 `prepare_for_hash` 시그니처 3-arg → 4-arg (`path: &str` 4번째 인자 추가). normalize.rs:55-60 실 시그니처 + spec-hash-and-normalize.md:103-109 authoritative spec과 정합. Files: docs/specs/spec-domain-pitfalls.md.
+- [x] **GG** (deps: FF): spec-domain-pitfalls.md:80-86 § lifetime 계약 `prepare_for_hash` 시그니처 3-arg → 4-arg (`path: &str` 4번째 인자 추가). normalize.rs:55-60 실 시그니처 + spec-hash-and-normalize.md:103-109 authoritative spec과 정합. Files: docs/specs/spec-domain-pitfalls.md.
 - [ ] **HH** (deps: GG): clean-context audit re-run 2nd round + CONVERGE PASS 검증. 0 finding이면 X dep 해소 mark (X 본문 "(deps: Phase 7.6 HH)" 문구 제거). ≥1 finding이면 G-019 수렴 기준 ("동일 finding 2회 연속 + 신규 0건") 적용 또는 cap 도달 escape hatch (BLOCK + 다음 세션 wake-up 시 사용자 surface). Files: docs/ralph/implementation-plan.md.
 
 ## Pending Phases (v0.4+)
