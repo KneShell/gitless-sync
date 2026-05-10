@@ -5,6 +5,7 @@ use std::process::ExitCode;
 
 mod check_cycles;
 mod check_line_limits;
+mod synth_vault;
 
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().skip(1).collect();
@@ -31,6 +32,13 @@ fn run(args: &[String]) -> u8 {
                 1
             }
         },
+        Some("synth-vault") => match synth_vault::run(&args[1..]) {
+            Ok(code) => code,
+            Err(err) => {
+                eprintln!("xtask synth-vault: {err}");
+                1
+            }
+        },
         Some(cmd) => {
             eprintln!("xtask: unknown command '{cmd}'");
             print_help();
@@ -46,6 +54,9 @@ fn print_help() {
     println!("  help               Show this help message");
     println!("  check-line-limits  Check LOC <= 300 per file (deny stage)");
     println!("  check-cycles       Detect module cycles + cross-slice refs (deny stage)");
+    println!(
+        "  synth-vault        Generate synthetic markdown vault (--out PATH [--count N] [--seed N])"
+    );
 }
 
 #[cfg(test)]
