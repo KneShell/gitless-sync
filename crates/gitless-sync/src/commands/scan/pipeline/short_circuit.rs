@@ -1,24 +1,20 @@
 //! Pre-hash failure-cascade dispatch — short-circuits paths into
-//! `Status::Failed` before `try_hash_local`. Cascade order (highest
-//! priority wins):
+//! `Status::Failed` before `try_hash_local`. Priority (highest wins):
 //!
 //! 1. `nfd_collision` (Phase 5.13 task AA).
 //! 2. `case_collision` (Phase 5.2 task D).
 //! 3. `long_path` (Phase 5.4 task R1).
 //! 4. submodule (`mode == "160000"`, Phase 5.4 task G).
-//! 5. symlink (`mode == "120000"` remote OR `is_symlink` local, task H).
+//! 5. symlink (`mode == "120000"` or `is_symlink`, task H).
 //! 6. `.gitattributes` LFS (`AttributeMatch::LfsPointer`, task G1).
 //! 7. `.gitattributes` Unsupported (task K1.5 + AA).
+//! 8. `file_too_large` / `memory_exceeded` — post-read in
+//!    `super::hash_local::try_size_gate` (Phase 7.2 task K).
+//! 9. `Encoding` — post-read in `try_hash_local` (Phase 5.13.1 FF).
 //!
-//! `Encoding` is structurally outside this cascade (Phase 5.13.1 task
-//! FF) — detection lives in `super::hash_local::try_hash_local` after
-//! a raw read, which only runs when this dispatch returns `None`. A
-//! `Some(reason)` here blocks `try_hash_local` so encoding cannot
-//! surface for the same path. See `spec-classification.md` § Cascade
-//! priority + `spec-domain-pitfalls.md` § Encoding 변환 시도.
-//!
-//! See `spec-domain-pitfalls.md` § Path 정규화 / Submodule / Symlink /
-//! LFS pointer / Windows long path / `.gitattributes` 화이트리스트.
+//! Items 8–9 only run when this dispatch returns `None`, so a 1–7
+//! match locks them out. Specs: `spec-domain-pitfalls.md` +
+//! `spec-hash-and-normalize.md` § 우선순위.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -259,14 +255,15 @@ mod tests {
     }
 
     #[test]
-    fn lfs_pointer_via_cascade_locks_out_post_read_encoding() {
-        // Cascade-priority lock (Phase 5.13.1 task FF): `Encoding` lives
-        // in `try_hash_local` (post-read) and only fires when this
-        // dispatch returns `None`. A `Some(LfsPointer)` here blocks
+    fn lfs_match_outranks_post_read_size_gate_and_encoding_priorities() {
+        // Cascade-priority lock (Phase 7.2 task L): post-read items 8–9
+        // (`file_too_large` / `memory_exceeded`, `super::hash_local::
+        // try_size_gate`, task K) and `Encoding` (task FF) only fire
+        // when this dispatch returns `None`. A `Some(LfsPointer)` blocks
         // `build_one_pre_entry` from ever reaching `try_hash_local`, so
-        // encoding cannot surface for the same path — the cascade is
-        // byte-blind, so the LFS `.gitattributes` rule alone locks it.
-        // See spec-classification.md § Cascade priority.
+        // neither size nor encoding can surface for the same path — the
+        // cascade is byte/size-blind. See `spec-hash-and-normalize.md`
+        // § 우선순위.
         let dir = TempDir::new().unwrap();
         fs::write(
             dir.path().join(".gitattributes"),

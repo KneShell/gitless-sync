@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.2 task K 완료 — `try_hash_local`에 `fs::metadata().len()` size pre-flight 추가 + 100MB/50MB 임계 → `FailedReason::FileTooLarge` / `MemoryExceeded` 격상 + `size_bytes` plumbing 4-tuple 시그니처 + `PreState::Failed`에 size_bytes 필드 추가 + `pre_entry_to_file` 정상 propagation. `try_size_gate` pure helper 분리로 boundary 4 시나리오 unit cover.)
+- Last updated: 2026-05-10 (Phase 7.2 task L 완료 — `try_short_circuit_failed` 모듈 doc에 cascade priority list 1-9 박제: items 1-7 path-string cascade 그대로, items 8-9 `file_too_large`/`memory_exceeded` post-read in `try_hash_local::try_size_gate` (task K) + item 9 `Encoding` post-read in `try_hash_local` (task FF). cascade가 `Some` 반환 시 8-9 lock-out — byte/size-blind cascade의 priority 정합 spec-hash-and-normalize.md § 우선순위. 기존 LFS lock-out test rename + docstring 갱신으로 size_gate priority 명시.)
 - Total tasks: 86
-- Completed: 71 / 86
+- Completed: 72 / 86
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -47,7 +47,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 - [x] **I**: `compare.rs::FailedReason` enum에 2 variant 추가 — `FileTooLarge` + `MemoryExceeded`. Display impl 갱신.
 - [x] **J**: `compare.rs::FileEntry` struct에 `size_bytes: Option<u64>` field 추가 — `#[serde(skip_serializing_if = "Option::is_none")]`. spec-output-schema.md § v1.2 정합.
 - [x] **K**: `commands/scan/hash_local.rs::try_hash_local` size pre-flight 추가 — `fs::metadata().len()` 측정 + 100MB/50MB 분기. spec-hash-and-normalize.md § 검출 알고리즘 정합.
-- [~] **L**: `commands/scan/pipeline/short_circuit.rs::try_short_circuit_failed` cascade에 `file_too_large` + `memory_exceeded` 분기 추가 (LFS 다음 우선순위). spec-hash-and-normalize.md § 우선순위 정합.
+- [x] **L**: `commands/scan/pipeline/short_circuit.rs::try_short_circuit_failed` cascade에 `file_too_large` + `memory_exceeded` 분기 추가 (LFS 다음 우선순위). spec-hash-and-normalize.md § 우선순위 정합.
 - [ ] **M**: `shared/github/blobs.rs::fetch_blob_with_size_gate` 신규 — Trees response size field pre-flight + 임계치 분기. spec-hash-and-normalize.md § fetch_blob_with_size_gate 정합.
 - [ ] **N**: `commands/scan/hash_remote.rs` update — Trees entry size field 전달 (caller plumbing). pre-flight skip 시 fetch_blob 호출 0회 검증.
 - [ ] **O**: unit test 4 시나리오 — 49MB local (정상 hash) + 51MB local (memory_exceeded) + 101MB local (file_too_large) + 30MB LFS pointer (LFS 우선순위). fixture file `tests/fixtures/large-files/`.
