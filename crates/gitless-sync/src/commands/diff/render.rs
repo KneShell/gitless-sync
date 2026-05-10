@@ -135,3 +135,69 @@ fn json_outcome(payload: &DiffJson) -> DiffOutcome {
         stderr_message: String::new(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::Value;
+
+    fn parse_json_stdout(outcome: &DiffOutcome) -> Value {
+        let s = std::str::from_utf8(&outcome.stdout).unwrap();
+        let trimmed = s.trim_end_matches('\n');
+        serde_json::from_str(trimmed).unwrap()
+    }
+
+    #[test]
+    fn both_sides_json_normalize_equal_emits_empty_unified() {
+        let outcome = both_sides_json(b"hello\n", b"hello\n", "a.md", false);
+        assert!(outcome.stderr_message.is_empty());
+        let v = parse_json_stdout(&outcome);
+        assert_eq!(v["side"], "both");
+        assert_eq!(v["unified"], "");
+        assert_eq!(v["raw"], Value::Null);
+        assert_eq!(v["binary"], false);
+    }
+
+    #[test]
+    fn one_sided_json_local_only_text_populates_raw_with_content() {
+        let outcome = one_sided_json(b"hello\n", Side::LocalOnly, false);
+        assert!(outcome.stderr_message.is_empty());
+        let v = parse_json_stdout(&outcome);
+        assert_eq!(v["side"], "local_only");
+        assert_eq!(v["unified"], Value::Null);
+        assert_eq!(v["raw"], "hello\n");
+        assert_eq!(v["binary"], false);
+    }
+
+    #[test]
+    fn both_sides_json_normalize_diff_populates_unified() {
+        let outcome = both_sides_json(b"alpha\nbeta\n", b"alpha\ngamma\n", "a.md", false);
+        assert!(outcome.stderr_message.is_empty());
+        let v = parse_json_stdout(&outcome);
+        assert_eq!(v["side"], "both");
+        let unified = v["unified"].as_str().expect("unified must be a string");
+        assert!(
+            unified.contains("--- a/a.md"),
+            "missing a header: {unified}"
+        );
+        assert!(
+            unified.contains("+++ b/a.md"),
+            "missing b header: {unified}"
+        );
+        assert!(unified.contains("-gamma"), "missing remote line: {unified}");
+        assert!(unified.contains("+beta"), "missing local line: {unified}");
+        assert_eq!(v["raw"], Value::Null);
+        assert_eq!(v["binary"], false);
+    }
+
+    #[test]
+    fn one_sided_json_binary_emits_binary_true_with_nulls() {
+        let outcome = one_sided_json(&[0u8, 1, 2, 3, 0, 5], Side::LocalOnly, false);
+        assert!(outcome.stderr_message.is_empty());
+        let v = parse_json_stdout(&outcome);
+        assert_eq!(v["side"], "local_only");
+        assert_eq!(v["unified"], Value::Null);
+        assert_eq!(v["raw"], Value::Null);
+        assert_eq!(v["binary"], true);
+    }
+}
