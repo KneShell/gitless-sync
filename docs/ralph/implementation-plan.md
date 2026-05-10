@@ -88,7 +88,7 @@ vault scale + Trees sub-tree fallback + 큰 파일 임계치 + clean-context aud
 
 - [x] **BB** (deps: AA): CHANGELOG.md v0.4.0 entry finalize — Added (F1/F2 schema, F3 diff --json, F4/F5/F6 surface, F7 CI sanity), Changed (schema v1.2 → v1.3), Verified (eval friction 해소 + vault regression). v0.3.0 entry 패턴 정합.
 - [x] **CC** (deps: BB): v0.4.0 release tag — `git tag v0.4.0 -m "..." && git push origin main && git push origin v0.4.0`. 사용자 명시 'eval 자체가 외부 시각'이라 사전 sub-claude clean-context audit skip (Phase 7.4 패턴 변형). v0.3.0 tag 스타일 mirror (annotated tag + main/tag push + ancestor=0 검증).
-- [ ] **DD** (deps: CC): 본 plan Phase 8 task 모두 [x] mark + § 갱신 (Active → Completed Phases). 이동 시 1~2 sentence 요약만 retain (자세한 task별 결과는 git history `git log --grep="Phase 8"` + commit message + CHANGELOG.md v0.4.0 entry로 cover, Phase 5/6/7 패턴 mirror).
+- [~] **DD** (deps: CC): 본 plan Phase 8 task 모두 [x] mark + § 갱신 (Active → Completed Phases). 이동 시 1~2 sentence 요약만 retain (자세한 task별 결과는 git history `git log --grep="Phase 8"` + commit message + CHANGELOG.md v0.4.0 entry로 cover, Phase 5/6/7 패턴 mirror).
 
 ## Constraints (모든 phase 적용)
 
