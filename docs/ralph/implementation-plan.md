@@ -3,7 +3,7 @@
 ## Status
 - Phase 8 진입 (2026-05-10)
 - Tasks: 31 (Phase 8)
-- Completed: 3 / 31
+- Completed: 4 / 31
 
 ## Notes for Build Mode
 - ralph build mode는 첫 미완료 task (`[ ]`)부터 처리. 의존 순서가 본 plan에 명시 안 됐으면 acceptance + spec 본문에 잠재 의존 명시 (e.g., "X task 결과 위에서 진행").
@@ -47,7 +47,7 @@ vault scale + Trees sub-tree fallback + 큰 파일 임계치 + clean-context aud
 - [x] **A**: ADR 0014 'scan-diff metadata contract' 신규 (Write) — F1+F2 묶음 결정 trail. context: eval F1/F2 본문 + Open Decisions. decision: diff_meaningful + presence field 추가, 4-state status 유지. 영향 spec mapping. Files: docs/adr/0014-scan-diff-metadata-contract.md.
 - [x] **B** (deps: A): spec-output-schema.md schema v1.2 → v1.3 minor bump — `files[].diff_meaningful: Option<bool>` + `files[].presence: enum` field 추가 spec. v1.0/v1.1/v1.2 backward-compat lock test 정합 (Phase 7.2 task P 패턴). spec § v1.2 → v1.3 변경 § 신규. Files: docs/specs/spec-output-schema.md.
 - [x] **C** (deps: B): spec-cli-interface.md `diff --json` 옵션 spec — opt-in, default unified text 유지. JSON 형식 `{"side": "...", "unified": "..." | null, "raw": "..." | null, "binary": bool}`. Files: docs/specs/spec-cli-interface.md.
-- [~] **D** (deps: C): spec-output-schema.md § diff sub-schema 신규 — C의 JSON 형식 authoritative spec. Files: docs/specs/spec-output-schema.md.
+- [x] **D** (deps: C): spec-output-schema.md § diff sub-schema 신규 — C의 JSON 형식 authoritative spec. Files: docs/specs/spec-output-schema.md.
 - [ ] **E** (deps: D): CHANGELOG.md `[Unreleased]` v0.4.0 prep entry — Added (diff_meaningful / presence / diff --json / clap surface fix), Changed (schema v1.3), Verified (eval 7 friction 해소). Files: CHANGELOG.md.
 
 #### Phase 8.2 — F1 (diff_meaningful) + F2 (presence) (8 task)
