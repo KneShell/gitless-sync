@@ -7,7 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-TBD — Phase 7+ 진입 시점 추가.
+> Phase 7 (vault scale + Trees sub-tree + 큰 파일 임계치, v0.3.0 prep) 진행 중. Phase 7.1 (Trees sub-tree fallback) + Phase 7.2 (큰 파일 임계치) 누적. Phase 7.3 (vault scale dogfood) + 7.4 (release tag)는 진행 전. 본 entry는 prep — final v0.3.0 entry는 Phase 7.4 task Y에서 finalize. 상세 task별 결과는 git history (`git log --grep="<task ID>"`) + `docs/ralph/implementation-plan.md`.
+
+### Added
+
+- Phase 7.1 — Trees sub-tree 재귀 fallback (G-002 해소). `truncated:true` 응답 시 ref → commit → root tree 1회 resolve 후 sub-tree non-recursive fan-out으로 내려가며 entries 합산 (`shared/github/trees/fallback.rs`). Cap: call budget 1000 + entries 500_000. Cap 초과 또는 fallback 실패 시 `GitlessError::TreesTruncated` + exit code 5 (정책 일관, 부분 결과 사용 금지). 정상 path는 v0.2.x 동작 유지.
+- Phase 7.2 — 큰 파일 임계치 2 reason (`file_too_large` ≥ 100 MB GitHub Blobs API hard limit / `memory_exceeded` ≥ 50 MB tool 메모리 안전 임계). `commands/scan/hash_local.rs::try_hash_local`가 `fs::metadata().len()` pre-flight + 분기, `shared/github/blobs.rs::fetch_blob_with_size_gate`가 Trees response size field로 fetch 전 분기 (skip 시 fetch_blob 호출 0회). cascade는 short_circuit.rs LFS 다음 우선순위 9 reason로 갱신.
+- Schema v1.1 → v1.2 (minor bump) — `failed_reason` enum 9 → 11 (`file_too_large` + `memory_exceeded` 추가) + 신규 field `files[].size_bytes` (`Option<u64>`, `#[serde(skip_serializing_if = "Option::is_none")]`). `file_too_large` / `memory_exceeded` entry는 size_bytes 포함 + `is_binary: false` (size pre-flight short-circuit, local read 전 격하). 그 외 entry는 size_bytes omit. v1.0 / v1.1 backward-compat 유지 (lock test `output.rs::tests` 갱신 — 이전 envelope/entry 필수 field invariant 박힘).
+- `shared/github/trees/parse.rs::ResponseEntry::size` — `Option<u64>` field 추가 (Trees response size field 활용, sub-tree fallback + remote-side size pre-flight 양쪽 사용).
+- Specs — spec-github-api.md § Trees truncation handling + spec-hash-and-normalize.md § Phase 7 — 큰 파일 처리 + spec-output-schema.md § v1.2 + 신규 Acceptance Criteria 7 시나리오.
+- ADR — 0011 (Trees sub-tree fallback) + 0012 (큰 파일 임계치 100/50 MB) + 0013 (자율 chain hard cap depth 3 + token 200k + wall-clock 6h).
+- guardrails — G-019 (자율 chain hard cap, Phase 7 vague 결과).
+
+### Changed
+
+- G-002 (Trees API truncation) — v0.2.x "즉시 fail" 정책 → v0.3 sub-tree fallback 도입. cap 초과 또는 fallback 실패 시에만 `GitlessError::TreesTruncated` + exit code 5.
+- `compare.rs::FailedReason` enum 8 variant → 10 variant (`FileTooLarge` + `MemoryExceeded` 추가). `None` special case (`hash_io`)는 그대로 — 11 wire reason 모두 cover.
+
+### Verified
+
+- Phase 7.1 unit test 2 시나리오 (call budget 1001 / entries 500_001 cap trip) + integration test (multi-layer truncated descent → 합산 ScanReport).
+- Phase 7.2 unit test 4 시나리오 (49MB local hash 정상 / 51MB memory_exceeded / 101MB file_too_large / 30MB LFS pointer 우선순위).
+- Schema v1.2 acceptance 7 시나리오 unit test (`output.rs::tests`) — schema_version "1.2" + `FailedReason` 11 wire snake_case + size_bytes 정확 직렬화/omit + size_gate entry `is_binary: false` + v1.0/v1.1 envelope+entry 필수 field 박힘 invariant.
+
+### Known limitations (Phase 7.3+ 해소 예정)
+
+- vault scale 1000+ path dogfood — Phase 7.3 task S~W에서 합성 vault generator + 측정 + ADR 0008 mtime cache 재도입 트리거 검토.
+- v0.3.0 release tag — Phase 7.4 task X에서 sub-claude clean-context 검증 + 0 finding CONVERGE PASS 확인 후 진행 (G-019 자율 chain hard cap 정합).
 
 ## [0.2.1] - 2026-05-10
 
