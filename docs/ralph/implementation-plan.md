@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.2 task L 완료 — `try_short_circuit_failed` 모듈 doc에 cascade priority list 1-9 박제: items 1-7 path-string cascade 그대로, items 8-9 `file_too_large`/`memory_exceeded` post-read in `try_hash_local::try_size_gate` (task K) + item 9 `Encoding` post-read in `try_hash_local` (task FF). cascade가 `Some` 반환 시 8-9 lock-out — byte/size-blind cascade의 priority 정합 spec-hash-and-normalize.md § 우선순위. 기존 LFS lock-out test rename + docstring 갱신으로 size_gate priority 명시.)
+- Last updated: 2026-05-10 (Phase 7.2 task M 완료 — `shared/github/blobs.rs::fetch_blob_with_size_gate` 신규: `expected_size > 100 MB` → `GitlessError::Http("blob {sha} too large: ...")`, `> 50 MB` → `GitlessError::Http("blob {sha} exceeds memory threshold: ...")`, 정상 path는 기존 `fetch_blob` 위임. 50/100 MB 상수는 `commands/scan/hash_local`과 mirror — `shared/`가 `commands/`를 import 못 하므로 duplicate (future task가 `shared/limits.rs` 추출 검토). `mod.rs` re-export는 task N의 caller plumbing 시점에 추가 — task N이 consumer + re-export 동시 도입 시 unused-import 경고 회피. unit test 4 시나리오: 50 MB 정확 (passes), 50 MB+1 (memory_exceeded), 100 MB+1 (file_too_large), 200 MB (precedence). dead_code 제거는 task N에서 caller 도입 시.)
 - Total tasks: 86
-- Completed: 72 / 86
+- Completed: 73 / 86
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -48,7 +48,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 - [x] **J**: `compare.rs::FileEntry` struct에 `size_bytes: Option<u64>` field 추가 — `#[serde(skip_serializing_if = "Option::is_none")]`. spec-output-schema.md § v1.2 정합.
 - [x] **K**: `commands/scan/hash_local.rs::try_hash_local` size pre-flight 추가 — `fs::metadata().len()` 측정 + 100MB/50MB 분기. spec-hash-and-normalize.md § 검출 알고리즘 정합.
 - [x] **L**: `commands/scan/pipeline/short_circuit.rs::try_short_circuit_failed` cascade에 `file_too_large` + `memory_exceeded` 분기 추가 (LFS 다음 우선순위). spec-hash-and-normalize.md § 우선순위 정합.
-- [~] **M**: `shared/github/blobs.rs::fetch_blob_with_size_gate` 신규 — Trees response size field pre-flight + 임계치 분기. spec-hash-and-normalize.md § fetch_blob_with_size_gate 정합.
+- [x] **M**: `shared/github/blobs.rs::fetch_blob_with_size_gate` 신규 — Trees response size field pre-flight + 임계치 분기. spec-hash-and-normalize.md § fetch_blob_with_size_gate 정합.
 - [ ] **N**: `commands/scan/hash_remote.rs` update — Trees entry size field 전달 (caller plumbing). pre-flight skip 시 fetch_blob 호출 0회 검증.
 - [ ] **O**: unit test 4 시나리오 — 49MB local (정상 hash) + 51MB local (memory_exceeded) + 101MB local (file_too_large) + 30MB LFS pointer (LFS 우선순위). fixture file `tests/fixtures/large-files/`.
 - [ ] **P**: `output.rs::SCHEMA_VERSION` "1.1" → "1.2" + lock test 갱신 (v1.0/v1.1 backward-compat 검증). spec-output-schema.md § v1.2 신규 Acceptance Criteria 정합.
