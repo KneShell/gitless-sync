@@ -30,6 +30,7 @@ pub(super) enum PreState {
         local_mtime: Option<DateTime<Utc>>,
         failed_reason: Option<FailedReason>,
         is_binary: bool,
+        size_bytes: Option<u64>,
     },
     Hashed {
         local_sha: Option<String>,
@@ -82,6 +83,7 @@ fn build_one_pre_entry(
             local_mtime,
             failed_reason: Some(reason),
             is_binary: false,
+            size_bytes: None,
         };
         return PreEntry {
             path: path.to_string(),
@@ -93,17 +95,19 @@ fn build_one_pre_entry(
     let mode = remote.map_or_else(|| "100644".to_string(), |r| r.mode.clone());
     let state = match local {
         Some(lf) => match try_hash_local(&lf.absolute_path, keep_bom, cctx.gitattr, path) {
-            // Encoding-failure arm: a local read happened, so `is_binary`
-            // carries the real NUL heuristic from `try_hash_local` (UTF-16
-            // BOM input has embedded NULs → `true`). Preserved through the
-            // Failed state so wire JSON keeps the measurement (EE).
-            Ok((_, is_binary, Some(reason))) => PreState::Failed {
+            // Failure arm — `is_binary` holds the NUL probe when a body
+            // read occurred (encoding/EE: UTF-16 BOM → `true`); size-gate
+            // arms skip the body so the contract returns `false`.
+            // `size_bytes` is `Some(n)` for `FileTooLarge`/`MemoryExceeded`
+            // (Phase 7.2 task K), `None` otherwise.
+            Ok((_, is_binary, Some(reason), size_bytes)) => PreState::Failed {
                 remote_sha,
                 local_mtime,
                 failed_reason: Some(reason),
                 is_binary,
+                size_bytes,
             },
-            Ok((sha, is_binary, None)) => PreState::Hashed {
+            Ok((sha, is_binary, None, _)) => PreState::Hashed {
                 local_sha: Some(sha),
                 remote_sha,
                 local_mtime,
@@ -117,6 +121,7 @@ fn build_one_pre_entry(
                     local_mtime,
                     failed_reason: None,
                     is_binary: false,
+                    size_bytes: None,
                 }
             }
         },
