@@ -17,9 +17,19 @@ pub(super) use self::types::{PreEntry, PreState};
 
 use self::local::{LocalArmInputs, build_local_state};
 use super::short_circuit::{ClassifyContext, try_short_circuit_failed};
+use crate::commands::scan::compare::Presence;
 use crate::commands::scan::hash_remote::try_remote_size_gate;
 use crate::commands::scan::walker::LocalFile;
 use crate::shared::github::RemoteFile;
+
+fn presence_of(local: Option<&LocalFile>, remote: Option<&RemoteFile>) -> Presence {
+    match (local.is_some(), remote.is_some()) {
+        (true, true) => Presence::Both,
+        (true, false) => Presence::LocalOnly,
+        (false, true) => Presence::RemoteOnly,
+        (false, false) => unreachable!("union path must have at least one side"),
+    }
+}
 
 /// Pass 1: hash local files. No Commits API.
 pub(super) fn build_pre_entries(
@@ -48,6 +58,7 @@ fn build_one_pre_entry(
 ) -> PreEntry {
     let remote_sha = remote.map(|r| r.sha.clone());
     let local_mtime = local.map(|lf| lf.mtime);
+    let presence = presence_of(local, remote);
 
     if let Some((mode, reason)) = try_short_circuit_failed(path, local, remote, cctx) {
         // Short-circuited reasons bail before any local read → no NUL
@@ -62,6 +73,7 @@ fn build_one_pre_entry(
         return PreEntry {
             path: path.to_string(),
             mode,
+            presence,
             state,
         };
     }
@@ -81,6 +93,7 @@ fn build_one_pre_entry(
         return PreEntry {
             path: path.to_string(),
             mode,
+            presence,
             state,
         };
     }
@@ -104,6 +117,7 @@ fn build_one_pre_entry(
     PreEntry {
         path: path.to_string(),
         mode,
+        presence,
         state,
     }
 }

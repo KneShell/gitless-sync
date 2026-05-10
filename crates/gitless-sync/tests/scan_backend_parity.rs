@@ -23,7 +23,7 @@ use gitless_sync::shared::error::GitlessError;
 
 use common::{
     TestGhClient, args_for, commits_args, commits_body_with_date, graphql_err_body,
-    graphql_ok_body, ok_resp, run_to_json, tree_args,
+    graphql_ok_body, ok_resp, run_to_json, stub_blob, tree_args,
 };
 
 // ---- PRD 시나리오 20: GraphQL backend 정상 (drift trigger → committedDate 매핑) ----
@@ -39,6 +39,7 @@ fn scenario_20_graphql_backend_returns_normal_scan_report() {
     let mut mock = TestGhClient::new();
     let trees_body = r#"{"sha":"x","tree":[{"path":"a.md","mode":"100644","type":"blob","sha":"remote-different","size":12}],"truncated":false}"#;
     mock.stub(tree_args(repo, branch), ok_resp(trees_body.as_bytes()));
+    stub_blob(&mut mock, repo, "remote-different", b"alpha-remote\n");
     // Old committedDate < local mtime → LocalOnlyChanged. The point is to
     // prove the GraphQL response is consumed (not the REST commits stub).
     mock.stub_graphql(ok_resp(
@@ -70,6 +71,7 @@ fn scenario_21_graphql_rate_limited_extension_maps_to_rate_limit_exceeded() {
     let mut mock = TestGhClient::new();
     let trees_body = r#"{"sha":"x","tree":[{"path":"a.md","mode":"100644","type":"blob","sha":"different","size":2}],"truncated":false}"#;
     mock.stub(tree_args(repo, branch), ok_resp(trees_body.as_bytes()));
+    stub_blob(&mut mock, repo, "different", b"y\n");
     mock.stub_graphql(ok_resp(
         graphql_err_body("RATE_LIMITED", "throttled").as_bytes(),
     ));
@@ -93,6 +95,7 @@ fn scenario_21_graphql_unauthenticated_extension_maps_to_auth_failed() {
     let mut mock = TestGhClient::new();
     let trees_body = r#"{"sha":"x","tree":[{"path":"a.md","mode":"100644","type":"blob","sha":"different","size":2}],"truncated":false}"#;
     mock.stub(tree_args(repo, branch), ok_resp(trees_body.as_bytes()));
+    stub_blob(&mut mock, repo, "different", b"y\n");
     mock.stub_graphql(ok_resp(
         graphql_err_body("UNAUTHENTICATED", "login required").as_bytes(),
     ));
@@ -116,6 +119,7 @@ fn scenario_21_graphql_not_found_extension_falls_through_to_http() {
     let mut mock = TestGhClient::new();
     let trees_body = r#"{"sha":"x","tree":[{"path":"a.md","mode":"100644","type":"blob","sha":"different","size":2}],"truncated":false}"#;
     mock.stub(tree_args(repo, branch), ok_resp(trees_body.as_bytes()));
+    stub_blob(&mut mock, repo, "different", b"y\n");
     mock.stub_graphql(ok_resp(
         graphql_err_body("NOT_FOUND", "object missing").as_bytes(),
     ));
@@ -148,6 +152,7 @@ fn scenario_24_cross_backend_produces_identical_report() {
     // REST scan.
     let mut rest_mock = TestGhClient::new();
     rest_mock.stub(tree_args(repo, branch), ok_resp(trees_body.as_bytes()));
+    stub_blob(&mut rest_mock, repo, "deadbeef", b"alpha-remote\n");
     rest_mock.stub(
         commits_args(repo, branch, "a.md"),
         ok_resp(commits_body_with_date(commit_date).as_bytes()),
@@ -159,6 +164,7 @@ fn scenario_24_cross_backend_produces_identical_report() {
     // GraphQL scan against equivalent stub data (same tree, same commit time).
     let mut graphql_mock = TestGhClient::new();
     graphql_mock.stub(tree_args(repo, branch), ok_resp(trees_body.as_bytes()));
+    stub_blob(&mut graphql_mock, repo, "deadbeef", b"alpha-remote\n");
     graphql_mock.stub_graphql(ok_resp(
         graphql_ok_body(&[("a.md", commit_date)]).as_bytes(),
     ));

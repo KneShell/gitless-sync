@@ -14,6 +14,8 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;
 
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use chrono::{DateTime, SecondsFormat, Utc};
 use serde_json::Value;
 
@@ -112,6 +114,21 @@ pub fn commits_args(repo: &str, branch: &str, path: &str) -> Vec<String> {
         "-F".to_string(),
         "per_page=1".to_string(),
     ]
+}
+
+/// Phase 8 task I — scan now fetches remote blobs for sha-differ Hashed
+/// entries to compute `normalize_equal`. Tests that exercise drift paths
+/// must register a blob stub for each remote sha referenced in the Trees
+/// response. `content` is the raw bytes the remote blob returns; the
+/// helper base64-encodes them per GitHub Blobs API contract.
+pub fn stub_blob(mock: &mut TestGhClient, repo: &str, sha: &str, content: &[u8]) {
+    let b64 = BASE64_STANDARD.encode(content);
+    let body = format!(
+        r#"{{"sha":"{sha}","content":"{b64}","encoding":"base64","size":{},"url":"u"}}"#,
+        content.len()
+    );
+    let args = vec!["api".to_string(), format!("repos/{repo}/git/blobs/{sha}")];
+    mock.stub(args, ok_resp(body.as_bytes()));
 }
 
 pub fn args_for(dir: &Path, repo: &str) -> ScanArgs {
