@@ -11,15 +11,17 @@ pub enum Status {
     Failed,
 }
 
-/// Reason a path was promoted to [`Status::Failed`]. Maps to
-/// `failed_reason` in the v1.2 output schema (`spec-output-schema.md`).
-/// Omitted (`None`) is treated as `hash_io` for v1.0 backward-compat —
-/// don't set it explicitly for hash-IO failures.
-///
-/// 11 schema reasons map as 10 variants + `None` (`hash_io`):
-/// 8 Phase 5 variants below + 2 Phase 7 size-gate variants
-/// (`FileTooLarge` ≥ 100 MB, `MemoryExceeded` ≥ 50 MB) per
-/// `spec-hash-and-normalize.md` § Phase 7 — 큰 파일 처리.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Presence {
+    LocalOnly,
+    Both,
+    RemoteOnly,
+}
+
+/// Reason a path was promoted to [`Status::Failed`]. Maps to schema
+/// `failed_reason`; `None` = `hash_io` (v1.0 compat — don't set explicitly).
+/// 11 schema reasons = 10 variants + `None`. See `spec-output-schema.md`.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum FailedReason {
@@ -49,6 +51,7 @@ pub struct LfsPointer {
 pub struct FileEntry {
     pub path: String,
     pub status: Status,
+    pub presence: Presence,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub local_sha: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -59,6 +62,8 @@ pub struct FileEntry {
     pub remote_last_commit_at: Option<DateTime<Utc>>,
     pub is_binary: bool,
     pub mode: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diff_meaningful: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failed_reason: Option<FailedReason>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -167,12 +172,6 @@ mod tests {
         let _ = classify(None, None, Some(ts(100)), Some(ts(100)));
     }
 
-    // N-task audit (2026-05-09): `failed_reason` enum vs spec-error-contracts.md
-    // § Per-file Pitfall Reasons 정합 검증. `FailedReason` 5 variant
-    // serde snake_case round-trip + `LfsPointer` placeholder shape 박음.
-    // `hash_io` / `encoding` / `nfd_collision` / `gitattributes_unsupported`는
-    // enum 미박힘 (None special case 또는 enum-spec'd-but-unimplemented).
-
     fn assert_failed_reason_round_trip(variant: FailedReason, expected: &str) {
         let json = serde_json::to_string(&variant).unwrap();
         assert_eq!(json, format!("\"{expected}\""));
@@ -237,12 +236,14 @@ mod tests {
         FileEntry {
             path: "x".into(),
             status: Status::Failed,
+            presence: Presence::Both,
             local_sha: None,
             remote_sha: None,
             local_mtime: None,
             remote_last_commit_at: None,
             is_binary: false,
             mode: "100644".into(),
+            diff_meaningful: None,
             failed_reason,
             lfs_pointer: None,
             size_bytes: None,

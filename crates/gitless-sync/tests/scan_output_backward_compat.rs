@@ -12,7 +12,9 @@
 //! 위치가 architecturally 정합 (lib output module 외부에서 시뮬레이션).
 
 use chrono::{DateTime, TimeZone, Utc};
-use gitless_sync::commands::scan::compare::{FailedReason, FileEntry, LfsPointer, Status};
+use gitless_sync::commands::scan::compare::{
+    FailedReason, FileEntry, LfsPointer, Presence, Status,
+};
 use gitless_sync::commands::scan::output::{SCHEMA_VERSION, ScanReport, Summary, serialize};
 use serde::Deserialize;
 
@@ -72,12 +74,14 @@ fn size_gate_failed_entry(path: &str, reason: FailedReason, size: u64) -> FileEn
     FileEntry {
         path: path.into(),
         status: Status::Failed,
+        presence: Presence::Both,
         local_sha: None,
         remote_sha: None,
         local_mtime: None,
         remote_last_commit_at: None,
         is_binary: false,
         mode: "100644".into(),
+        diff_meaningful: None,
         failed_reason: Some(reason),
         lfs_pointer: None,
         size_bytes: Some(size),
@@ -91,12 +95,14 @@ fn v1_2_sample_report() -> ScanReport {
     let identical = FileEntry {
         path: "notes/foo.md".into(),
         status: Status::Identical,
+        presence: Presence::Both,
         local_sha: Some("abc".into()),
         remote_sha: Some("abc".into()),
         local_mtime: Some(ts(1_700_000_000)),
         remote_last_commit_at: Some(ts(1_700_000_000)),
         is_binary: false,
         mode: "100644".into(),
+        diff_meaningful: None,
         failed_reason: None,
         lfs_pointer: None,
         size_bytes: None,
@@ -104,12 +110,14 @@ fn v1_2_sample_report() -> ScanReport {
     let lfs_failed = FileEntry {
         path: "vendor/lib.zip".into(),
         status: Status::Failed,
+        presence: Presence::Both,
         local_sha: None,
         remote_sha: Some("def".into()),
         local_mtime: None,
         remote_last_commit_at: None,
         is_binary: false,
         mode: "100644".into(),
+        diff_meaningful: None,
         failed_reason: Some(FailedReason::LfsPointer),
         lfs_pointer: Some(LfsPointer {
             oid: "?".into(),
