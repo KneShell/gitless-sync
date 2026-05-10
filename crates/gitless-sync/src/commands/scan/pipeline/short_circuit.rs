@@ -8,8 +8,11 @@
 //! 5. symlink (`mode == "120000"` or `is_symlink`, task H).
 //! 6. `.gitattributes` LFS (`AttributeMatch::LfsPointer`, task G1).
 //! 7. `.gitattributes` Unsupported (task K1.5 + AA).
-//! 8. `file_too_large` / `memory_exceeded` — post-read in
-//!    `super::hash_local::try_size_gate` (Phase 7.2 task K).
+//! 8. `file_too_large` / `memory_exceeded` — remote pre-flight in
+//!    `commands::scan::hash_remote::try_remote_size_gate` (task N, Trees
+//!    response size field; runs in `pipeline::hash_pass` after this
+//!    cascade) + local pre-flight in `super::hash_local::try_size_gate`
+//!    (task K, `fs::metadata`). Remote runs first since it is cheaper.
 //! 9. `Encoding` — post-read in `try_hash_local` (Phase 5.13.1 FF).
 //!
 //! Items 8–9 only run when this dispatch returns `None`, so a 1–7
@@ -97,6 +100,7 @@ mod tests {
             path: path.to_string(),
             sha: "remote-sha".to_string(),
             mode: mode.to_string(),
+            size: None,
         }
     }
 

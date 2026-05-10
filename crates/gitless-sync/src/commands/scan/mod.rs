@@ -1,6 +1,5 @@
 //! `scan` slice — orchestrator entry point. Owns the public API
-//! (`run_with_client`, `build_report`, `Backend` / `ScanArgs` re-exports);
-//! domain (`pipeline`) and IO (`commits`, `hash_local`) live in siblings.
+//! (`run_with_client`, `build_report`, `Backend` / `ScanArgs` re-exports).
 
 pub mod args;
 pub mod case_collision;
@@ -8,6 +7,7 @@ pub mod commits;
 pub mod compare;
 pub mod graphql;
 pub mod hash_local;
+pub mod hash_remote;
 pub mod lfs;
 pub mod long_path;
 pub mod nfd_collision;

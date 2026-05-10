@@ -17,6 +17,13 @@ pub struct RemoteFile {
     /// extend the others (`spec-output-schema.md` § v1.1,
     /// `spec-domain-pitfalls.md`).
     pub mode: String,
+    /// Blob byte size from the Trees response. `Some(n)` for `blob`
+    /// entries; `None` for `commit` (submodule) entries which carry no
+    /// size. Phase 7.2 task N pipes this into
+    /// `commands::scan::hash_remote::try_remote_size_gate` so 50 MB+ blobs
+    /// short-circuit to `Status::Failed` before any blob fetch
+    /// (`spec-hash-and-normalize.md` § Phase 7 — 큰 파일 처리).
+    pub size: Option<u64>,
 }
 
 /// Map one [`TreeEntry`] to a [`RemoteFile`]; `None` when the entry is
@@ -61,6 +68,7 @@ fn make_remote(entry: TreeEntry) -> RemoteFile {
         path: to_nfc(&entry.path),
         sha: entry.sha,
         mode: entry.mode,
+        size: entry.size,
     }
 }
 
@@ -79,12 +87,60 @@ mod tests {
         }
     }
 
+    fn entry_with_size(
+        path: &str,
+        mode: &str,
+        entry_type: &str,
+        sha: &str,
+        size: u64,
+    ) -> TreeEntry {
+        TreeEntry {
+            path: path.to_string(),
+            mode: mode.to_string(),
+            entry_type: entry_type.to_string(),
+            sha: sha.to_string(),
+            size: Some(size),
+        }
+    }
+
     #[test]
     fn classifies_blob_regular_carries_mode_and_sha() {
         let rf = classify_tree_entry(entry("README.md", "100644", "blob", "sha1")).unwrap();
         assert_eq!(rf.path, "README.md");
         assert_eq!(rf.mode, "100644");
         assert_eq!(rf.sha, "sha1");
+        assert_eq!(rf.size, None, "entry built with size: None propagates");
+    }
+
+    #[test]
+    fn propagates_blob_size_into_remote_file_for_phase7_size_gate() {
+        // Phase 7.2 task N — Trees response size field flows through
+        // `make_remote` into `RemoteFile.size` so
+        // `commands::scan::hash_remote::try_remote_size_gate` can pre-flight
+        // 50 MB+ blobs without a fetch.
+        let rf = classify_tree_entry(entry_with_size(
+            "big.bin", "100644", "blob", "sha1", 60_000_000,
+        ))
+        .unwrap();
+        assert_eq!(rf.size, Some(60_000_000));
+    }
+
+    #[test]
+    fn submodule_size_remains_none_even_when_present_on_entry() {
+        // `type=commit` (submodule) entries carry no size in real Trees
+        // responses, but the gate stays defensive — even if a malformed
+        // response sets one, the submodule arm of `short_circuit` promotes
+        // first. Here we just lock the field-propagation contract: whatever
+        // `entry.size` was, that's what `RemoteFile.size` becomes.
+        let rf = classify_tree_entry(entry_with_size(
+            "vendor/lib",
+            "160000",
+            "commit",
+            "deadbeef",
+            12_345,
+        ))
+        .unwrap();
+        assert_eq!(rf.size, Some(12_345));
     }
 
     #[test]

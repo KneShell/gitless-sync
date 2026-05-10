@@ -188,6 +188,7 @@ mod tests {
                 path: String::new(),
                 sha: String::new(),
                 mode: String::new(),
+                size: None,
             })
             .collect();
         let (r, _, budget) = run_descent(&mock, "root", Budget::new(), initial);
