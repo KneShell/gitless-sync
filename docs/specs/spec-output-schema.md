@@ -251,3 +251,50 @@ ADR 0014 결정 trail. 코드 변경은 Phase 8.2 (task F~M) + 8.3 (task N~R) sc
 - `[AUTO]` `presence` 필드는 `Failed` entry에서도 누락 안 함 — 호출자가 "Failed인데 어느 쪽이 존재해서 fail인가" 분기 가능 (예: `presence == "local_only"` + `failed_reason == "lfs_pointer"` → local LFS pointer 만 있는 케이스).
 - `[AUTO]` v1.0 / v1.1 / v1.2 호출자가 v1.3 JSON 파싱 시 추가 필드 (`presence` / `diff_meaningful`) 무시 + 기존 필드 정상 동작 (backward-compat 검증, Phase 7.2 task P 패턴 — `tests/scan_output_backward_compat.rs` V10/V11/V12 client 정합).
 - `[AUTO]` `presence` enum 동결 정책: 추가는 minor, 제거·이름 변경은 major. `local_only` / `both` / `remote_only` 3 값으로 시작.
+
+## diff sub-schema
+
+`diff --json` 출력 JSON의 authoritative 스키마. `spec-cli-interface.md` § diff --json 출력 형식의 참조 대상.
+
+### 구조
+
+`diff <path> --json` 실행 시 stdout 한 줄 JSON 객체. `--json` 명시 시 stderr side marker 미출력.
+
+```json
+{"side": "both" | "local_only" | "remote_only", "unified": string | null, "raw": string | null, "binary": bool}
+```
+
+### 필드 정의
+
+| field | JSON type | 의미 |
+|-------|-----------|------|
+| `side` | `"both"` \| `"local_only"` \| `"remote_only"` | 파일 존재 위치. scan `presence` enum과 동일 semantics. 항상 emit. |
+| `unified` | `string \| null` | normalize 후 unified diff 텍스트. `side == "both"` + non-binary 전용 — normalize-equal이면 `""`, normalize-diff이면 diff 텍스트. 그 외 `null`. |
+| `raw` | `string \| null` | 단일 사이드 원본 파일 텍스트. `side != "both"` + non-binary 전용. 그 외 `null`. |
+| `binary` | `bool` | `true` 이면 바이너리 — `unified` + `raw` 모두 `null` 강제. |
+
+### 케이스별 stdout
+
+| 케이스 | stdout |
+|--------|--------|
+| side=both + normalize-equal | `{"side":"both","unified":"","raw":null,"binary":false}` |
+| side=both + normalize-diff | `{"side":"both","unified":"--- a/…\n+++ b/…\n@@ … @@\n…","raw":null,"binary":false}` |
+| side=local_only (text) | `{"side":"local_only","unified":null,"raw":"<file content>","binary":false}` |
+| side=remote_only (text) | `{"side":"remote_only","unified":null,"raw":"<file content>","binary":false}` |
+| binary (any side) | `{"side":"<side>","unified":null,"raw":null,"binary":true}` |
+
+### null 정책
+
+| 조건 | `unified` | `raw` |
+|------|-----------|-------|
+| `binary == true` | `null` | `null` |
+| `side == "both"` + non-binary | string (빈 문자열 or diff 텍스트) | `null` |
+| `side != "both"` + non-binary | `null` | string |
+
+### Acceptance Criteria
+
+- `[AUTO]` `diff <path> --json` stdout이 한 줄 JSON + `side` / `unified` / `raw` / `binary` 4 field 포함.
+- `[AUTO]` side=both + normalize-equal → `{"side":"both","unified":"","raw":null,"binary":false}` 정확 일치.
+- `[AUTO]` side=both + normalize-diff → `unified` 필드 non-empty diff 텍스트 + `raw == null` + `binary == false`.
+- `[AUTO]` side=local_only (text) → `{"side":"local_only","unified":null,"raw":"<content>","binary":false}` — `raw` 필드에 원본 파일 내용.
+- `[AUTO]` binary (any side) → `unified == null` + `raw == null` + `binary == true`.
