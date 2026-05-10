@@ -14,6 +14,8 @@ use std::fs;
 
 use tempfile::TempDir;
 
+use gitless_sync::commands::scan::args::StatusFilter;
+
 use common::{
     TestGhClient, args_for, commits_args, commits_body_with_date, lf_blob_hash, ok_resp,
     read_mtime_rfc3339, run_to_json, stub_blob, tree_args,
@@ -200,7 +202,7 @@ fn scenario_14_status_filter_keeps_only_matching_entries() {
     mock.stub(tree_args("o/r", "main"), ok_resp(trees_body.as_bytes()));
 
     let mut args = args_for(dir.path(), "o/r");
-    args.status = Some("local_only_changed".to_string());
+    args.status = Some(vec![StatusFilter::LocalOnlyChanged]);
 
     let json = run_to_json(&args, &mock);
     // summary counts every classified entry; only `files[]` is filtered down.
