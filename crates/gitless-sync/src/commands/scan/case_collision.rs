@@ -70,6 +70,7 @@ mod tests {
             path: name.to_string(),
             sha: format!("sha-{name}"),
             mode: "100644".to_string(),
+            size: None,
         }
     }
 

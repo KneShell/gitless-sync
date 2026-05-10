@@ -107,6 +107,7 @@ mod tests {
             path: "ok.md".to_string(),
             sha,
             mode: "100644".to_string(),
+            size: None,
         };
 
         let mock = MockGhClient::new();
@@ -147,6 +148,7 @@ mod tests {
             path: "cover.psd".to_string(),
             sha: "remote-pointer-blob-sha".to_string(),
             mode: "100644".to_string(),
+            size: None,
         };
 
         let mock = MockGhClient::new();
@@ -190,6 +192,7 @@ mod tests {
             path: "ghost.md".to_string(),
             sha: "remote-sha".to_string(),
             mode: "100644".to_string(),
+            size: None,
         };
 
         // No commits stub — hash_io path reaches finalize as Failed, which

@@ -74,8 +74,12 @@ pub(crate) fn fetch_blob(
 /// - [`GitlessError::Http`] with prefix `blob {sha} exceeds memory threshold:`
 ///   when `expected_size > 50 MB` (and within the 100 MB ceiling).
 /// - All errors from [`fetch_blob`] when within the threshold.
-// Removed in Phase 7.2 task N when `pipeline/hash_pass.rs` (or a sibling
-// `hash_remote` shim) plumbs `RemoteFile.size` into the gate.
+// `scan` (Phase 7.2 task N) plumbs `RemoteFile.size` through
+// `commands::scan::hash_remote::try_remote_size_gate` and never reaches
+// the blob fetch — `scan` does not call `fetch_blob`. Therefore this
+// function stays `#[allow(dead_code)]` until `commands::diff::compute`
+// (the only `fetch_blob` caller today) is updated to route through it
+// in a later phase.
 #[allow(dead_code)]
 pub(crate) fn fetch_blob_with_size_gate(
     client: &impl GhClient,
