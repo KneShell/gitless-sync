@@ -61,7 +61,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 - [x] **T**: 합성 vault generate + scan 측정 — `cargo xtask synth-vault --out tmp/synth-vault-42` + `cargo run -- scan --local tmp/synth-vault-42 --repo {public-test-repo}` 실행. 결과 raw data `docs/research/phase7-vault-scale-bench.md` 신규.
 - [x] **U**: public repo cross-check sanity (manual) — linux/torvalds 또는 동등 1000+ entry repo. commit sha 박제. 결과 phase7-vault-scale-bench.md § public 추가.
 - [x] **V** (skipped: vault scale instrumentation 부재): mtime cache 재도입 트리거 검토 (ADR 0008 § Future work) — 1000+ scale 측정 결과 hash 비중 ↑ 시 cache 재도입 정당성 검토. 결과 ADR (cache 재도입 OR keep-drop confirmed). T/U raw bench data가 walltime 전체만 측정 (hash phase 별도 instrumentation 부재) → "측정 결과 surface 안 하면 task skip 표시" 트리거 충족. ADR 0008 § Phase 7.3 재검토 추가 (path scale 20× 증가에도 walltime 1324.8 ms → 829/1109 ms로 hash 비중 폭증 신호 없음 보강) + keep-drop 유지 박제. 측정 결과 surface 임계는 별도 instrumentation task 도입 시점 — Phase 7 scope 외 (yagni 일관).
-- [ ] **W**: Phase 7 종합 measurements `docs/research/phase7-vault-scale-bench.md` 완성 + CHANGELOG.md v0.3.0 entry vault dogfood 결과 추가.
+- [~] **W**: Phase 7 종합 measurements `docs/research/phase7-vault-scale-bench.md` 완성 + CHANGELOG.md v0.3.0 entry vault dogfood 결과 추가.
 
 #### Phase 7.4 — release tag (3 task)
 
