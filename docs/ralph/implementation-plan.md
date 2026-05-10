@@ -59,7 +59,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 
 - [x] **S**: `xtask/src/synth_vault.rs` 신규 sub-command — seed/UTF-8 NFC/LF/mtime epoch/markdown 1000+ 정책 정합. spec-domain-pitfalls.md § Phase 7 — 합성 vault generator 정합. unit test (generate 후 NFC/LF/mtime 검증).
 - [x] **T**: 합성 vault generate + scan 측정 — `cargo xtask synth-vault --out tmp/synth-vault-42` + `cargo run -- scan --local tmp/synth-vault-42 --repo {public-test-repo}` 실행. 결과 raw data `docs/research/phase7-vault-scale-bench.md` 신규.
-- [ ] **U**: public repo cross-check sanity (manual) — linux/torvalds 또는 동등 1000+ entry repo. commit sha 박제. 결과 phase7-vault-scale-bench.md § public 추가.
+- [~] **U**: public repo cross-check sanity (manual) — linux/torvalds 또는 동등 1000+ entry repo. commit sha 박제. 결과 phase7-vault-scale-bench.md § public 추가.
 - [ ] **V**: mtime cache 재도입 트리거 검토 (ADR 0008 § Future work) — 1000+ scale 측정 결과 hash 비중 ↑ 시 cache 재도입 정당성 검토. 결과 ADR (cache 재도입 OR keep-drop confirmed). 측정 결과 surface 안 하면 task skip 표시.
 - [ ] **W**: Phase 7 종합 measurements `docs/research/phase7-vault-scale-bench.md` 완성 + CHANGELOG.md v0.3.0 entry vault dogfood 결과 추가.
 
