@@ -69,7 +69,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 
 - [x] **Y**: CHANGELOG.md v0.3.0 entry finalize — Added (sub-tree fallback / file_too_large / memory_exceeded / size_bytes / schema v1.2 / 합성 vault generator) + Changed (G-002 obsolete) + Verified (vault dogfood) + Known limitations.
 - [x] **X**: v0.3.0 release tag — `git tag v0.3.0 -m "..." && git push origin v0.3.0`. 사전 deterministic grep 검증 + 0 stale ref CONVERGE PASS 확인 (Phase 7.7 JJ 완료 — 2026-05-10). (2026-05-10 [~]→[ ] revert: 첫 audit 3 finding → Phase 7.5 chain depth 2 진입, fix + DD audit 결과 3 신규 finding → Phase 7.6 chain depth 3 진입, fix + HH audit 결과 grep cross-check로 8 stale ref surface → Phase 7.7 chain depth 3/3 deterministic grep 검증으로 전환. JJ CONVERGE PASS 후 X 자연 진행. Tag message + main push 패턴은 v0.2.1 정합 (origin/main..v0.2.1 ancestor=0 검증).) **결과**: §3 validation 7단계 통과 (fmt/clippy/LOC/cycle/machete/test/tarpaulin 91.40%) → main push 70 commits → tag v0.3.0 annotated 생성 (CHANGELOG [0.3.0] 요약 + Co-Authored-By, v0.2.1 스타일 mirror) → tag push. `origin/main..v0.3.0` ancestor=0 검증 통과.
-- [ ] **Z** (deps: X): 본 plan Phase 7 task 모두 [x] mark + § 갱신 (Active → Completed Phases).
+- [~] **Z** (deps: X): 본 plan Phase 7 task 모두 [x] mark + § 갱신 (Active → Completed Phases).
 
 #### Phase 7.5 — clean-context audit finding fix (4 task)
 
