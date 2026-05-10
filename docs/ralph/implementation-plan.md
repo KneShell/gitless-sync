@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.3 task W — Phase 7 종합 measurements `docs/research/phase7-vault-scale-bench.md` § 종합 (task W, 2026-05-10) 추가 + CHANGELOG.md [Unreleased] Phase 7.3 vault dogfood 결과 추가. 종합 § cross-comparison: T (1000 local × 129 remote, mean 829 ms, exit 0, failed 0) vs U (1000 local × 4964 remote git/git@94f0577, 1109 ms, exit 4 PARTIAL_FAILURE, failed 4 = 3 symlink `120000` + 1 submodule `160000` git/git remote-side originated) — remote 38× scale-up에 walltime ~+35% sub-linear 흡수 (GraphQL batching + rayon 8c). Schema v1.2 + exit code contract 정합 + failed[] 함정 처리 정책 정합 + sub-tree fallback 본 측정 미surface (truncated=false 영역) + ADR 0008 keep-drop 유지 cross-link + open items 4건 deferred. CHANGELOG.md Added/Verified 보강 + Known limitations 7.3+→7.4+ 갱신 (vault scale 1000+ dogfood 해소). 새 정책 결정 0건 + 새 spec 변경 0건 — Phase 7.4 release tag 진행 가능 baseline. validation 1~6 모두 통과 (spec-only G-012 면제 일반화 적용 — code change 0 → coverage baseline 자동 유지).)
+- Last updated: 2026-05-10 (Phase 7.4 task Y — CHANGELOG.md `[Unreleased]` Phase 7 prep entry → `[0.3.0] - 2026-05-10` final entry로 finalize. heading rename + prep 문구 정리 + release tag prep Known limitations entry 제거 + 새 empty `[Unreleased]` heading 추가 (Keep a Changelog 표준). v0.3.0 entry는 Added (sub-tree fallback / file_too_large / memory_exceeded / size_bytes / schema v1.2 / 합성 vault generator 등 9 item) + Changed (G-002 obsolete + FailedReason enum 8→10) + Verified (Phase 7.1/7.2 unit + 7.2 unit 4 시나리오 + Schema v1.2 acceptance 7 시나리오 + Phase 7.3 vault dogfood T/U cross-comparison) + Known limitations (v0.4+ 해소 예정 2건). Phase 7.4 task 순서 swap (2026-05-10) — Y(CHANGELOG finalize) → X(tag) → Z(plan 갱신) semver release 정합 (`[Unreleased]` → `[0.3.0]` heading commit 후 그 commit 위에 v0.3.0 tag). plan 본문 task ID 보존, position만 swap. validation 1~6 모두 통과 (spec-only G-012 면제 일반화 적용 — code change 0 → coverage baseline 자동 유지).)
 - Total tasks: 86
-- Completed: 83 / 86
+- Completed: 84 / 86
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -67,7 +67,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 
 > Task 순서 swap (2026-05-10): Y(CHANGELOG finalize) → X(tag) → Z(plan 갱신). semver release 정합 — `[Unreleased]` → `[0.3.0]` heading commit 후 그 commit 위에 v0.3.0 tag 박힘. plan 본문 task ID는 보존, position만 swap.
 
-- [~] **Y**: CHANGELOG.md v0.3.0 entry finalize — Added (sub-tree fallback / file_too_large / memory_exceeded / size_bytes / schema v1.2 / 합성 vault generator) + Changed (G-002 obsolete) + Verified (vault dogfood) + Known limitations.
+- [x] **Y**: CHANGELOG.md v0.3.0 entry finalize — Added (sub-tree fallback / file_too_large / memory_exceeded / size_bytes / schema v1.2 / 합성 vault generator) + Changed (G-002 obsolete) + Verified (vault dogfood) + Known limitations.
 - [ ] **X**: v0.3.0 release tag — `git tag v0.3.0 -m "..." && git push origin v0.3.0`. 사전 sub-claude clean-context 검증 + 0 finding CONVERGE PASS 확인.
 - [ ] **Z**: 본 plan Phase 7 task 모두 [x] mark + § 갱신 (Active → Completed Phases).
 
