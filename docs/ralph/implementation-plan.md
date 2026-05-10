@@ -64,7 +64,7 @@ vault scale + Trees sub-tree fallback + 큰 파일 임계치 + clean-context aud
 #### Phase 8.3 — F3 (diff --json) (5 task)
 
 - [x] **N**: `commands/diff/args.rs` clap struct에 `--json` flag 추가. spec-cli-interface.md `diff --json` 정합.
-- [ ] **O** (deps: N): `commands/diff/render.rs` (또는 동등) — `--json` 분기 시 JSON 형식 직렬화 (side / unified / raw / binary). 기존 unified text path 유지 (default, opt-out).
+- [~] **O** (deps: N): `commands/diff/render.rs` (또는 동등) — `--json` 분기 시 JSON 형식 직렬화 (side / unified / raw / binary). 기존 unified text path 유지 (default, opt-out).
 - [ ] **P** (deps: O): unit test 4 시나리오 — both normalize-equal + --json (`{"side":"both","unified":"","raw":null,"binary":false}`), local_only + --json (`{"side":"local_only","unified":null,"raw":"...","binary":false}`), both normalize-diff + --json (unified populated), binary + --json (`binary:true`).
 - [ ] **Q** (deps: P): integration test — eval F3 evidence 케이스 (local-only) + diff --json 호출 + JSON 형식 검증.
 - [ ] **R** (deps: Q): README.md `### diff` 섹션 갱신 — `--json` 옵션 + 3 case 명시. doc-only.
