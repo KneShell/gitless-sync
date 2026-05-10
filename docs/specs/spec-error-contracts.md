@@ -153,7 +153,7 @@ GraphQL 응답 형식 (errors 동반 케이스):
 
 | reason | 상황 | 처리 정책 | 구현 |
 |---|---|---|---|
-| `hash_io` | 로컬 파일 read / 권한 실패 | v0.1 기존 동작 | `compare.rs::FailedReason` enum에 미정의 (None special case). `pipeline.rs::build_one_pre_entry` line 122~128 — `failed_reason: None` 적용. v1.0 backward-compat |
+| `hash_io` | 로컬 파일 read / 권한 실패 | v0.1 기존 동작 | `compare.rs::FailedReason` enum에 미정의 (None special case). `pipeline/hash_pass::build_one_pre_entry` — `failed_reason: None` 적용. v1.0 backward-compat |
 | `encoding` | UTF-8 + 2차 detect 모두 실패 또는 UTF-16 BOM detect | spec-domain-pitfalls.md § Encoding | `compare.rs::FailedReason::Encoding` 정의됨 + `commands/scan/hash_local.rs::try_hash_local`가 raw read 1회 시점에 `try_decode_text` 결과 분기 (`Utf16Bom`/`Unknown` → `Some(Encoding)`) + `pipeline::build_one_pre_entry`가 PreState::Failed 격상. Phase 5.13 task AA |
 | `submodule` | Trees mode `160000` entry | spec-domain-pitfalls.md § Submodule | `compare.rs::FailedReason::Submodule` 정의됨 + `pipeline/short_circuit.rs::try_short_circuit_failed` 구현 |
 | `symlink` | Trees mode `120000` entry 또는 local symlink | spec-domain-pitfalls.md § Symlink | `compare.rs::FailedReason::Symlink` 정의됨 + `pipeline/short_circuit.rs::try_short_circuit_failed` 구현 |

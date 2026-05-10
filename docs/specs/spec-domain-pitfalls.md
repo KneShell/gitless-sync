@@ -70,7 +70,7 @@ GitHub repo와 로컬 디렉토리 간 비교에서 OS / 인코딩 / git 메타�
 
 #### 파서 (Phase 5 task K1)
 
-- `shared/gitattributes.rs` 구현.
+- `shared/gitattributes/` 구현.
 - working tree 한정 (.gitattributes 파일). `.git/info/attributes` / global 미지원 (spec-config.md § `.gitattributes` 위치).
 - gitignore-style glob pattern matching.
 - 우선순위: 가장 깊은 디렉토리의 `.gitattributes`가 우선 + line-level pattern은 마지막 매칭이 winner.

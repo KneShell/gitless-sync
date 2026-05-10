@@ -10,9 +10,9 @@
 - `crates/gitless-sync/src/shared/hash.rs::blob_hash` 구현 완료 (SHA-1 + git blob header 형식). empty blob 테스트 통과.
 - `crates/gitless-sync/src/shared/normalize.rs::{is_binary, normalize_text, prepare_for_hash}` 구현 완료. `prepare_for_hash`는 K2(2026-05-09) 시점 `.gitattributes` 분기 라우팅 + 5 helper(`apply_text_auto`/`apply_binary`/`apply_eol_lf`/`apply_eol_crlf`/`apply_unspecified`) 분리 적용.
 - **Phase 5 K1~K4 + K1.5 구현됨** (2026-05-09):
-  - `.gitattributes` 파서 구현 (`shared/gitattributes.rs` 신규, K1).
+  - `.gitattributes` 파서 구현 (`shared/gitattributes/` 신규, K1).
   - `AttributeMatch` enum 정의됨 — `TextAuto / Binary / EolLf / EolCrlf / LfsPointer / Unspecified / Unsupported { attribute_name }` 7 variant (K1.5, advisor BLOCKING fix로 `LfsPointer` variant 추가).
-  - `prepare_for_hash` 시그니처 확정 — `(raw, keep_bom, gitattr: &Arc<GitAttributes>, path: &str) -> (Vec<u8>, bool)` 4 인자 (K2). 내부 분기는 7 variant → 5 helper 매핑(`LfsPointer`/`Unsupported`/`Unspecified`는 `apply_unspecified` 공유). caller(`pipeline.rs::try_short_circuit_failed`)가 `.gitattributes` match arm에서 `LfsPointer` → `FailedReason::LfsPointer` + `Unsupported { .. }` → `FailedReason::GitattributesUnsupported`로 단락 (Phase 5.13 task AA에서 `is_lfs` predicate를 `classify_path` match 단일 arm으로 통합).
+  - `prepare_for_hash` 시그니처 확정 — `(raw, keep_bom, gitattr: &Arc<GitAttributes>, path: &str) -> (Vec<u8>, bool)` 4 인자 (K2). 내부 분기는 7 variant → 5 helper 매핑(`LfsPointer`/`Unsupported`/`Unspecified`는 `apply_unspecified` 공유). caller(`pipeline/short_circuit::try_short_circuit_failed`)가 `.gitattributes` match arm에서 `LfsPointer` → `FailedReason::LfsPointer` + `Unsupported { .. }` → `FailedReason::GitattributesUnsupported`로 단락 (Phase 5.13 task AA에서 `is_lfs` predicate를 `classify_path` match 단일 arm으로 통합).
   - binary attribute 정확 적용 (NUL byte 휴리스틱 무시 + raw bytes 해시, K3).
   - `.gitattributes` 우선순위 (root < sub-dir depth < line-level last-wins) 정합 (K4).
   - encoding (b) 정책 + detector 구현 (`shared/decode.rs::try_decode_text` — UTF-16 BOM detect + non-UTF-8 shortlist). hash는 raw bytes 정합 검증 invariant test 통과. caller plumbing은 Phase 5.13 task AA에서 구현 — `commands/scan/hash_local.rs::try_hash_local`가 raw read 1회 시점에 `try_decode_text` 결과를 분기 (`Utf16Bom { .. }` / `Unknown` → `Some(FailedReason::Encoding)` 반환) + `pipeline::build_one_pre_entry`가 `PreState::Failed` 격상.
@@ -87,7 +87,7 @@ UTF-8 BOM (`EF BB BF`)은 첫 3바이트가 valid UTF-8 (U+FEFF)이므로 `try_d
 
 #### 파서 (Phase 5 task K1)
 
-- `shared/gitattributes.rs` 구현.
+- `shared/gitattributes/` 구현.
 - **working tree 한정** (`.gitattributes` 파일). `.git/info/attributes` / global 미지원 (spec-config.md § `.gitattributes` 위치).
 - project root + 하위 디렉토리의 `.gitattributes` 파일 1회 로드.
 - gitignore-style glob pattern matching.
@@ -111,7 +111,7 @@ pub(crate) fn prepare_for_hash(
 - 단일 vault scan에서 1회 파싱 + 모든 파일 공유. 매 호출 reparse 회귀 차단.
 - `Arc<GitAttributes>` 권고 — `Option<&>` (모든 호출 lifetime 결합) / owned (clone 비용 큼) 둘 다 K2에서 명시 거부.
 - `path: &str`는 `gitattr.classify_path(path)` 입력 — 매 파일별 attribute 매핑이 필요하므로 시그니처에 포함.
-- `commands/scan/mod.rs`가 vault root 진입 시 1회 `Arc::new(GitAttributes::load(local_root)?)` 호출 (`shared/normalize.rs::prepare_for_hash` → `commands/scan/hash_local.rs::try_hash_local` → `commands/scan/pipeline.rs::assemble_entries` 경로로 reference 전파).
+- `commands/scan/mod.rs`가 vault root 진입 시 1회 `Arc::new(GitAttributes::load(local_root)?)` 호출 (`shared/normalize.rs::prepare_for_hash` → `commands/scan/hash_local.rs::try_hash_local` → `commands/scan/pipeline::assemble_entries` 경로로 reference 전파).
 
 #### 화이트리스트 강제 (clean-context §1, K1.5 sub-task)
 
@@ -254,7 +254,7 @@ fn fetch_blob_with_size_gate(client, repo, sha, expected_size: u64) -> Result<Ve
 ### Phase 5 시나리오 (Lifetime 계약)
 
 - `[AUTO]` 단일 vault scan에서 `GitAttributes::load(root)` 1회 호출 + `prepare_for_hash` N번 호출 시 reparse 0회 (lifetime 계약 — `&Arc<GitAttributes>` 시그니처가 reparse를 컴파일러 차원에서 차단). `lifetime_contract_one_load_n_calls_no_clone_leak` 테스트가 N=5 호출 후 `Arc::strong_count == 1` 검증.
-- `[AUTO]` `Arc<GitAttributes>` 시그니처가 future shared access 보장 — 현재 `commands/scan/pipeline.rs`는 sequential `.iter().map()` (REST rayon backend는 commits API 한정, ADR 0003; GraphQL backend는 rayon 미사용, ADR 0005). cross-thread clone 시나리오는 1000+ path scale에서 hash pass 병렬화 필요 시 활성화 — `Arc::clone()` 호출 변경 0건.
+- `[AUTO]` `Arc<GitAttributes>` 시그니처가 future shared access 보장 — 현재 `commands/scan/pipeline/hash_pass::build_pre_entries`는 sequential `.iter().map()` (REST rayon backend는 commits API 한정, ADR 0003; GraphQL backend는 rayon 미사용, ADR 0005). cross-thread clone 시나리오는 1000+ path scale에서 hash pass 병렬화 필요 시 활성화 — `Arc::clone()` 호출 변경 0건.
 
 ### Phase 5 시나리오 (인코딩 변환 — hash 입력 (b))
 

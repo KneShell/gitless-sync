@@ -7,7 +7,7 @@
 - `crates/gitless-sync/src/commands/scan/compare.rs::Status` enum 정의 완료 (`Identical`, `LocalOnlyChanged`, `RemoteOnlyChanged`, `Drift`, `Failed`).
 - `FileEntry` 구조체 + serde 직렬화 완료.
 - `classify` 함수 구현됨 — spec § 판정 로직 의사코드와 정합 (양쪽 SHA 동률→Identical / 한쪽 None→Local|RemoteOnlyChanged / 양쪽 다른 SHA + mtime 비교 / 동률 또는 None→Drift / 양쪽 None→panic).
-- **NFC 정규화 구현됨 (Phase 5 task C)**: `shared/path.rs::to_nfc` + `walker.rs::relative_path` (line 92, local) + `shared/github/trees.rs` (line 63/75/87, remote 3 mode). 양쪽 boundary에서 normalize → 비교 key align.
+- **NFC 정규화 구현됨 (Phase 5 task C)**: `shared/path.rs::to_nfc` + `walker.rs::relative_path` (line 92, local) + `shared/github/trees/classify.rs::to_nfc`. 양쪽 boundary에서 normalize → 비교 key align.
 - **case_collision 구현됨 (Phase 5 task D/D1)**: `compare.rs::FailedReason::CaseCollision` + `case_collision.rs::detect` (canonical/diagonal/local-both 3 시나리오 symmetric).
 
 ## 작업 범위
