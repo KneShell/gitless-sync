@@ -29,6 +29,8 @@ GitHub repo와 로컬 디렉토리 간 비교에서 OS / 인코딩 / git 메타�
 | **git LFS pointer** | detect-only — pointer 시그니처 detect → `Status::Failed` + `failed_reason: "lfs_pointer"` + `lfs_pointer: {oid, size}` | spec-output-schema.md / spec-error-contracts.md |
 | **Windows long path** (260자+) / 예약 파일명 (CON/PRN/NUL/AUX) | detect-only — `Status::Failed` + `failed_reason: "long_path"` | spec-error-contracts.md |
 | **`.gitignore` 무시 정책 vs scan 범위** | 명시 — `.gitignore` + `--ignore` + 도구 내장 (`.git/`, `target/`, `node_modules/`) 합집합 | spec-classification.md / spec-ignore-policy.md |
+| **큰 파일 (>100MB)** | detect-only — `Status::Failed` + `failed_reason: "file_too_large"` + `size_bytes`. GitHub Blobs API 100MB hard limit (fact check 2026-05-10) | spec-hash-and-normalize.md § Phase 7 / spec-error-contracts.md / spec-output-schema.md |
+| **메모리 임계 (>50MB)** | detect-only — `Status::Failed` + `failed_reason: "memory_exceeded"` + `size_bytes`. tool 메모리 안전 임계 (raw + base64 + SHA-1 buffer 3중 worst case) | spec-hash-and-normalize.md § Phase 7 / spec-error-contracts.md |
 
 ## 정확 hash 재현 정책 상세
 
@@ -185,6 +187,34 @@ T task (vault dogfooding before/after)에서 v0.1 vs v0.2 출력 차이를 자�
 - **Y task**: `encoding_rs` binary size 사후 측정 (clean-context §5 — 정확 size impact 미확인). cargo-bloat dry-run + dependency tree 분석.
 - **X task**: `.gitattributes` parser performance gate (큰 vault 10K+ × 100+ 룰 P95 측정).
 - **R3 task**: large vault scale fixture (10K/100K 파일).
+
+### Phase 7 — 합성 vault generator (1000+ scale dogfood)
+
+> Phase 7 vault scale 1000+ path 검증용. xtask 신규 sub-command 또는 별도 script (`xtask/src/synth_vault.rs` 후보).
+
+#### 정책
+
+| 항목 | 정책 | 근거 |
+|---|---|---|
+| seed | 고정 (e.g., `42`) | 재현 가능. seed 변경은 ADR 갱신 동반 |
+| 인코딩 | UTF-8 NFC | NFC 정규화 정합 |
+| 개행 | LF 단일 | `.gitattributes` `eol=lf` 정합 |
+| mtime | explicit epoch (e.g., `2025-01-01T00:00:00Z`) | mtime 동률 차단 (G-005 mtime 단조성 정합) |
+| 파일 분포 | markdown 위주 (1000+ .md, size 1KB~100KB) | vault use case 대표 (사용자 결정, 2026-05-10) |
+| NTFS case collision 차단 | 합성 시 case-insensitive lowercase key 중복 금지 | Windows runner 정합 |
+| noise 제외 | `.gitignore` / `.obsidian/` / symlink / BOM 모두 generate 안 함 | OS 차이 차단 |
+
+#### 결과 deliverable
+
+- `xtask synth-vault --out tmp/synth-vault-{seed}` 명령 (또는 동등).
+- generate 후 `cargo run -- scan --local tmp/synth-vault-{seed} --repo ...` 실행 → 측정 결과 `docs/research/phase7-vault-scale-bench.md`.
+
+### Phase 7 — public repo cross-check (sanity)
+
+> 합성 vault main 측정 + public repo 1회 cross-check (사용자 결정, 2026-05-10).
+
+- public repo: linux/torvalds 또는 동등 1000+ entry repo. commit sha 박제 (HEAD floating 금지).
+- manual 1회 sanity (CI 자동 X). 결과 `docs/research/phase7-vault-scale-bench.md` 안 별도 § 기록.
 
 ### Cross-platform CI는 Phase 5 범위 외
 

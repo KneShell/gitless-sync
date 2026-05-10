@@ -1,22 +1,24 @@
-# Spec: Output JSON Schema v1.1
+# Spec: Output JSON Schema v1.2
 
 ## 목적
 `scan` 명령어가 stdout으로 출력하는 결과 JSON의 안정적 스키마. AI 호출자가 파싱·소비할 수 있도록 버전 보장.
 
 > **Phase 5 갱신 (2026-05-09)**: schema_version 1.0 → **1.1** (minor bump). 새 필드 `mode` + `failed_reason` + `lfs_pointer` 추가. 기존 필드 변경 없음 — 호출자 backward-compat 유지.
+>
+> **Phase 7 갱신 (2026-05-10)**: schema_version 1.1 → **1.2** (minor bump). `failed_reason` enum 9 → 11 (`file_too_large` + `memory_exceeded` 추가) + 신규 field `size_bytes` (Failed entry size 진단). 기존 필드 변경 없음 — 호출자 backward-compat 유지.
 
 ## 현재 상태
 - `crates/gitless-sync/src/commands/scan/output.rs::{ScanReport, Summary}` 구조체 + serde 직렬화 완료 (v1.0).
 - `crates/gitless-sync/src/commands/scan/compare.rs::{FileEntry, Status, FailedReason, LfsPointer}` 정의됨 (v1.1 신규 필드 mode/failed_reason/lfs_pointer 포함).
-- `SCHEMA_VERSION = "1.1"` 상수 정의 (Phase 5에서 갱신).
+- `SCHEMA_VERSION = "1.2"` 상수 정의 (Phase 7에서 갱신).
 - `serialize(report, pretty)` 함수 구현 완료.
 
 ## 작업 범위
 
-### 스키마 v1.1 (전체)
+### 스키마 v1.2 (전체)
 ```json
 {
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "scanned_at": "2026-05-09T10:30:00Z",
   "repo": "owner/name",
   "branch": "main",
@@ -64,6 +66,20 @@
       "status": "failed",
       "failed_reason": "submodule",
       "mode": "160000"
+    },
+    {
+      "path": "media/big-video.mp4",
+      "status": "failed",
+      "failed_reason": "file_too_large",
+      "size_bytes": 157286400,
+      "mode": "100644"
+    },
+    {
+      "path": "data/largish-archive.tar",
+      "status": "failed",
+      "failed_reason": "memory_exceeded",
+      "size_bytes": 62914560,
+      "mode": "100644"
     }
   ]
 }
@@ -76,10 +92,19 @@
 - `files[].failed_reason` — `Status::Failed` entry 한정. 함정 종류 enum (spec-error-contracts.md § Per-file Pitfall Reasons). `null`/omit 시 v0.1 baseline `hash_io` 동작.
 - `files[].lfs_pointer` — `failed_reason == "lfs_pointer"` 한정. `{oid, size}` 포함. 호출자가 LFS fetch 결정 입력으로 사용.
 
+### v1.1 → v1.2 변경 (minor)
+
+추가 필드 (기존 필드 변경 0):
+- `files[].size_bytes` — Failed entry size 진단 field. `file_too_large` / `memory_exceeded` reason entry 한정 (그 외 omit). u64 byte 단위. 호출자 디버깅 + 사용자 surface 용도.
+
+추가 enum 값 (`failed_reason` 9 → 11):
+- `file_too_large` — local 또는 remote file size가 100 MB (GitHub Blobs API hard limit) 초과.
+- `memory_exceeded` — local 또는 remote file size가 50 MB (tool 메모리 안전 임계) 초과.
+
 ### 안정성 보장
 - `schema_version`: 호환성 깨는 변경 시 major 증가. v0.1은 `"1.0"`, Phase 5는 `"1.1"` (minor).
 - `status` enum 동결: `identical` / `local_only_changed` / `remote_only_changed` / `drift` / `failed`. 추가는 minor 버전, 제거·이름 변경은 major. **Phase 5에서 새 status 미추가** — LFS/submodule/symlink는 모두 `failed` + `failed_reason` 분류.
-- `failed_reason` enum 동결 정책: 추가는 minor, 제거·이름 변경은 major. Phase 5에서 정의된 9 reason (`hash_io` / `encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported`) 모두 구현 (Phase 5.13 task AA, 2026-05-09 — `compare.rs::FailedReason` 8 variant + `None` special case `hash_io`).
+- `failed_reason` enum 동결 정책: 추가는 minor, 제거·이름 변경은 major. Phase 5에서 정의된 9 reason (`hash_io` / `encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported`) 모두 구현 (Phase 5.13 task AA, 2026-05-09 — `compare.rs::FailedReason` 8 variant + `None` special case `hash_io`). Phase 7에서 2 reason 추가 — `file_too_large` + `memory_exceeded` (총 11 reason, `compare.rs::FailedReason` 10 variant + `None` special case).
 - 시간 필드: 모두 ISO-8601 UTC (`Z` suffix). 로컬 타임존 출력 금지.
 - null 정책:
   - 원격 only 파일: `local_sha=null`, `local_mtime=null`.
@@ -125,3 +150,13 @@
 - `[AUTO]` v1.0 호출자가 v1.1 JSON 파싱 시 추가 필드 무시 + 기존 필드 정상 동작 (backward-compat 검증).
 - `[AUTO]` `failed_reason == "encoding"` entry는 `try_hash_local`의 NUL 휴리스틱 결과(`is_binary`)를 wire JSON에 보존. UTF-16 BOM 입력 (`FF FE` 또는 `FE FF` + payload)은 NUL 포함 → `is_binary: true` 유지 (Phase 5.13.1 task EE regression pin).
 - `[AUTO]` `failed_reason` 가 `"submodule"` / `"symlink"` / `"long_path"` / `"case_collision"` / `"nfd_collision"` / `"lfs_pointer"` / `"gitattributes_unsupported"` 또는 `null` (`hash_io`)인 entry는 short-circuit 또는 IO error로 local read 전 격하 → `is_binary: false` (no measurement default, Phase 5.13.1 task EE).
+
+### v1.2 신규 (Phase 7)
+
+- `[AUTO]` `report.schema_version` == `"1.2"`.
+- `[AUTO]` `failed_reason` enum 11 값 cover (구현은 `compare.rs::FailedReason` 10 variant + `None` special case `hash_io`).
+- `[AUTO]` `failed_reason == "file_too_large"` entry에 `size_bytes` 필드 포함 (u64 byte). 100 MB 초과 size.
+- `[AUTO]` `failed_reason == "memory_exceeded"` entry에 `size_bytes` 필드 포함 (u64 byte). 50 MB 초과 size, 100 MB 미만.
+- `[AUTO]` `failed_reason` 가 `file_too_large` / `memory_exceeded` 외 entry는 `size_bytes` 필드 omit (`#[serde(skip_serializing_if = "Option::is_none")]`).
+- `[AUTO]` `file_too_large` / `memory_exceeded` entry는 `is_binary: false` (size pre-flight short-circuit, local read 전 격하, Phase 5.13.1 task EE 정합).
+- `[AUTO]` v1.0 / v1.1 호출자가 v1.2 JSON 파싱 시 추가 필드 (`size_bytes`) + 추가 enum 값 (`file_too_large` / `memory_exceeded`) 무시 + 기존 필드 정상 동작 (backward-compat 검증).

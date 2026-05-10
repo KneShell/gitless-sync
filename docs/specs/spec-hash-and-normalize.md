@@ -141,6 +141,90 @@ pub enum AttributeMatch {
 
 GitHub Trees API가 반환하는 blob SHA는 working tree 바이트의 해시이며 `core.autocrlf` / `.gitattributes` 영향을 받음. 본 도구는 v0.2 (Phase 5)부터 `.gitattributes`를 파싱해 동일 정책 적용 → 자체 SHA 재계산해서 비교한다. **Trees API SHA는 무시** (자체 정의 hash 정책 그대로).
 
+### Phase 7 — 큰 파일 처리
+
+> **공식 한도** (2026-05-10 fact check, [source: https://docs.github.com/en/rest/git/blobs]): GitHub Git Blobs API는 100MB 단일 파일 hard limit. v0.3부터 본 한도를 강제 + tool 메모리 임계 (50MB) 별도 분리.
+
+#### 한도 정의
+
+| reason | 임계치 | 검출 시점 | 처리 |
+|---|---|---|---|
+| `file_too_large` | 100 MB | local: `fs::metadata().len()` pre-flight + remote: Trees response size field pre-flight | `Status::Failed` + `failed_reason: "file_too_large"` + `size_bytes` field |
+| `memory_exceeded` | 50 MB | local: `fs::metadata().len()` pre-flight + remote: Trees response size field pre-flight | `Status::Failed` + `failed_reason: "memory_exceeded"` + `size_bytes` field |
+
+근거:
+- 100 MB = GitHub Blobs API hard limit (fact check 2026-05-10). 100 MB 초과 파일은 도구 비교 불가 — remote 자체 fetch 불가능.
+- 50 MB = tool 메모리 안전 임계. raw bytes + base64 encoded + SHA-1 buffer 3중 메모리 사용 가정 → 50 MB raw → 약 200 MB 메모리 worst case. 1 GB RAM 머신 안전 cap. 측정 + 조정은 ADR 0012.
+
+#### 우선순위 (cascade 순서)
+
+`pipeline::try_short_circuit_failed` cascade에서 다음 순서 적용 (앞 reason이 win):
+
+1. `case_collision` (기존)
+2. `nfd_collision` (기존)
+3. `long_path` (기존)
+4. `submodule` (기존)
+5. `symlink` (기존)
+6. `lfs_pointer` (기존, Phase 5)
+7. `gitattributes_unsupported` (기존, Phase 5)
+8. **`file_too_large` (Phase 7 신규, 100MB 우선)**
+9. **`memory_exceeded` (Phase 7 신규, 50MB)**
+
+근거:
+- LFS pointer가 size check보다 우선 — 100MB 미만 LFS pointer text가 Phase 5 spec대로 detect되어야 함 (raw pointer text가 본문 size 측정 시 30MB라도 lfs_pointer로 분류).
+- file_too_large > memory_exceeded — 둘 다 size 기반이지만 100MB 초과는 remote fetch 자체 불가 (더 fatal). 50MB 초과는 tool 메모리 한정.
+
+#### 검출 알고리즘
+
+```rust
+const FILE_TOO_LARGE_BYTES: u64 = 100 * 1024 * 1024;
+const MEMORY_EXCEEDED_BYTES: u64 = 50 * 1024 * 1024;
+
+fn try_hash_local_with_size_gate(path: &Path) -> Result<HashOutcome, FailedReason> {
+    let meta = fs::metadata(path)?;
+    let size = meta.len();
+
+    // pre-flight: 100 MB 초과 → 즉시 fail (file read 자체 회피)
+    if size > FILE_TOO_LARGE_BYTES {
+        return Err(FailedReason::FileTooLarge);
+    }
+    // pre-flight: 50 MB 초과 → 즉시 fail (메모리 임계 사전 차단)
+    if size > MEMORY_EXCEEDED_BYTES {
+        return Err(FailedReason::MemoryExceeded);
+    }
+
+    // 정상 path: raw read + hash
+    let raw = fs::read(path)?;
+    Ok(hash(raw))
+}
+
+fn fetch_blob_with_size_gate(client, repo, sha, expected_size: u64) -> Result<Vec<u8>, GitlessError> {
+    // pre-flight: Trees response size field 사용 (Trees response는 size 항상 포함)
+    if expected_size > FILE_TOO_LARGE_BYTES {
+        return Err(GitlessError::Http(format!("blob {sha} too large: {expected_size} bytes")));
+    }
+    if expected_size > MEMORY_EXCEEDED_BYTES {
+        return Err(GitlessError::Http(format!("blob {sha} exceeds memory threshold: {expected_size} bytes")));
+    }
+
+    // 정상 path: gh api 호출 + base64 디코드
+    fetch_blob(client, repo, sha)
+}
+```
+
+#### LFS pointer 분기 (Phase 5 spec 정합)
+
+- 100 MB 미만 LFS pointer text는 본 § 임계치 통과 (size pre-flight 정상). 별도 LFS detection은 spec-domain-pitfalls.md § LFS pointer + spec-hash-and-normalize.md § LFS pointer 그대로 처리.
+- LFS pointer detect 우선순위: LFS check → size check (cascade에서 LFS가 먼저 short-circuit). 큰 파일 size check는 LFS 미감지 entry에 한해 적용.
+
+#### 단위 테스트 시나리오
+
+- `[AUTO]` 50 MB 직전 (예: 49 MB) local file → 정상 hash + Status::Identical (remote 동일 가정).
+- `[AUTO]` 50 MB 직후 (예: 51 MB) local file → Status::Failed + failed_reason: "memory_exceeded" + size_bytes: 53477376.
+- `[AUTO]` 100 MB 직후 (예: 101 MB) local file → Status::Failed + failed_reason: "file_too_large" + size_bytes: 105906176.
+- `[AUTO]` Trees response size field 50 MB 초과 entry → fetch_blob 호출 0회 + Status::Failed + failed_reason: "memory_exceeded" (pre-flight skip).
+- `[AUTO]` 30 MB LFS pointer text file → Status::Failed + failed_reason: "lfs_pointer" (LFS 우선순위, size check 미실행).
+
 ### 함정 (G-001)
 
 - empty blob (`e69de29bb2d1d6434b8b29ae775ad8c2e48c5391`)이 git 상수와 일치하는 건 우연. 다른 파일은 일치 보장 안 됨.
