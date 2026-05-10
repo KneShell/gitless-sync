@@ -18,24 +18,31 @@ struct Cli {
     #[command(subcommand)]
     command: Commands,
 
+    /// `GitHub` repository to compare against, in `owner/name` format.
     #[arg(long, global = true)]
     repo: Option<String>,
 
+    /// Branch to read from the repo (defaults to `main`).
     #[arg(long, global = true)]
     branch: Option<String>,
 
+    /// Local directory to scan against the repo.
     #[arg(long, global = true, default_value = ".")]
     local: String,
 
+    /// Ignore pattern using `gitignore` syntax (repeatable).
     #[arg(long, global = true)]
     ignore: Vec<String>,
 
+    /// Preserve `UTF-8` BOM when comparing text files.
     #[arg(long, global = true)]
     keep_bom: bool,
 
+    /// Pretty-print `JSON` output (default is compact one-line).
     #[arg(long, global = true)]
     pretty: bool,
 
+    /// `GitHub` API backend (`graphql` default, `rest` fallback).
     #[arg(long, global = true, value_enum, default_value_t = Backend::Graphql)]
     backend: Backend,
 
@@ -46,9 +53,11 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     Scan {
+        /// Emit only the summary object, omit the files array.
         #[arg(long)]
         summary_only: bool,
 
+        /// Comma-separated status filter (e.g. `drift,local_only_changed`).
         #[arg(long)]
         status: Option<String>,
     },
