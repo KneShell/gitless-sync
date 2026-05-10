@@ -3,7 +3,7 @@
 ## Status
 - Phase 8 진입 (2026-05-10)
 - Tasks: 31 (Phase 8)
-- Completed: 7 / 31
+- Completed: 8 / 31
 
 ## Notes for Build Mode
 - ralph build mode는 첫 미완료 task (`[ ]`)부터 처리. 의존 순서가 본 plan에 명시 안 됐으면 acceptance + spec 본문에 잠재 의존 명시 (e.g., "X task 결과 위에서 진행").
@@ -54,7 +54,7 @@ vault scale + Trees sub-tree fallback + 큰 파일 임계치 + clean-context aud
 
 - [x] **F**: `compare.rs::FileEntry` struct에 2 field 추가 — `diff_meaningful: Option<bool>` + `presence: Presence` (`#[derive(Serialize)]` + `#[serde(rename_all = "snake_case")]` enum). spec-output-schema.md § v1.3 정합.
 - [x] **G** (deps: F): `Presence` enum 정의 — `LocalOnly` / `Both` / `RemoteOnly`. compare.rs.
-- [~] **H** (deps: G): `compare.rs::compare` 함수 — local/remote 존재 여부로 presence 결정 + Hashed entry는 sha 비교 + normalize-equal 검증으로 diff_meaningful 계산 (sha differ but normalize-equal → false, sha differ AND normalize-diff → true, identical → false). Failed/local-or-remote-only entry는 None.
+- [x] **H** (deps: G): `compare.rs::compare` 함수 — local/remote 존재 여부로 presence 결정 + Hashed entry는 sha 비교 + normalize-equal 검증으로 diff_meaningful 계산 (sha differ but normalize-equal → false, sha differ AND normalize-diff → true, identical → false). Failed/local-or-remote-only entry는 None.
 - [ ] **I** (deps: H): `commands/scan/pipeline/finalize.rs` (또는 동등) — entry assemble 시점에 presence + diff_meaningful 채움. spec-hash-and-normalize.md § normalize 정합 검증 재사용.
 - [ ] **J** (deps: I): unit test 6 시나리오 — Identical (presence=both, diff_meaningful=Some(false)), LocalOnlyChanged-both (presence=both, diff_meaningful=Some(true) or Some(false)), LocalOnly (presence=local_only, diff_meaningful=None), RemoteOnly (presence=remote_only, diff_meaningful=None), Drift (presence=both, diff_meaningful=Some(true)), Failed (presence=both, diff_meaningful=None).
 - [ ] **K** (deps: J): integration test — eval F1 evidence 케이스 (sha differ but normalize-equal, e.g., CRLF vs LF 한쪽) 합성 fixture + scan + diff_meaningful=Some(false) 검증.
