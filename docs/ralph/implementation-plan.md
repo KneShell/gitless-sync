@@ -105,7 +105,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
   - spec-hash-and-normalize.md:90 `shared/gitattributes.rs` 구현 → `shared/gitattributes/` 구현
   - spec-classification.md:10 `shared/github/trees.rs` (line 63/75/87, remote 3 mode) → `shared/github/trees/classify.rs::to_nfc` (line range drop)
   - Files: docs/specs/spec-error-contracts.md, docs/specs/spec-hash-and-normalize.md, docs/specs/spec-domain-pitfalls.md, docs/specs/spec-classification.md.
-- [ ] **JJ** (deps: II): deterministic grep 검증 — `grep -rn '\b(pipeline|gitattributes|github/trees)\.rs' docs/specs/` 결과 0 hit이면 CONVERGE PASS mark (X dep 해소 — X 본문 "(deps: Phase 7.7 JJ)" 문구 제거 + Phase 7 task 모두 [x] mark + § 갱신 Active → Completed Phases). ≥1 hit이면 II 재실행 필요 — grep output을 본 task 결과 noting + escape hatch BLOCK ([!]) + 사용자 wake-up surface (chain depth 3/3 cap 도달, G-019 escape hatch). Files: docs/ralph/implementation-plan.md.
+- [~] **JJ** (deps: II): deterministic grep 검증 — `grep -rn '\b(pipeline|gitattributes|github/trees)\.rs' docs/specs/` 결과 0 hit이면 CONVERGE PASS mark (X dep 해소 — X 본문 "(deps: Phase 7.7 JJ)" 문구 제거 + Phase 7 task 모두 [x] mark + § 갱신 Active → Completed Phases). ≥1 hit이면 II 재실행 필요 — grep output을 본 task 결과 noting + escape hatch BLOCK ([!]) + 사용자 wake-up surface (chain depth 3/3 cap 도달, G-019 escape hatch). Files: docs/ralph/implementation-plan.md.
 
 ## Pending Phases (v0.4+)
 
