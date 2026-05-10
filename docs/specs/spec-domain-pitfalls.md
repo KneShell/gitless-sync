@@ -82,6 +82,7 @@ pub fn prepare_for_hash(
     raw: &[u8],
     keep_bom: bool,
     gitattr: &Arc<GitAttributes>,  // shared, 단일 vault scan에서 1회 파싱 + 모든 파일 공유
+    path: &str,                    // working-tree-relative + forward slash, K1.5 classify_path 입력
 ) -> (Vec<u8>, bool);
 ```
 
