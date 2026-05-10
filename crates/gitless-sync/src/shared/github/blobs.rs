@@ -6,6 +6,16 @@ use super::error_map::map_gh_error;
 use crate::shared::error::GitlessError;
 use crate::shared::gh::GhClient;
 
+/// 100 MB — GitHub Blobs API hard limit (`spec-hash-and-normalize.md`
+/// § Phase 7 — 큰 파일 처리, 2026-05-10 fact check). Mirrors
+/// `commands/scan/hash_local::FILE_TOO_LARGE_BYTES` since `shared/` cannot
+/// import from `commands/`; a future task may extract to `shared/limits.rs`.
+const FILE_TOO_LARGE_BYTES: u64 = 100 * 1024 * 1024;
+
+/// 50 MB — tool memory safety threshold (raw bytes + base64 + SHA-1 buffer
+/// worst case). Mirrors `commands/scan/hash_local::MEMORY_EXCEEDED_BYTES`.
+const MEMORY_EXCEEDED_BYTES: u64 = 50 * 1024 * 1024;
+
 /// Fetch the raw bytes of a single blob by its SHA via `gh api` subprocess.
 ///
 /// Calls `gh api repos/{repo}/git/blobs/{sha}` and decodes the base64 payload.
@@ -46,6 +56,44 @@ pub(crate) fn fetch_blob(
     BASE64_STANDARD
         .decode(stripped.as_bytes())
         .map_err(|e| GitlessError::Http(format!("decode blob base64: {e}")))
+}
+
+/// Fetch a blob by SHA, but short-circuit on the Trees-response size field
+/// before any network call. Pre-flight skip avoids both GitHub API budget
+/// and tool memory pressure on oversize blobs.
+///
+/// Boundaries are strict (`>`): a 50 MB-exact blob passes, 50 MB+1 fails;
+/// a 100 MB-exact blob fires the memory-threshold arm (over 50, not over
+/// 100) — `FileTooLarge` only above 100 MB. Caller maps the `Http` error
+/// back to `Status::Failed` + `failed_reason: "file_too_large"` /
+/// `"memory_exceeded"` per `spec-hash-and-normalize.md` § 검출 알고리즘.
+///
+/// # Errors
+/// - [`GitlessError::Http`] with prefix `blob {sha} too large:` when
+///   `expected_size > 100 MB`.
+/// - [`GitlessError::Http`] with prefix `blob {sha} exceeds memory threshold:`
+///   when `expected_size > 50 MB` (and within the 100 MB ceiling).
+/// - All errors from [`fetch_blob`] when within the threshold.
+// Removed in Phase 7.2 task N when `pipeline/hash_pass.rs` (or a sibling
+// `hash_remote` shim) plumbs `RemoteFile.size` into the gate.
+#[allow(dead_code)]
+pub(crate) fn fetch_blob_with_size_gate(
+    client: &impl GhClient,
+    repo: &str,
+    sha: &str,
+    expected_size: u64,
+) -> Result<Vec<u8>, GitlessError> {
+    if expected_size > FILE_TOO_LARGE_BYTES {
+        return Err(GitlessError::Http(format!(
+            "blob {sha} too large: {expected_size} bytes"
+        )));
+    }
+    if expected_size > MEMORY_EXCEEDED_BYTES {
+        return Err(GitlessError::Http(format!(
+            "blob {sha} exceeds memory threshold: {expected_size} bytes"
+        )));
+    }
+    fetch_blob(client, repo, sha)
 }
 
 #[derive(Debug, Deserialize)]
@@ -189,5 +237,59 @@ mod tests {
         let mock = MockGhClient::new();
         let err = fetch_blob(&mock, "o/r", "abc").unwrap_err();
         assert!(matches!(err, GitlessError::Http(_)));
+    }
+
+    #[test]
+    fn fetch_blob_with_size_gate_passes_at_exact_50mb_boundary() {
+        // Strict `>` — 50 MB exact does not trip MemoryExceeded.
+        let body = r#"{"sha":"abc","content":"aGVsbG8K","encoding":"base64","size":6,"url":"u"}"#;
+        let mut mock = MockGhClient::new();
+        mock.stub(blob_args("o/r", "abc"), ok_resp(body.as_bytes()));
+        let bytes = fetch_blob_with_size_gate(&mock, "o/r", "abc", MEMORY_EXCEEDED_BYTES).unwrap();
+        assert_eq!(bytes, b"hello\n");
+    }
+
+    #[test]
+    fn fetch_blob_with_size_gate_emits_memory_exceeded_just_over_50mb() {
+        // Mock unstubbed — a `gh api` invocation would yield a `MockGhClient`
+        // error. The size-gate prefix proves zero invocations.
+        let mock = MockGhClient::new();
+        let n = MEMORY_EXCEEDED_BYTES + 1;
+        let err = fetch_blob_with_size_gate(&mock, "o/r", "abc", n).unwrap_err();
+        match err {
+            GitlessError::Http(msg) => {
+                assert!(
+                    msg.contains("blob abc exceeds memory threshold"),
+                    "got: {msg}"
+                );
+                assert!(msg.contains(&n.to_string()), "got: {msg}");
+            }
+            other => panic!("expected Http, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn fetch_blob_with_size_gate_emits_file_too_large_just_over_100mb() {
+        let mock = MockGhClient::new();
+        let n = FILE_TOO_LARGE_BYTES + 1;
+        let err = fetch_blob_with_size_gate(&mock, "o/r", "abc", n).unwrap_err();
+        match err {
+            GitlessError::Http(msg) => {
+                assert!(msg.contains("blob abc too large"), "got: {msg}");
+                assert!(msg.contains(&n.to_string()), "got: {msg}");
+            }
+            other => panic!("expected Http, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn fetch_blob_with_size_gate_prefers_file_too_large_over_memory_exceeded() {
+        // 200 MB is over both thresholds — `FileTooLarge` arm wins per priority.
+        let mock = MockGhClient::new();
+        let err = fetch_blob_with_size_gate(&mock, "o/r", "abc", 200 * 1024 * 1024).unwrap_err();
+        match err {
+            GitlessError::Http(msg) => assert!(msg.contains("too large"), "got: {msg}"),
+            other => panic!("expected Http, got {other:?}"),
+        }
     }
 }
