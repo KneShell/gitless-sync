@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.1 task H 완료 — G-002 본문 update [Phase 7 sub-tree fallback 진입 + v0.2.x까지 즉시 fail 정합] + spec-github-api.md § Trees truncation handling cross-ref 5건 정합 검증 완료)
+- Last updated: 2026-05-10 (Phase 7.2 task I 완료 — `FailedReason` enum에 `FileTooLarge` + `MemoryExceeded` 2 variant 추가 + serde snake_case round-trip test 2개. caller plumbing은 K~M 후속.)
 - Total tasks: 86
-- Completed: 68 / 86
+- Completed: 69 / 86
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -44,7 +44,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 
 #### Phase 7.2 — 큰 파일 임계치 (file_too_large + memory_exceeded) (10 task)
 
-- [~] **I**: `compare.rs::FailedReason` enum에 2 variant 추가 — `FileTooLarge` + `MemoryExceeded`. Display impl 갱신.
+- [x] **I**: `compare.rs::FailedReason` enum에 2 variant 추가 — `FileTooLarge` + `MemoryExceeded`. Display impl 갱신.
 - [ ] **J**: `compare.rs::FileEntry` struct에 `size_bytes: Option<u64>` field 추가 — `#[serde(skip_serializing_if = "Option::is_none")]`. spec-output-schema.md § v1.2 정합.
 - [ ] **K**: `commands/scan/hash_local.rs::try_hash_local` size pre-flight 추가 — `fs::metadata().len()` 측정 + 100MB/50MB 분기. spec-hash-and-normalize.md § 검출 알고리즘 정합.
 - [ ] **L**: `commands/scan/pipeline/short_circuit.rs::try_short_circuit_failed` cascade에 `file_too_large` + `memory_exceeded` 분기 추가 (LFS 다음 우선순위). spec-hash-and-normalize.md § 우선순위 정합.
