@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-> Phase 7 (vault scale + Trees sub-tree + 큰 파일 임계치, v0.3.0 prep) 진행 중. Phase 7.1 (Trees sub-tree fallback) + Phase 7.2 (큰 파일 임계치) 누적. Phase 7.3 (vault scale dogfood) + 7.4 (release tag)는 진행 전. 본 entry는 prep — final v0.3.0 entry는 Phase 7.4 task Y에서 finalize. 상세 task별 결과는 git history (`git log --grep="<task ID>"`) + `docs/ralph/implementation-plan.md`.
+> Phase 7 (vault scale + Trees sub-tree + 큰 파일 임계치, v0.3.0 prep) 진행 중. Phase 7.1 (Trees sub-tree fallback) + Phase 7.2 (큰 파일 임계치) + Phase 7.3 (vault scale dogfood, T/U raw data + V mtime cache keep-drop confirm + W 종합) 누적. Phase 7.4 (release tag)는 진행 전. 본 entry는 prep — final v0.3.0 entry는 Phase 7.4 task Y에서 finalize. 상세 task별 결과는 git history (`git log --grep="<task ID>"`) + `docs/ralph/implementation-plan.md`.
 
 ### Added
 
@@ -16,8 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Schema v1.1 → v1.2 (minor bump) — `failed_reason` enum 9 → 11 (`file_too_large` + `memory_exceeded` 추가) + 신규 field `files[].size_bytes` (`Option<u64>`, `#[serde(skip_serializing_if = "Option::is_none")]`). `file_too_large` / `memory_exceeded` entry는 size_bytes 포함 + `is_binary: false` (size pre-flight short-circuit, local read 전 격하). 그 외 entry는 size_bytes omit. v1.0 / v1.1 backward-compat 유지 (lock test `output.rs::tests` 갱신 — 이전 envelope/entry 필수 field invariant 박힘).
 - `shared/github/trees/parse.rs::ResponseEntry::size` — `Option<u64>` field 추가 (Trees response size field 활용, sub-tree fallback + remote-side size pre-flight 양쪽 사용).
 - Specs — spec-github-api.md § Trees truncation handling + spec-hash-and-normalize.md § Phase 7 — 큰 파일 처리 + spec-output-schema.md § v1.2 + 신규 Acceptance Criteria 7 시나리오.
-- ADR — 0011 (Trees sub-tree fallback) + 0012 (큰 파일 임계치 100/50 MB) + 0013 (자율 chain hard cap depth 3 + token 200k + wall-clock 6h).
+- ADR — 0011 (Trees sub-tree fallback) + 0012 (큰 파일 임계치 100/50 MB) + 0013 (자율 chain hard cap depth 3 + token 200k + wall-clock 6h). ADR 0008 § Phase 7.3 재검토 추가 — 1000+ path scale에서 mtime cache 재도입 트리거 keep-drop 유지 (path 20× scale에도 walltime 1324.8 ms → 829/1109 ms로 hash 비중 폭증 신호 없음, 향후 trigger (a)/(b) 명시).
 - guardrails — G-019 (자율 chain hard cap, Phase 7 vague 결과).
+- Phase 7.3 — `xtask synth-vault` sub-command (1000+ markdown 합성 vault generator, seed/UTF-8 NFC/LF/mtime epoch 정책 정합, `xtask/src/synth_vault.rs`). dogfood + scale 측정용 — 도구 본체 contract 영향 0.
+- Research — `docs/research/phase7-vault-scale-bench.md` (T main bench 1000 local × 129 remote 3 runs + U public repo cross-check 1000 local × 4964 remote git/git@94f0577 single run + W 종합 cross-comparison + ADR 0008 cross-link).
 
 ### Changed
 
@@ -29,11 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Phase 7.1 unit test 2 시나리오 (call budget 1001 / entries 500_001 cap trip) + integration test (multi-layer truncated descent → 합산 ScanReport).
 - Phase 7.2 unit test 4 시나리오 (49MB local hash 정상 / 51MB memory_exceeded / 101MB file_too_large / 30MB LFS pointer 우선순위).
 - Schema v1.2 acceptance 7 시나리오 unit test (`output.rs::tests`) — schema_version "1.2" + `FailedReason` 11 wire snake_case + size_bytes 정확 직렬화/omit + size_gate entry `is_binary: false` + v1.0/v1.1 envelope+entry 필수 field 박힘 invariant.
+- Phase 7.3 vault dogfood — T main bench (1000 local markdown × 129 remote KneShell/gitless-sync, 3 runs cold+2warm, mean 829 ms, exit 0, failed 0, schema v1.2) + U public repo cross-check (1000 local × 4964 remote git/git@94f0577, 1 manual sanity run 1109 ms, exit 4 PARTIAL_FAILURE, failed 4 = 3 symlink `120000` + 1 submodule `160000` git/git remote-side, schema v1.2). Cross-comparison — remote 38× scale-up (129 → 4964)에 walltime ~+35% 증가 그침 (sub-linear, GraphQL batching + rayon 8c local hash 흡수). ADR 0008 § Phase 7.3 재검토 — mtime cache keep-drop 유지 (path 20× scale에도 walltime 폭증 신호 없음, hash phase instrumentation 부재로 정량 verify 불가 → yagni 일관). 종합 분석 + open items: `docs/research/phase7-vault-scale-bench.md` § 종합 (task W).
 
-### Known limitations (Phase 7.3+ 해소 예정)
+### Known limitations (Phase 7.4+ 해소 예정)
 
-- vault scale 1000+ path dogfood — Phase 7.3 task S~W에서 합성 vault generator + 측정 + ADR 0008 mtime cache 재도입 트리거 검토.
 - v0.3.0 release tag — Phase 7.4 task X에서 sub-claude clean-context 검증 + 0 finding CONVERGE PASS 확인 후 진행 (G-019 자율 chain hard cap 정합).
+- sub-tree fallback real public repo dogfood 부재 — git/git는 truncation 영역 외, linux/torvalds는 budget 1000 cap 위반. 현 baseline은 unit/integration test (Phase 7.1 task F/G) cover. budget 정책 진화 task 도입 시 재검토.
+- hash phase instrumentation 부재 — ADR 0008 § Phase 7.3 재검토 mtime cache 재도입 트리거 (a)/(b) 정량 verify에 필요. yagni 일관 deferred — 별도 instrumentation work 도입 시점에 검토.
 
 ## [0.2.1] - 2026-05-10
 

@@ -339,3 +339,125 @@ deferred (현 baseline은 unit/integration test cover).
   emit 등이 없어, 본 측정은 외부 신호 (Trees recursive=1 raw 응답
   `truncated=false` 사전 검증)로 fallback 미진입을 단정. fallback 진입
   dogfood 시 internal trace flag 도입 검토.
+
+## 종합 (task W, 2026-05-10)
+
+> Phase 7.3 task W — T/U raw data + ADR 0008 § Phase 7.3 재검토 위에
+> 종합 분석. record-only § (T/U)가 명시한 "분석은 task W" 계약 정합.
+> 본 § 은 추가 측정 도입 안 함 — 기존 raw data 위에 cross-comparison +
+> spec contract 검증 + open items 정리만.
+
+### Coverage
+
+| 측정 | path scale | remote scale | runs | 목적 | 결과 |
+|---|---:|---:|---:|---|---|
+| T (main bench) | 1000 local | 129 entries (KneShell/gitless-sync) | 3 (cold + 2 warm) | local 1000+ scale processing isolate | 0 failed, exit 0, schema v1.2 |
+| U (cross-check) | 1000 local | 4964 entries (git/git@94f0577) | 1 (manual sanity) | medium-large remote sub-linear scale + remote-side failed surface | 4 failed, exit 4 PARTIAL_FAILURE, schema v1.2 |
+
+T는 small remote로 isolate해 local hash + walker + classification 시간이
+remote tree fetch에 가려지지 않게 함. U는 38× 큰 remote로 sub-linear
+remote scale + remote-side 함정 (`mode 120000` symlink + `mode 160000`
+submodule) surface 검증.
+
+### Cross-comparison — T vs U walltime
+
+| 측정 | mean walltime | remote tree raw entries | remote-side failed | 비고 |
+|---|---:|---:|---:|---|
+| T (cold + 2 warm, mean N=3) | 829 ms (variance ~120 ms) | 129 | 0 | KneShell/gitless-sync 자체 (Rust + md mix) |
+| U (single run) | 1109 ms | 4964 | 4 | git/git (C + shell + Tcl + Makefile mix) |
+
+**관찰** — remote raw entries 38× 증가 (129 → 4964)에도 walltime 증가는
++0.28 ~ +0.35 s (~+35%)에 그침. local-side 1000 file hash (CRLF detect +
+SHA-1) 시간이 지배적 + remote-side는 단일 batch 응답 1회 + JSON parse —
+sub-linear scale 정합. Phase 4 GraphQL batching (ADR 0006/0007) + rayon 8c
+local hash 병렬 (ADR 0003)이 remote scale 흡수.
+
+**제약** — U는 single run, T variance ~0.12 s 패턴이 본 측정에도 적용된다
+가정. 정확한 variance 측정은 본 task 범위 외 (spec § "manual 1회 sanity"
+정합).
+
+### Schema v1.2 + exit code contract 검증
+
+T + U 둘 다:
+- `schema_version: "1.2"` 정확 emit (`output.rs::SCHEMA_VERSION` Phase 7.2
+  task P bump 정합).
+- envelope (`schema_version` / `scanned_at` / `repo` / `branch` /
+  `local_root` / `summary` / `files`) 7 field 모두 surface — `output.rs`
+  v1.0/v1.1 backward-compat lock test (Phase 7.2 task P/Q) 정합.
+
+Exit code 정합:
+- T 3 runs: exit 0 (`stderr` empty) — failed 0건 정합 (`spec-error-contracts.md` § 정상 종료).
+- U single run: exit 4 + stderr 1줄 PARTIAL_FAILURE JSON (`error_code:"PARTIAL_FAILURE"` + `failed_count:4`) — `spec-error-contracts.md` § 부분 실패 정합.
+
+### `failed[]` surface — 함정 처리 정책 정합
+
+T (`failed: 0`) — 합성 vault 정책 (`MAX_FILE_BYTES = 100 KB` / NFC ASCII
+filename / LF / submodule·symlink·LFS·long_path 모두 generate 안 함)
+정합. Phase 7.2 임계 (>50MB memory_exceeded / >100MB file_too_large)와 약
+500× ~ 1000× gap.
+
+U (`failed: 4`) — git/git remote-side originated:
+
+| path | failed_reason | mode | spec § |
+|---|---|---|---|
+| `RelNotes` | `symlink` | `120000` | spec-domain-pitfalls.md § Submodule / Symlink |
+| `subprojects/git-gui` | `symlink` | `120000` | (동) |
+| `subprojects/gitk` | `symlink` | `120000` | (동) |
+| `sha1collisiondetection` | `submodule` | `160000` | (동) |
+
+`is_binary: false` + `size_bytes` field omit — short-circuit cascade
+(`commands/scan/pipeline/short_circuit.rs` Phase 7.2 task L) 외부에서 격하
++ `try_hash_local` pre-flight 미진입 정합 (`spec-output-schema.md` §
+`is_binary` 정책 + § Phase 7.2 size_bytes omit 정책).
+
+### Sub-tree fallback (Phase 7.1) — 본 측정 surface 0
+
+T 합성 vault (1000 + 129 entries) + U git/git (1000 + 4964 entries) 둘 다
+Trees API recursive=1 응답 `truncated=false` 영역 — sub-tree fallback
+(`shared/github/trees/fallback/recursive/walk.rs` Phase 7.1 task D)
+미진입.
+
+Truncation threshold (~7 MB / ~100K entries)에 도달하는 real public repo
+dogfood는 별도 task로 deferred:
+- linux/torvalds (~5 K dirs) → fallback 진입 시 budget 1000 cap 즉시 위반
+  → `GitlessError::TreesTruncated` (exit 5) 보장. budget 정책 진화 후
+  재검토.
+- 현 baseline은 unit test (`fallback::recursive::walk::tests` Phase 7.1
+  task F, call budget 1001 + entries 500_001 cap trip 시나리오) +
+  integration test (`tests/scan_trees_fallback.rs` task G, multi-layer
+  truncated descent → 합산 ScanReport)로 cover.
+
+Internal trace flag 부재로 fallback 진입 여부 외부 신호 (Trees raw 응답
+`truncated` field 사전 검증)로만 단정 — 본 측정에 두 측정 모두 미진입.
+
+### mtime cache 재도입 트리거 — keep-drop 유지
+
+ADR 0008 § Phase 7.3 재검토 (2026-05-10) 결론 박제 — **keep-drop 유지**
+(cache 재도입 안 함).
+
+근거 요약 — P6c 50 path 1324.8 ms (cold N=3, hash phase ~50 ms = 3-4%)
+vs T 1000 path 829 ms / U 1000 path 1109 ms. path scale 20× 증가에도
+walltime 오히려 작거나 비슷 → hash 비중 path linear 폭증 신호 없음.
+ADR 0008 § Decision 임계 "speedup ≥ 2x"는 hash phase instrumentation 부재로
+정량 검증 불가 — 임계 미달 신호도 도달 신호도 없음 → yagni 일관 적용.
+
+향후 재도입 trigger (ADR 0008 § Phase 7.3 재검토 정합):
+- (a) hash phase 별도 instrumentation 도입 후 측정 결과 hash 비중 ≥ 30%
+  surface,
+- (b) 또는 cache 도입 시 measured speedup ≥ 2x 직접 surface.
+
+자세한 측정 + 분석은 `docs/adr/0008-mtime-cache-keep-or-drop.md` § Phase
+7.3 재검토 본문 참조 — 본 § 은 결론만 박제 + cross-link.
+
+### Open items (deferred, Phase 7 scope 외)
+
+| Gap | 사유 | 향후 trigger |
+|---|---|---|
+| U single run variance 미측정 | spec § "manual 1회 sanity" 정합 | dogfood 측정 정책 강화 시 (yagni 일관 deferred) |
+| Hash phase instrumentation 부재 | ADR 0008 § Phase 7.3 재검토 keep-drop 결정 정합 (정량 verify 없이 yagni) | mtime cache 재도입 검토 트리거 (a)/(b) surface 시 |
+| sub-tree fallback real public repo dogfood 부재 | git/git는 truncation 영역 외, linux/torvalds는 budget cap 위반 | budget 정책 진화 task 도입 시 |
+| internal trace flag 부재 | Phase 7 비목표 (외부 신호로 단정 가능) | fallback 진입 dogfood 도입 시점에 검토 |
+
+본 task W는 raw data + cross-comparison + 정책 정합 surface — open items
+는 모두 yagni 일관 deferred. 새 정책 결정 0건, 새 spec 변경 0건. Phase
+7.4 release tag 진행 가능 baseline.
