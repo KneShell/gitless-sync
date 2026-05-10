@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-05-10
+
+> Phase 8 post-eval minor fix. v0.4.0 가 도입한 clap `value_enum` (F5) 부산물 회복 + F4 백틱 노이즈 정리. 외부 surface 변경: 잘못된 인자 시 사람용 multi-line text + exit 2 → JSON 한 줄 + exit 1 (CONFIG_ERROR) 로 복귀 — v0.3 이전 한 줄 JSON contract 와 의미 일관.
+
+### Changed
+
+- **F5 contract 회복** — `Cli::parse()` → `Cli::try_parse()` + `main::map_clap_parse_error` helper. clap argument-parse 실패 (예: `--status drif`) 가 `GitlessError::Config(_)` 로 wrap 되어 기존 `to_stderr_payload()` 경로로 한 줄 JSON (`{"error_code":"CONFIG_ERROR","message":"..."}`) + exit 1 contract 회복. `message` 안에 clap multi-line 출력 (escape 처리, valid 후보 5개 + did-you-mean hint) 그대로 보존 — 정보 손실 0. `--help` / `--version` / `DisplayHelpOnMissingArgumentOrSubcommand` (bare invocation) 은 `None` 분기로 clap 기본 출력 (stdout + exit 0) 통과.
+- **F4 백틱 노이즈 제거** — `main.rs` `#[arg]` doc comment 7곳에서 markdown 백틱 제거. clap 이 백틱을 raw 출력해 `--help` 에 `` `GitHub` `` / `` `JSON` `` 등이 노출되던 cosmetic noise 해소. lib internal doc 은 유지.
+- **main.rs 분해** — `dispatch` + `emit_error` helper 분리 (clippy `too_many_lines` 60 cap 회복). `handle_clap_parse_error` signature `&clap::Error` (`needless_pass_by_value`).
+
+### Spec
+
+- `spec-error-contracts.md` § Custom Error Types Config(String) 의미에 clap argument-parse 실패 매핑 박음. § Acceptance Criteria 새 `[AUTO]` 시나리오 (잘못된 `--status` / `--help` / `--version` / bare invocation 분기 검증) 추가.
+
+### Verified
+
+- Hard gate full pipeline PASS — `cargo fmt --check` / `cargo clippy --workspace --all-targets -- -D warnings` / `cargo xtask check-line-limits` / `cargo xtask check-cycles` / `cargo machete` / `cargo test --workspace` / `cargo xtask check-readme-examples` / `cargo tarpaulin --engine llvm --workspace --fail-under 80`.
+- 484 + 88 unit + integration test pass / 0 failed (gitless-sync workspace + xtask).
+- 새 unit test 4건 (`map_clap_parse_error` Display kind None × 3 + invalid status `Some(Config)` + 5 후보 + did-you-mean + exit/error_code 검증).
+- tarpaulin 88.47% (1305/1475 lines).
+- vault dogfood (KneShell/obsidian-vault, 363 files) — 4-state 281/60/22/0/0 + 0 drift + 0 failed v0.4.0 baseline 유지 (regression 0).
+
 ## [0.4.0] - 2026-05-10
 
 > Phase 8 (LLM-as-Caller Usability Fix, eval 7 friction 해소) 누적. Phase 8.1 (spec/ADR 사전 확정) + Phase 8.2 (F1+F2 schema) + Phase 8.3 (F3 diff --json) + Phase 8.4 (F4/F5/F6 clap surface) + Phase 8.5 (F7 CI README sanity) + Phase 8.6 (release tag). 상세 task별 결과는 git history (`git log --grep="<task ID>"`) + `docs/ralph/implementation-plan.md`.
