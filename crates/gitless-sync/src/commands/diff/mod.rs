@@ -20,20 +20,27 @@ pub use self::args::DiffArgs;
 use self::compute::compute_diff;
 
 /// Run the `diff` command and write the unified diff (or a one-sided message)
-/// to stdout, with status messages on stderr.
+/// to the provided `stdout` / `stderr` writers.
 ///
-/// Production callers inject `RealGhClient`; tests inject `MockGhClient`.
+/// Production callers inject `RealGhClient` + `std::io::stdout().lock()` /
+/// `std::io::stderr().lock()`; integration tests inject `MockGhClient` +
+/// `Vec<u8>` writers to capture the output.
 ///
 /// # Errors
 /// Returns any [`GitlessError`] raised by config loading, GitHub API calls,
 /// or local IO. Returns [`GitlessError::Config`] when the requested path
 /// exists on neither side.
-pub fn run_with_client<C: GhClient>(args: &DiffArgs, client: &C) -> Result<(), GitlessError> {
+pub fn run_with_client<C: GhClient, W: Write, E: Write>(
+    args: &DiffArgs,
+    client: &C,
+    stdout: &mut W,
+    stderr: &mut E,
+) -> Result<(), GitlessError> {
     let outcome = compute_diff(args, client)?;
     if !outcome.stderr_message.is_empty() {
-        eprintln!("{}", outcome.stderr_message);
+        writeln!(stderr, "{}", outcome.stderr_message)?;
     }
-    std::io::stdout().write_all(&outcome.stdout)?;
+    stdout.write_all(&outcome.stdout)?;
     Ok(())
 }
 
@@ -61,6 +68,8 @@ mod tests {
         );
 
         let args = args_for(dir.path(), "only.md");
-        run_with_client(&args, &mock).unwrap();
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        run_with_client(&args, &mock, &mut stdout, &mut stderr).unwrap();
     }
 }

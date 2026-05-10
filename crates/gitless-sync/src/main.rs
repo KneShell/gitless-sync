@@ -98,6 +98,8 @@ fn main() -> ExitCode {
                 json,
             },
             &client,
+            &mut std::io::stdout().lock(),
+            &mut std::io::stderr().lock(),
         ),
         Commands::Init => {
             let init_args = commands::init::InitArgs {
