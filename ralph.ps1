@@ -6,7 +6,9 @@
 
 param(
     [string]$Mode = "build",
-    [int]$MaxIterations = 0
+    [int]$MaxIterations = 0,
+    [string]$Model = "claude-opus-4-7",
+    [string]$Effort = "xhigh"
 )
 
 # UTF-8 encoding
@@ -66,7 +68,7 @@ try {
 
         $promptContent = Get-Content $promptFile -Raw
 
-        $promptContent | claude --dangerously-skip-permissions --effort max 2>&1 | Tee-Object -FilePath $outputFile -Encoding UTF8
+        $promptContent | claude --dangerously-skip-permissions --model $Model --effort $Effort 2>&1 | Tee-Object -FilePath $outputFile -Encoding UTF8
 
         $exitCode = $LASTEXITCODE
         $iterDuration = (Get-Date) - $iterStart
