@@ -62,8 +62,10 @@ enum Commands {
         status: Option<String>,
     },
     Diff {
+        /// Relative path (forward slash) of the file to diff.
         path: String,
 
+        /// Emit `JSON` output instead of unified text (opt-in).
         #[arg(long)]
         json: bool,
     },

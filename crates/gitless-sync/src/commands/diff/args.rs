@@ -5,10 +5,16 @@
 
 #[derive(Debug)]
 pub struct DiffArgs {
+    /// `GitHub` repository (`owner/name`). `None` falls back to env / config.
     pub repo: Option<String>,
+    /// Branch name to compare against (defaults to `main` upstream).
     pub branch: String,
+    /// Local directory the file is read from.
     pub local: String,
+    /// Preserve `UTF-8` BOM when reading text files.
     pub keep_bom: bool,
+    /// Relative path (forward slash) of the file to diff.
     pub path: String,
+    /// Emit `JSON` output instead of unified text (opt-in).
     pub json: bool,
 }
