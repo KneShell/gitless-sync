@@ -85,13 +85,53 @@ gitless-sync scan --repo owner/name --local . -v
 
 Output schema and the four status values (`identical`, `local_only_changed`, `remote_only_changed`, `drift`, plus `failed` for partial failures) are defined in `docs/specs/spec-output-schema.md`.
 
-### `diff` — single-file unified text diff
+### `diff` — single-file diff
 
 ```sh
 gitless-sync diff <relative/path> --repo owner/name --local .
 ```
 
 Both sides are LF-normalized and BOM-stripped before diffing (use `--keep-bom` to preserve UTF-8 BOM).
+
+#### Default output (unified text)
+
+The shape of the output depends on which sides exist and whether they normalize to the same content:
+
+| Case | stdout | stderr | exit |
+|------|--------|--------|------|
+| Both sides exist, normalize-equal | empty | empty | 0 |
+| Both sides exist, normalize-diff | unified diff text (`--- a/...\n+++ b/...\n@@ ...`) | empty | 0 |
+| Local only (no remote) | raw local file content | `(local only)\n` marker | 0 |
+| Remote only (no local) | raw remote file content | `(remote only)\n` marker | 0 |
+
+A binary file produces no body — `unified` / `raw` payloads are skipped and the side marker (or no output, when both sides are equal) is the only signal.
+
+#### `--json` output (opt-in, LLM-friendly)
+
+```sh
+gitless-sync diff <relative/path> --repo owner/name --local . --json
+```
+
+Emits one stdout JSON line and writes nothing to stderr (no side marker). The shape is uniform across cases — callers parse one schema instead of branching on text-vs-empty-vs-stderr-marker:
+
+```json
+{"side": "both" | "local_only" | "remote_only", "unified": string | null, "raw": string | null, "binary": bool}
+```
+
+Examples:
+
+```text
+# both sides, normalize-equal
+{"side":"both","unified":"","raw":null,"binary":false}
+
+# local only
+{"side":"local_only","unified":null,"raw":"<file content>","binary":false}
+
+# both sides, normalize-diff
+{"side":"both","unified":"--- a/...\n+++ b/...\n@@ ...","raw":null,"binary":false}
+```
+
+Authoritative schema: `docs/specs/spec-cli-interface.md` § diff --json 출력 형식 + `docs/specs/spec-output-schema.md` § diff sub-schema.
 
 ## Exit codes
 
