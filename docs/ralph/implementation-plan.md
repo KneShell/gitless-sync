@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.5 task CC — spec-hash-and-normalize.md § Phase 7 우선순위 cascade spec literal swap (1=case_collision, 2=nfd_collision → 1=nfd_collision, 2=case_collision). 코드 `short_circuit.rs::try_short_circuit_failed` dispatch 순서(line 50-52) + module doc(line 4-5) 정합. 두 collision mutually exclusive로 실동작 영향 0, literal 정합 only. Files: docs/specs/spec-hash-and-normalize.md 1건. Validation 빠른 게이트 4/4 통과 (fmt clean / 70 file LOC ≤ 300 / 0 cycle 0 cross-slice / 0 unused dep). step 2/6/7은 코드 0 변경이라 G-012 spec-only 일반화 면제로 baseline 유지 자동 통과. Phase 7.5 chain depth 2/3, token loose (≪ 200k), wall-clock loose (≪ 6h) — G-019 cap 정합 유지.)
-- Total tasks: 90
-- Completed: 87 / 90
+- Last updated: 2026-05-10 (Phase 7.5 task DD — clean-context audit re-run 결과 3 신규 finding 검출 (모두 doc-only stale literal/path/sig, spec semantics 변경 X): (1) implementation-plan.md:36 task A 설명 `ResponseEntry` → `TreeEntry` typo (AA가 CHANGELOG에서 fix한 동일 typo 누락분), (2) spec-error-contracts.md Per-file Pitfall Reasons 표 5 row `pipeline.rs::try_short_circuit_failed line N~N` → `pipeline/short_circuit.rs::try_short_circuit_failed` (Phase 5.13.1 모듈 폴더 분할 후 path stale + 라인 넘버 drift), (3) spec-domain-pitfalls.md:80-86 § lifetime 계약 `prepare_for_hash` 시그니처 3-arg → 4-arg (path: &str 누락, normalize.rs:55-60 실 시그니처 + spec-hash-and-normalize.md:103-109 authoritative spec 정합). G-019 수렴 기준 ("동일 finding 2회 연속 + 신규 0건") 미충족 (이전 3건과 다른 신규 3건) → 자동 Phase 7.6 chain depth 3 진입 (cap 직전, 1 transition 더 가능). X dep 갱신 "(deps: Phase 7.5 DD)" → "(deps: Phase 7.6 HH)". Phase 7.6 4 task (EE/FF/GG fix + HH re-audit) 추가. Total 90 → 94, Completed 87 → 88. Validation 1~7 본 task 통과 (spec-only G-012 면제 일반화 — code change 0).)
+- Total tasks: 94
+- Completed: 88 / 94
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -68,7 +68,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 > Task 순서 swap (2026-05-10): Y(CHANGELOG finalize) → X(tag) → Z(plan 갱신). semver release 정합 — `[Unreleased]` → `[0.3.0]` heading commit 후 그 commit 위에 v0.3.0 tag 박힘. plan 본문 task ID는 보존, position만 swap.
 
 - [x] **Y**: CHANGELOG.md v0.3.0 entry finalize — Added (sub-tree fallback / file_too_large / memory_exceeded / size_bytes / schema v1.2 / 합성 vault generator) + Changed (G-002 obsolete) + Verified (vault dogfood) + Known limitations.
-- [ ] **X** (deps: Phase 7.5 DD): v0.3.0 release tag — `git tag v0.3.0 -m "..." && git push origin v0.3.0`. 사전 sub-claude clean-context 검증 + 0 finding CONVERGE PASS 확인. (2026-05-10 [~]→[ ] revert: 첫 audit 3 finding → Phase 7.5 chain depth 2 진입, fix + DD 0 finding 후 X 자연 진행. Tag message + main push 패턴은 v0.2.1 정합 (origin/main..v0.2.1 ancestor=0 검증).)
+- [ ] **X** (deps: Phase 7.6 HH): v0.3.0 release tag — `git tag v0.3.0 -m "..." && git push origin v0.3.0`. 사전 sub-claude clean-context 검증 + 0 finding CONVERGE PASS 확인. (2026-05-10 [~]→[ ] revert: 첫 audit 3 finding → Phase 7.5 chain depth 2 진입, fix + DD audit 결과 3 신규 finding → Phase 7.6 chain depth 3 진입. HH CONVERGE PASS 후 X 자연 진행. Tag message + main push 패턴은 v0.2.1 정합 (origin/main..v0.2.1 ancestor=0 검증).)
 - [ ] **Z** (deps: X): 본 plan Phase 7 task 모두 [x] mark + § 갱신 (Active → Completed Phases).
 
 #### Phase 7.5 — clean-context audit finding fix (4 task)
@@ -78,7 +78,16 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 - [x] **AA**: CHANGELOG.md `ResponseEntry::size` → `TreeEntry::size` typo fix (실제 struct 이름 정합). Files: CHANGELOG.md.
 - [x] **BB** (deps: AA): guardrails.md G-019 § "cap 변경: ADR 0014 갱신 동반" → "ADR 0013 갱신 동반" cross-ref typo fix (자율 chain hard cap 결정 ADR 본은 0013, 역방향 cross-ref는 정합). Files: docs/ralph/guardrails.md.
 - [x] **CC** (deps: BB): spec-hash-and-normalize.md § Phase 7 우선순위 cascade spec literal swap — spec 본문 (1=case_collision, 2=nfd_collision)을 코드 `short_circuit.rs::try_short_circuit_failed` dispatch 순서 (1=nfd_collision, 2=case_collision) + module doc 정합으로 swap (두 collision mutually exclusive로 실동작 영향 0, literal 정합 only). Files: docs/specs/spec-hash-and-normalize.md.
-- [~] **DD** (deps: CC): clean-context audit re-run + 0 finding CONVERGE PASS 검증. 0 finding이면 X dep 해소 mark (X 본문 "(deps: Phase 7.5 DD)" 문구 제거). ≥1 finding이면 G-019 수렴 기준 ("동일 finding 2회 연속 + 신규 0건") 또는 cap 적용. Files: docs/ralph/implementation-plan.md.
+- [x] **DD** (deps: CC): clean-context audit re-run + 0 finding CONVERGE PASS 검증. 0 finding이면 X dep 해소 mark (X 본문 "(deps: Phase 7.5 DD)" 문구 제거). ≥1 finding이면 G-019 수렴 기준 ("동일 finding 2회 연속 + 신규 0건") 또는 cap 적용. Files: docs/ralph/implementation-plan.md. **결과**: 3 신규 finding 검출 (이전 3건과 다른 신규, doc-only stale literal/path/sig). G-019 수렴 미충족 → Phase 7.6 chain depth 3 진입.
+
+#### Phase 7.6 — clean-context audit re-run finding fix (4 task)
+
+> Phase 7.5 DD(audit re-run) 결과 3 신규 finding 검출 (모두 doc-only stale literal/path/sig, spec semantics 변경 X). 이전 3건과 다른 신규라 G-019 수렴 기준 ("동일 finding 2회 연속 + 신규 0건") 미충족 → 자동 신규 phase chain 진입. Chain depth 3/3 (cap 직전, HH에서 또 신규 finding 발생 시 escape hatch 적용 — BLOCK + 사용자 wake-up surface). Token loose (≪ 200k), wall-clock loose (≪ 6h).
+
+- [ ] **EE**: implementation-plan.md:36 task A 설명 `shared/github/trees/parse.rs::ResponseEntry` → `TreeEntry` typo fix (실제 struct 이름 정합, AA가 CHANGELOG에서 fix한 동일 typo 누락분; 라인 78 AA task 설명의 `ResponseEntry::size` → `TreeEntry::size` 표기는 typo fix 자체를 documenting 의도라 보존). Files: docs/ralph/implementation-plan.md.
+- [ ] **FF** (deps: EE): spec-error-contracts.md Per-file Pitfall Reasons 표 5 row `pipeline.rs::try_short_circuit_failed line N~N` → `pipeline/short_circuit.rs::try_short_circuit_failed` (Phase 5.13.1 module 폴더 분할 후 `pipeline.rs` 단일 파일 부재 + 라인 넘버 drift 회피 위해 라인 제거). 영향 row: submodule(line 158) / symlink(159) / lfs_pointer(160) / long_path(161) / case_collision(163). Files: docs/specs/spec-error-contracts.md.
+- [ ] **GG** (deps: FF): spec-domain-pitfalls.md:80-86 § lifetime 계약 `prepare_for_hash` 시그니처 3-arg → 4-arg (`path: &str` 4번째 인자 추가). normalize.rs:55-60 실 시그니처 + spec-hash-and-normalize.md:103-109 authoritative spec과 정합. Files: docs/specs/spec-domain-pitfalls.md.
+- [ ] **HH** (deps: GG): clean-context audit re-run 2nd round + CONVERGE PASS 검증. 0 finding이면 X dep 해소 mark (X 본문 "(deps: Phase 7.6 HH)" 문구 제거). ≥1 finding이면 G-019 수렴 기준 ("동일 finding 2회 연속 + 신규 0건") 적용 또는 cap 도달 escape hatch (BLOCK + 다음 세션 wake-up 시 사용자 surface). Files: docs/ralph/implementation-plan.md.
 
 ## Pending Phases (v0.4+)
 
