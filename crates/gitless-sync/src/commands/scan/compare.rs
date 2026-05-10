@@ -12,9 +12,14 @@ pub enum Status {
 }
 
 /// Reason a path was promoted to [`Status::Failed`]. Maps to
-/// `failed_reason` in the v1.1 output schema (`spec-output-schema.md`).
+/// `failed_reason` in the v1.2 output schema (`spec-output-schema.md`).
 /// Omitted (`None`) is treated as `hash_io` for v1.0 backward-compat —
 /// don't set it explicitly for hash-IO failures.
+///
+/// 11 schema reasons map as 10 variants + `None` (`hash_io`):
+/// 8 Phase 5 variants below + 2 Phase 7 size-gate variants
+/// (`FileTooLarge` ≥ 100 MB, `MemoryExceeded` ≥ 50 MB) per
+/// `spec-hash-and-normalize.md` § Phase 7 — 큰 파일 처리.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum FailedReason {
@@ -26,6 +31,8 @@ pub enum FailedReason {
     Encoding,
     NfdCollision,
     GitattributesUnsupported,
+    FileTooLarge,
+    MemoryExceeded,
 }
 
 /// LFS pointer companion for a [`Status::Failed`] entry whose
@@ -212,6 +219,16 @@ mod tests {
             FailedReason::GitattributesUnsupported,
             "gitattributes_unsupported",
         );
+    }
+
+    #[test]
+    fn failed_reason_file_too_large_serializes_snake_case() {
+        assert_failed_reason_round_trip(FailedReason::FileTooLarge, "file_too_large");
+    }
+
+    #[test]
+    fn failed_reason_memory_exceeded_serializes_snake_case() {
+        assert_failed_reason_round_trip(FailedReason::MemoryExceeded, "memory_exceeded");
     }
 
     fn sample_entry(failed_reason: Option<FailedReason>) -> FileEntry {
