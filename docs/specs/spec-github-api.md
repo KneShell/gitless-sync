@@ -72,7 +72,7 @@ v0.1 ureq baseline 시그니처에서 `token` 인자 제거 + `client: &impl GhC
 - 응답 처리 (stdout JSON):
   - `tree` 배열에서 `type == "blob"`만 추출. `type == "tree"`(디렉토리)는 무시.
   - mode `100755` / `120000` / `160000` 등 v0.1 비목표 entry는 skip + warning(stderr) (G-010).
-  - `truncated == true` → `GitlessError::TreesTruncated` 즉시 반환, exit 5 (G-002). 부분 결과 사용 금지.
+  - `truncated == true` → § Trees truncation handling sub-tree fallback 진입 (Phase 7부터). v0.2.x까지는 `GitlessError::TreesTruncated` 즉시 반환 + exit 5 (G-002).
 
 #### `fetch_blob`
 
@@ -81,6 +81,89 @@ v0.1 ureq baseline 시그니처에서 `token` 인자 제거 + `client: &impl GhC
 - 응답 처리 (stdout JSON):
   - `{"content": "<base64>", "encoding": "base64", ...}`.
   - base64 디코딩 후 raw bytes 반환.
+- Phase 7부터 size pre-flight + post-flight 적용 (§ Blob size 한도 참조).
+
+#### Blob size 한도 (Phase 7)
+
+> **공식 한도** (2026-05-10 fact check, [source: https://docs.github.com/en/rest/git/blobs]): Git Blobs API는 **100MB 단일 파일 hard limit** 지원. 100MB 초과 blob은 endpoint 자체 미지원. base64 응답 크기 별도 한도 명시 없음 (raw bytes 100MB → base64 약 134MB).
+
+- Phase 7부터 fetch_blob은 응답 본문 size 측정 + 100MB 초과 시 `GitlessError::Http("blob too large: <sha>, size=<bytes>")` 반환. 100MB 직전 (예: 99MB) entry는 정상 처리 — caller가 hash 계산 후 결과 비교.
+- 메모리 임계치 50MB 초과는 spec-hash-and-normalize.md § Phase 7 — 큰 파일 처리 § 한도 정의 + § 검출 알고리즘 fetch_blob_with_size_gate 그대로 적용.
+- **Contents API 사용 금지** — 1MB inline base64 + 1~100MB raw media type 2-tier 분기는 fetch_blob 단일 통로 정책과 호환 안 됨 [source: https://docs.github.com/en/rest/repos/contents]. Blobs API 단일 통로 + 100MB 단일 hard limit 일관.
+- **LFS pointer 분기** — 100MB 미만 LFS pointer text는 본 endpoint가 raw pointer text 반환 (실제 LFS 객체 0). pointer detect는 spec-domain-pitfalls.md § LFS pointer + spec-hash-and-normalize.md § LFS pointer 그대로 처리. fetch_blob은 pointer text를 raw bytes로 반환만 함 (LFS 객체 fetch 책임 없음, 영구 비목표).
+
+#### Trees truncation handling (Phase 7 sub-tree fallback)
+
+> **공식 한도** (2026-05-10 fact check, [source: https://docs.github.com/en/rest/git/trees]): Trees API recursive=1 응답은 **100,000 entry + 7MB 둘 중 먼저 도달 시 `truncated: true`** 반환. 공식 권장: "use the non-recursive method of fetching trees, and fetch one sub-tree at a time". truncated 시 부분 결과는 incomplete (사용 금지).
+
+##### 진입 조건
+
+- `fetch_tree` 1차 호출 응답 `truncated: true` 검출 시 본 § 진입.
+- v0.2.x까지는 `GitlessError::TreesTruncated` 즉시 반환 + exit 5 (G-002). Phase 7부터 sub-tree fallback 진입 후 실패 시에만 동일 error 반환.
+
+##### sha 일관성 (sub-claude finding 5 정합)
+
+- Trees fallback 진입 직전 1회 ref → commit sha → root tree sha resolve.
+- 모든 sub-tree 호출은 `gh api repos/{owner}/{repo}/git/trees/{sub_tree_sha}` (immutable tree sha 직접 사용). branch 이름 / ref 사용 금지 (resolve 시점과 sub-tree 호출 시점의 HEAD drift 차단).
+- root tree sha resolve 호출 (1회 추가):
+  1. `gh api repos/{owner}/{repo}/git/refs/heads/{branch}` → 응답 `object.sha` (commit sha)
+  2. `gh api repos/{owner}/{repo}/git/commits/{commit_sha}` → 응답 `tree.sha` (root tree sha)
+- 1회 추가 호출 비용으로 모든 sub-tree 호출 immutable 보장.
+
+##### sub-tree 재귀 알고리즘
+
+```
+fn fetch_tree_with_fallback(client, repo, branch) -> Vec<RemoteFile>:
+    let resp = fetch_tree_recursive(repo, branch);  # recursive=1 1차 호출
+    if not resp.truncated:
+        return resp.entries;  # 정상 path (Phase 7 이전 동작 유지)
+
+    # 본 § sub-tree fallback 진입
+    let root_sha = resolve_root_tree_sha(repo, branch);  # ref → commit → tree sha 1회
+    let mut entries = vec![];
+    fetch_subtree_recursive(client, repo, root_sha, "", &mut entries, &mut budget)?;
+    return entries;
+
+fn fetch_subtree_recursive(client, repo, tree_sha, path_prefix, entries, budget):
+    if budget.calls_used >= MAX_TREE_CALL_BUDGET:
+        return Err(TreesTruncated);  # 호출 budget 초과
+    if entries.len() >= MAX_TREE_ENTRIES:
+        return Err(TreesTruncated);  # entry cap 초과
+
+    let resp = fetch_tree_non_recursive(client, repo, tree_sha);  # recursive 없이 1 layer
+    budget.calls_used += 1;
+
+    for entry in resp.tree:
+        let full_path = if path_prefix.is_empty() { entry.path } else { format!("{path_prefix}/{}", entry.path) };
+        match entry.type:
+            "blob" => entries.push(RemoteFile { path: full_path, sha: entry.sha, mode: entry.mode }),
+            "tree" => fetch_subtree_recursive(client, repo, entry.sha, full_path, entries, budget)?,
+            _ => skip,  # submodule "commit" 등 v0.2 정책 그대로
+```
+
+##### 한도 상수 (Phase 7)
+
+| 상수 | 값 | 근거 |
+|---|---|---|
+| `MAX_TREE_CALL_BUDGET` | 1000 | linux/torvalds 기준 sub-tree 호출 약 5000 (truncated 케이스 가정). 1000 cap = 약 200K entry vault 한도 추정 + GitHub rate limit (5000/h auth) safety. |
+| `MAX_TREE_ENTRIES` | 500_000 | 누적 entry 한도. 도달 시 early-abort (메모리 안전). |
+
+depth cap / wall-clock cap은 ADR 0011 raw data (monorepo 측정 — depth 20+ 또는 호출 시간 600s+ 발생) 도달 시 추가 검토. 초기 spec은 call budget + entries 2 cap만 (yagni 일관). 상수 변경은 ADR 0011 갱신 동반.
+
+##### early-abort 정책
+
+- 위 2 상수 중 하나라도 초과 시 `GitlessError::TreesTruncated` 즉시 반환 + entries 무시.
+- 부분 결과 사용 금지 — G-002 정책 일관 (sub-tree fallback도 부분 결과 정책 동일).
+- Phase 7 신규 unit test: call budget 1001 / entries 500_001 각 cap trigger 시 TreesTruncated 검증 (2 시나리오).
+
+##### GraphQL backend 정합
+
+- GraphQL backend는 commits API 한정 (§ GraphQL backend). Trees는 REST 단일 통로 — backend 분기 없음.
+- 같은 commit sha 위에서 GraphQL eventual consistency window 우려 (sub-claude finding 6 정합) — Trees REST 호출이 시점 t의 root tree sha를 resolve 후 모든 sub-tree REST 호출이 동일 sha 위에서 평가 → 단일 backend 안 일관.
+
+##### G-002 update
+
+- G-002 본문 update: "Phase 7부터 sub-tree fallback 진입 (본 spec § Trees truncation handling 참조). v0.2.x까지는 즉시 fail."
 
 #### `fetch_last_commit_at`
 
