@@ -42,6 +42,34 @@
 
 ### `diff` 전용 인자
 - `<path>` — 비교할 파일의 상대 경로 (forward slash).
+- `--json` — diff 출력을 JSON 형식으로 전환 (opt-in). 미명시 시 기존 unified text stdout 유지 (default). 상세 스키마는 § diff --json 출력 형식.
+
+### diff --json 출력 형식
+
+`--json` 명시 시 stdout 한 줄 JSON. stderr side marker 미출력.
+
+```json
+{"side": "...", "unified": "..." | null, "raw": "..." | null, "binary": bool}
+```
+
+| field | type | 의미 |
+|-------|------|------|
+| `side` | `"both"` \| `"local_only"` \| `"remote_only"` | 파일 존재 위치 (presence). |
+| `unified` | `string \| null` | normalize 후 unified diff 텍스트 (side=both 한정). normalize-equal이면 `""`, normalize-diff이면 diff 텍스트. side≠both이면 `null`. |
+| `raw` | `string \| null` | 단일 사이드 원본 파일 내용 (side=local_only 또는 remote_only 한정). side=both이면 `null`. |
+| `binary` | `bool` | 바이너리 파일이면 `true`. `unified` / `raw` 모두 `null`. |
+
+케이스별 stdout:
+
+| 케이스 | stdout |
+|--------|--------|
+| side=both + normalize-equal | `{"side":"both","unified":"","raw":null,"binary":false}` |
+| side=both + normalize-diff | `{"side":"both","unified":"--- a/…\n+++ b/…\n…","raw":null,"binary":false}` |
+| side=local_only | `{"side":"local_only","unified":null,"raw":"<file content>","binary":false}` |
+| side=remote_only | `{"side":"remote_only","unified":null,"raw":"<file content>","binary":false}` |
+| binary | `{"side":"<side>","unified":null,"raw":null,"binary":true}` |
+
+authoritative sub-schema 정의는 `spec-output-schema.md` § diff sub-schema (task D scope).
 
 ### init subcommand
 
@@ -94,3 +122,10 @@ CLI > env > `gitless-sync.toml` > 도구 내장 기본값. 자세한 건 `spec-c
 - `[AUTO]` `cargo run -- init --repo a/b --ignore "dist/" --ignore "*.tmp"`가 stdout에 `repo = "a/b"\n` + `ignore = ["dist/", "*.tmp"]\n` emit.
 - `[AUTO]` `cargo run -- init` (--repo 미명시) → exit code 1, stdout 출력 0, stderr `error_code: "CONFIG"` JSON 한 줄.
 - `[AUTO]` init stdout 출력이 `toml::from_str::<Config>` 파싱 통과 + repo/branch/ignore 모든 필드가 입력 인자와 일치 (round-trip).
+- `[AUTO]` `cargo run -- diff --help`에 `--json` 플래그가 표시됨 (task N 구현 후).
+- `[AUTO]` `diff <path>` (--json 미명시) → 기존 unified text stdout 또는 side marker stderr 동작 유지.
+- `[AUTO]` `diff <path> --json` → stdout 한 줄 JSON, stderr side marker 0 bytes.
+- `[AUTO]` `diff <path> --json` + local-only → `{"side":"local_only","unified":null,"raw":"<content>","binary":false}`.
+- `[AUTO]` `diff <path> --json` + both normalize-equal → `{"side":"both","unified":"","raw":null,"binary":false}`.
+- `[AUTO]` `diff <path> --json` + both normalize-diff → `{"side":"both","unified":"<diff text>","raw":null,"binary":false}` (unified field에 unified diff 텍스트 포함).
+- `[AUTO]` `diff <path> --json` + binary → `{"side":"<side>","unified":null,"raw":null,"binary":true}`.
