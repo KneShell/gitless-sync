@@ -7,8 +7,8 @@
 - **해결**: 검증 시 `git hash-object` 출력과 비교하지 말 것. empty blob (`e69de29...`) 같은 git 상수와 일치하는 건 우연이지 정합성 보장 아님. 자세한 정의는 `docs/specs/spec-hash-and-normalize.md`.
 
 ## G-002: GitHub Trees API truncation
-- **문제**: 응답 7MB 또는 약 10만 entry 중 먼저 도달 시 `truncated: true`로 잘림. v0.1은 이 케이스 미지원.
-- **해결**: `truncated == true` 시 `GitlessError::TreesTruncated` 즉시 반환, exit code 5. sub-tree 재귀 다운로드는 Phase 4/5에서 검토. v0.1에서 우회 시도 금지.
+- **문제**: 응답 7MB 또는 약 10만 entry 중 먼저 도달 시 `truncated: true`로 잘림. v0.2.x까지 미지원, Phase 7부터 sub-tree fallback 도입.
+- **해결**: Phase 7부터 `truncated == true` 검출 시 sub-tree fallback 진입 (`docs/specs/spec-github-api.md` § Trees truncation handling 참조 — root tree sha resolve 후 sub-tree non-recursive 재귀 + call budget 1000 / entries 500_000 cap). fallback cap 초과 또는 실패 시 `GitlessError::TreesTruncated` 즉시 반환 + exit code 5. v0.2.x까지는 즉시 fail. 부분 결과 사용 금지 — sub-tree fallback도 동일 정책 일관.
 
 ## G-004: Windows 경로 vs forward slash
 - **문제**: Windows는 백슬래시, GitHub은 forward slash. `path` 필드가 OS에 따라 달라지면 비교 키가 깨진다.
