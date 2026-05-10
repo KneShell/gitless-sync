@@ -43,7 +43,7 @@ pub enum GitlessError {
 ```
 
 variant 의미:
-- `Config(String)`: CLI 인자 / 설정 / 환경 문제. **gh CLI 미설치(`Command::new("gh")` IO 에러)도 본 variant로 매핑** — 메시지: `"gh CLI not found in PATH; install from https://cli.github.com/"`.
+- `Config(String)`: CLI 인자 / 설정 / 환경 문제. **gh CLI 미설치(`Command::new("gh")` IO 에러)도 본 variant로 매핑** — 메시지: `"gh CLI not found in PATH; install from https://cli.github.com/"`. **clap argument-parse 실패도 본 variant로 매핑** (Phase 8 post-eval). `--help` / `--version` / `DisplayHelpOnMissingArgumentOrSubcommand` 같은 Display kind 는 clap 기본 출력 (stdout, exit 0) 그대로 통과시키고, 그 외 parse 에러 (예: `--status drif` 같은 enum 미스매칭, missing-subcommand)는 clap multi-line 에러 전체를 trim 후 `message` 필드에 박는다 — JSON 한 줄 contract + `[possible values: ...]` 후보 리스트 + did-you-mean hint 모두 escape 보존. 매핑은 `crates/gitless-sync/src/main.rs::map_clap_parse_error`.
 - `AuthFailed`: `gh api` stderr substring `"Bad credentials"` 매칭 (HTTP 401). reset 가능 토큰 만료 / 잘못된 인증 / `gh auth login` 미수행.
 - `RateLimitExceeded { reset_at }`: `gh api` stderr substring `"API rate limit exceeded"` (primary) 또는 `"secondary rate limit"` (secondary) 매칭. `reset_at`은 가능하면 stderr에서 추출, 부재 시 빈 문자열 (gh가 reset 시각을 항상 stderr로 노출하지 않음 — `[unverified]`).
 - `TreesTruncated`: Trees API 응답 JSON의 `truncated: true` 필드 직접 검사. **gh subprocess는 이를 stderr로 알리지 않음** — stdout JSON 파싱 후 우리 도구가 검출 [source: https://docs.github.com/en/rest/git/trees].
@@ -207,3 +207,4 @@ GraphQL 응답 형식 (errors 동반 케이스):
 - `[AUTO]` GraphQL backend `errors[].extensions.code == "NOT_FOUND"` 응답 → 도구 exit code 1 + stderr `error_code: "HTTP_ERROR"`.
 - `[AUTO]` GraphQL backend fallthrough 코드 (`INTERNAL_SERVER_ERROR` 등) → 도구 exit code 1 + stderr `error_code: "HTTP_ERROR"` + `message`에 errors[] 원문 보존.
 - `[AUTO]` GraphQL 응답에 `data` 부분 결과 + `errors[]` 비어 있지 않음 → data 무시, errors[0] 매핑 후 통째 fail (partial errors 정책 일관).
+- `[AUTO]` clap parse 시나리오 (Phase 8 post-eval): `Cli::try_parse_from(["gitless-sync", "scan", "--status", "drif"])` → Err → `main::map_clap_parse_error` → `Some(Config(_))` + message 안에 `"drif"` substring + 5 valid 후보 (`identical` / `local_only_changed` / `remote_only_changed` / `drift` / `failed`) 모두 포함 + did-you-mean `"drift"` substring + `error_code() == "CONFIG_ERROR"` + `exit_code() == 1`. 별도로 `["gitless-sync", "--help"]` / `["gitless-sync", "--version"]` 은 `None` 반환 → caller (`main::handle_clap_parse_error`) 가 `clap::Error::print()` 를 그대로 호출 (Display kind 는 clap 이 stdout 으로 라우팅) + `ExitCode::SUCCESS`. 인자 없이 호출 (`["gitless-sync"]`) 은 clap 4.6 + Subcommand derive 기본 동작 상 `DisplayHelpOnMissingArgumentOrSubcommand` 로 떨어져 `None` 반환 → caller 가 `clap::Error::print()` 통과 (stdout 도움말 + exit 0).
