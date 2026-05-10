@@ -3,7 +3,7 @@
 ## Status
 - Phase 8 진입 (2026-05-10)
 - Tasks: 31 (Phase 8)
-- Completed: 23 / 31
+- Completed: 24 / 31
 
 ## Notes for Build Mode
 - ralph build mode는 첫 미완료 task (`[ ]`)부터 처리. 의존 순서가 본 plan에 명시 안 됐으면 acceptance + spec 본문에 잠재 의존 명시 (e.g., "X task 결과 위에서 진행").
@@ -76,7 +76,7 @@ vault scale + Trees sub-tree fallback + 큰 파일 임계치 + clean-context aud
 - [x] **U** (deps: T): F4 — `commands/diff/args.rs` 동일 (--repo / --branch / --local / --keep-bom / --json).
 - [x] **V** (deps: U): F5 — `commands/scan/args.rs` `--status`를 `Vec<StatusFilter>` enum + clap `value_enum` derive + `value_delimiter = ','`. 자동으로 --help에 [possible values] + 에러에 valid 후보 노출. spec 변경 없음 (이미 5 카테고리 spec).
 - [x] **W** (deps: V): F6 — `commands/scan/args.rs`/`commands/diff/args.rs`/`commands/init/args.rs` `--branch` clap `default_value = "main"`. README "defaults to main" 약속을 --help에도 노출.
-- [~] **X** (deps: W): unit test — F5 valid status filter parsing + invalid status 에러 메시지 valid 후보 포함 검증.
+- [x] **X** (deps: W): unit test — F5 valid status filter parsing + invalid status 에러 메시지 valid 후보 포함 검증.
 
 #### Phase 8.5 — F7 (CI README sanity) (3 task)
 
