@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.4 task Y — CHANGELOG.md `[Unreleased]` Phase 7 prep entry → `[0.3.0] - 2026-05-10` final entry로 finalize. heading rename + prep 문구 정리 + release tag prep Known limitations entry 제거 + 새 empty `[Unreleased]` heading 추가 (Keep a Changelog 표준). v0.3.0 entry는 Added (sub-tree fallback / file_too_large / memory_exceeded / size_bytes / schema v1.2 / 합성 vault generator 등 9 item) + Changed (G-002 obsolete + FailedReason enum 8→10) + Verified (Phase 7.1/7.2 unit + 7.2 unit 4 시나리오 + Schema v1.2 acceptance 7 시나리오 + Phase 7.3 vault dogfood T/U cross-comparison) + Known limitations (v0.4+ 해소 예정 2건). Phase 7.4 task 순서 swap (2026-05-10) — Y(CHANGELOG finalize) → X(tag) → Z(plan 갱신) semver release 정합 (`[Unreleased]` → `[0.3.0]` heading commit 후 그 commit 위에 v0.3.0 tag). plan 본문 task ID 보존, position만 swap. validation 1~6 모두 통과 (spec-only G-012 면제 일반화 적용 — code change 0 → coverage baseline 자동 유지).)
-- Total tasks: 86
-- Completed: 84 / 86
+- Last updated: 2026-05-10 (Phase 7.4 task X — sub-claude clean-context audit 첫 run 결과 3 finding 검출 → 자동 신규 Phase 7.5 chain depth 2 진입 (G-019 + memory `feedback_release_phase_chain.md` 정합). Finding 3건 (모두 doc-only typo/cross-ref/순서, spec semantics 변경 X): (1) CHANGELOG.md v0.3.0 Added 항목 `ResponseEntry::size` → `TreeEntry::size` (실제 struct 이름 정합), (2) guardrails.md G-019 § "ADR 0014 갱신 동반" → "ADR 0013 갱신 동반" cross-ref typo, (3) spec-hash-and-normalize.md § Phase 7 우선순위 cascade spec literal (1=case_collision, 2=nfd_collision)을 코드 dispatch 순서 (1=nfd_collision, 2=case_collision) + module doc 정합으로 swap (mutually exclusive로 실동작 영향 0). X [~]→[ ] revert + (deps: Phase 7.5 DD) 명시. chain depth 2/3, token loose (≪ 200k), wall-clock loose (≪ 6h) — G-019 cap 정합. Phase 7.5 4 task (AA/BB/CC fix + DD re-audit) 추가. Validation 1~6 본 task 통과 (spec-only G-012 면제 일반화).)
+- Total tasks: 90
+- Completed: 84 / 90
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -68,8 +68,17 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 > Task 순서 swap (2026-05-10): Y(CHANGELOG finalize) → X(tag) → Z(plan 갱신). semver release 정합 — `[Unreleased]` → `[0.3.0]` heading commit 후 그 commit 위에 v0.3.0 tag 박힘. plan 본문 task ID는 보존, position만 swap.
 
 - [x] **Y**: CHANGELOG.md v0.3.0 entry finalize — Added (sub-tree fallback / file_too_large / memory_exceeded / size_bytes / schema v1.2 / 합성 vault generator) + Changed (G-002 obsolete) + Verified (vault dogfood) + Known limitations.
-- [~] **X**: v0.3.0 release tag — `git tag v0.3.0 -m "..." && git push origin v0.3.0`. 사전 sub-claude clean-context 검증 + 0 finding CONVERGE PASS 확인.
-- [ ] **Z**: 본 plan Phase 7 task 모두 [x] mark + § 갱신 (Active → Completed Phases).
+- [ ] **X** (deps: Phase 7.5 DD): v0.3.0 release tag — `git tag v0.3.0 -m "..." && git push origin v0.3.0`. 사전 sub-claude clean-context 검증 + 0 finding CONVERGE PASS 확인. (2026-05-10 [~]→[ ] revert: 첫 audit 3 finding → Phase 7.5 chain depth 2 진입, fix + DD 0 finding 후 X 자연 진행. Tag message + main push 패턴은 v0.2.1 정합 (origin/main..v0.2.1 ancestor=0 검증).)
+- [ ] **Z** (deps: X): 본 plan Phase 7 task 모두 [x] mark + § 갱신 (Active → Completed Phases).
+
+#### Phase 7.5 — clean-context audit finding fix (4 task)
+
+> Phase 7.4 Y(CHANGELOG finalize) 직후 sub-claude clean-context audit 결과 3 finding (struct name typo + ADR cross-ref typo + spec literal swap, 모두 doc-only, spec semantics 변경 X). 자동 신규 phase chain 진입 — memory `feedback_release_phase_chain.md` (긴 자율 루프 + 0 finding 수렴까지) + G-019 정합. Chain depth 2/3, token loose (≪ 200k), wall-clock loose (≪ 6h).
+
+- [ ] **AA**: CHANGELOG.md `ResponseEntry::size` → `TreeEntry::size` typo fix (실제 struct 이름 정합). Files: CHANGELOG.md.
+- [ ] **BB** (deps: AA): guardrails.md G-019 § "cap 변경: ADR 0014 갱신 동반" → "ADR 0013 갱신 동반" cross-ref typo fix (자율 chain hard cap 결정 ADR 본은 0013, 역방향 cross-ref는 정합). Files: docs/ralph/guardrails.md.
+- [ ] **CC** (deps: BB): spec-hash-and-normalize.md § Phase 7 우선순위 cascade spec literal swap — spec 본문 (1=case_collision, 2=nfd_collision)을 코드 `short_circuit.rs::try_short_circuit_failed` dispatch 순서 (1=nfd_collision, 2=case_collision) + module doc 정합으로 swap (두 collision mutually exclusive로 실동작 영향 0, literal 정합 only). Files: docs/specs/spec-hash-and-normalize.md.
+- [ ] **DD** (deps: CC): clean-context audit re-run + 0 finding CONVERGE PASS 검증. 0 finding이면 X dep 해소 mark (X 본문 "(deps: Phase 7.5 DD)" 문구 제거). ≥1 finding이면 G-019 수렴 기준 ("동일 finding 2회 연속 + 신규 0건") 또는 cap 적용. Files: docs/ralph/implementation-plan.md.
 
 ## Pending Phases (v0.4+)
 
