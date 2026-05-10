@@ -19,6 +19,7 @@ pub(super) fn args_for(dir: &Path, path: &str) -> DiffArgs {
         local: dir.to_str().unwrap().to_string(),
         keep_bom: false,
         path: path.to_string(),
+        json: false,
     }
 }
 

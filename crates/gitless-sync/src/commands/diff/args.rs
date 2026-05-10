@@ -10,4 +10,5 @@ pub struct DiffArgs {
     pub local: String,
     pub keep_bom: bool,
     pub path: String,
+    pub json: bool,
 }
