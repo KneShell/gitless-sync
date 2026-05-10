@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.2 task O 완료 — `tests/scan_size_gate.rs` 신규 integration fixture 4 시나리오. (1) 49 MiB sparse local + matching remote sha → `Status::Identical` (SHA-equality skip → Commits API 호출 0회). (2) 51 MiB sparse local-only → `Failed` + `memory_exceeded` + `size_bytes: 53_477_376` (metadata pre-flight). (3) 101 MiB sparse local-only → `Failed` + `file_too_large` + `size_bytes: 105_906_176` (cascade priority `>` 100 MB). (4) 30 MiB sparse `cover.psd` + `*.psd filter=lfs` `.gitattributes` → `Failed` + `lfs_pointer` placeholder `{oid: "?", size: 0}` + `size_bytes` 누락 (LFS short-circuit cascade priority 6, size 게이트 priority 8 outrank). Sparse files via `File::set_len` — 시나리오 1만 49 MiB 전부 read+SHA-1, 나머지 셋은 metadata/path-pattern short-circuit으로 body alloc 0. 전체 4 test 0.61s. `tests/fixtures/large-files/` directory 생성 회피 — 100 MB+ binary commit은 repo bloat 비용 + sparse 재생성 trivially 가능 (test docstring에 결정 박제). 전체 91.35% coverage (-0.09% natural variation, lib 372 + integration 통합).)
+- Last updated: 2026-05-10 (Phase 7.2 task P 완료 — `output.rs::SCHEMA_VERSION` "1.1" → "1.2" + backward-compat lock test 6개를 `tests/scan_output_backward_compat.rs` 신규 integration test로 이전. v1.0 baseline + v1.1 baseline 두 client 모방 (V10*/V11* mock struct, `failed_reason: Option<String>`로 v1.2 신규 enum graceful) + 4 entry sample (identical / lfs_failed / file_too_large / memory_exceeded) + raw wire 검증 2 test. output.rs unit test 블록 통째 제거 — sibling test file 금지 + LOC 300 게이트 정합. 부수 cascade — `scan_gitattributes.rs` / `scan_modes.rs` / `scan_trees_fallback.rs`의 `schema_version` assertion "1.1" → "1.2" 일괄 동기화. 전체 91.35% coverage (변동 0, baseline 유지).)
 - Total tasks: 86
-- Completed: 75 / 86
+- Completed: 76 / 86
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -51,7 +51,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 - [x] **M**: `shared/github/blobs.rs::fetch_blob_with_size_gate` 신규 — Trees response size field pre-flight + 임계치 분기. spec-hash-and-normalize.md § fetch_blob_with_size_gate 정합.
 - [x] **N**: `commands/scan/hash_remote.rs` update — Trees entry size field 전달 (caller plumbing). pre-flight skip 시 fetch_blob 호출 0회 검증.
 - [x] **O**: unit test 4 시나리오 — 49MB local (정상 hash) + 51MB local (memory_exceeded) + 101MB local (file_too_large) + 30MB LFS pointer (LFS 우선순위). fixture file `tests/fixtures/large-files/`.
-- [~] **P**: `output.rs::SCHEMA_VERSION` "1.1" → "1.2" + lock test 갱신 (v1.0/v1.1 backward-compat 검증). spec-output-schema.md § v1.2 신규 Acceptance Criteria 정합.
+- [x] **P**: `output.rs::SCHEMA_VERSION` "1.1" → "1.2" + lock test 갱신 (v1.0/v1.1 backward-compat 검증). spec-output-schema.md § v1.2 신규 Acceptance Criteria 정합.
 - [ ] **Q**: spec-output-schema.md § v1.2 신규 Acceptance Criteria 7 시나리오 unit test (`output.rs::tests`). schema_version "1.2" + size_bytes field 정확 직렬화 + omit 검증.
 - [ ] **R**: CHANGELOG.md `[Unreleased]` → v0.3.0 prep entry — schema v1.2 + 2 reason + size_bytes field 포함 prep section.
 
