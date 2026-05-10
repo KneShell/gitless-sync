@@ -160,8 +160,8 @@ GitHub Trees API가 반환하는 blob SHA는 working tree 바이트의 해시이
 
 `pipeline::try_short_circuit_failed` cascade에서 다음 순서 적용 (앞 reason이 win):
 
-1. `case_collision` (기존)
-2. `nfd_collision` (기존)
+1. `nfd_collision` (기존)
+2. `case_collision` (기존)
 3. `long_path` (기존)
 4. `submodule` (기존)
 5. `symlink` (기존)
