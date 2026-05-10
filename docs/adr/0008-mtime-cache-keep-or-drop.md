@@ -64,9 +64,38 @@ ADR 0009 (internal cache read-only 예외)는 본 ADR로 **obsolete** 마크. ca
 - § Current State에 ADR 0007 + ADR 0008 결정 박스 추가.
 - § Critical Rules § 도구 본성에서 "Internal cache는 예외" 한 줄 제거 (ADR 0009 obsolete cascade).
 
+## Phase 7.3 재검토 (2026-05-10, vault scale)
+
+§ Consequences § Phase 5 영향에서 예고한 1000+ path scale 재검토를 Phase 7.3 task V에서 수행. 결론 — **keep-drop 유지** (cache 재도입 안 함).
+
+### Raw data 비교
+
+| 측정 | path scale | mean walltime | hash phase 측정 | 비고 |
+|---|---:|---:|---|---|
+| P6c (`docs/research/phase4-measurements.md`) | 50 | 1324.8 ms (cold N=3) | ~50 ms (전체 ~3-4%) | 단발 hash 시간 명시 |
+| T (`docs/research/phase7-vault-scale-bench.md`) | 1000 | 829 ms (mean N=3) | (instrumentation 부재) | 전체 walltime만 |
+| U (동 file § public repo cross-check) | 1000 + 4964 remote | 1109 ms (single run) | (동) | 동 |
+
+### 분석
+
+- **path scale 20× 증가 (50 → 1000)에도 walltime은 오히려 작거나 비슷** (1324.8 ms → 829 ms / 1109 ms). hash 비중이 path 수에 linear 폭증한다면 walltime도 동반 폭증해야 하나 신호 없음. rayon 8c 병렬 (ADR 0003) + 작은 remote (T: 129 entries) 영향이 hash 부담을 흡수했다고 추정 가능.
+- **단** T 측정은 hash phase 별도 instrumentation 부재 (`phase7-vault-scale-bench.md` § Caveats § "Internal instrumentation 부재" 명시) — hash 비중 정량화 불가. 즉 P6c 3-4%가 1000 scale에서 정확히 몇 %로 변했는지는 verify 안 됨.
+- **keep-drop trigger 임계는 § Decision의 "speedup ≥ 2x"** — 본 재검토 시점 측정 데이터로는 cache 도입 시 speedup 추정조차 불가. 임계 미달 신호도, 임계 도달 신호도 없음 → yagni 일관 적용.
+
+### 결정
+
+**keep-drop 유지** + § 7-2 task V acceptance "측정 결과 surface 안 하면 task skip 표시" 트리거 충족 (hash phase instrumentation 부재). 재도입 정당성 surface 시점은 별도 instrumentation work + measurement task 도입 시점 — Phase 7 scope 외 (yagni).
+
+향후 재검토 trigger:
+- (a) hash phase 별도 instrumentation 도입 후 측정 결과 hash 비중 ≥ 30% surface,
+- (b) 또는 cache 도입 시 measured speedup ≥ 2x 직접 surface.
+
+둘 중 하나 surface까지 본 ADR 0008 keep-drop 결정 유효.
+
 ## References
 
 - `docs/research/phase4-measurements.md` § P6c (raw data + 분석 + 임계값 매핑)
+- `docs/research/phase7-vault-scale-bench.md` § scan walltime + § public repo cross-check (Phase 7.3 vault scale 측정, T+U raw data)
 - `docs/adr/0009-internal-cache-readonly-exception.md` (본 ADR로 obsolete).
 - `docs/specs/spec-config.md` § Cache (Phase 4) (제거 대상).
 - `crates/gitless-sync/src/shared/cache.rs` (제거 대상).

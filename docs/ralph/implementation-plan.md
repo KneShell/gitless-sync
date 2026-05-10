@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.3 task U 완료 — public repo cross-check sanity (manual) `git/git@94f057755b7941b321fd11fec1b2e3ca5313a4e0` (default_branch master, raw Trees recursive=1 4964 entries / `truncated=false`). 합성 vault `tmp/synth-vault-42` 재사용 + 1회 scan 1.109 s (T 0.829 s mean 대비 +0.28 s, ~38× remote entry 증가 대비 sub-linear). summary 1000 local_only / 4736 remote_only / 0 identical / 0 drift / 4 failed (3 symlink + 1 submodule, git/git remote-side originated) + exit 4 PARTIAL_FAILURE 정상 + raw 4964 → processed 4740 gap 224는 `type:"tree"` directory placeholder silent drop 정합. linux/torvalds (~5K dirs)는 sub-tree fallback budget 1000 cap 위반 보장으로 spec § "동등 1000+ entry repo"의 medium repo (git/git) 선정 근거 박제. 결과 `docs/research/phase7-vault-scale-bench.md § Public repo cross-check (git/git, sanity)` 추가. validation 1~6 모두 통과 (fmt/clippy/xtask line+cycles/machete/test 67 passed) + step 7 tarpaulin은 G-012 일반화 적용 (production code 0건 변경, line coverage 91.40% baseline 유지 자동 통과).)
+- Last updated: 2026-05-10 (Phase 7.3 task V skipped — mtime cache 재도입 트리거 재검토. T/U raw bench data가 walltime 전체만 측정 (hash phase 별도 instrumentation 부재, `phase7-vault-scale-bench.md` § Caveats § "Internal instrumentation 부재" 명시) → task acceptance "측정 결과 surface 안 하면 task skip 표시" 트리거 충족. ADR 0008 § Phase 7.3 재검토 추가 — P6c 50 path scale 1324.8 ms (cold N=3, hash ~50 ms = 3-4%) vs T 1000 path mean 829 ms / U 1000 path 1109 ms 비교: path scale 20× 증가에도 walltime 오히려 작거나 비슷 (rayon 8c + 작은 remote 흡수 추정), hash 비중 폭증 신호 없음. keep-drop 유지 박제 + 향후 재검토 trigger 2건 명시 (hash phase instrumentation 도입 후 hash 비중 ≥ 30% surface 또는 cache speedup ≥ 2x 직접 surface). validation 1~6 모두 통과 (spec-only G-012 면제로 step 7 tarpaulin baseline 유지 자동 통과).)
 - Total tasks: 86
-- Completed: 81 / 86
+- Completed: 82 / 86
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -60,7 +60,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 - [x] **S**: `xtask/src/synth_vault.rs` 신규 sub-command — seed/UTF-8 NFC/LF/mtime epoch/markdown 1000+ 정책 정합. spec-domain-pitfalls.md § Phase 7 — 합성 vault generator 정합. unit test (generate 후 NFC/LF/mtime 검증).
 - [x] **T**: 합성 vault generate + scan 측정 — `cargo xtask synth-vault --out tmp/synth-vault-42` + `cargo run -- scan --local tmp/synth-vault-42 --repo {public-test-repo}` 실행. 결과 raw data `docs/research/phase7-vault-scale-bench.md` 신규.
 - [x] **U**: public repo cross-check sanity (manual) — linux/torvalds 또는 동등 1000+ entry repo. commit sha 박제. 결과 phase7-vault-scale-bench.md § public 추가.
-- [~] **V**: mtime cache 재도입 트리거 검토 (ADR 0008 § Future work) — 1000+ scale 측정 결과 hash 비중 ↑ 시 cache 재도입 정당성 검토. 결과 ADR (cache 재도입 OR keep-drop confirmed). 측정 결과 surface 안 하면 task skip 표시.
+- [x] **V** (skipped: vault scale instrumentation 부재): mtime cache 재도입 트리거 검토 (ADR 0008 § Future work) — 1000+ scale 측정 결과 hash 비중 ↑ 시 cache 재도입 정당성 검토. 결과 ADR (cache 재도입 OR keep-drop confirmed). T/U raw bench data가 walltime 전체만 측정 (hash phase 별도 instrumentation 부재) → "측정 결과 surface 안 하면 task skip 표시" 트리거 충족. ADR 0008 § Phase 7.3 재검토 추가 (path scale 20× 증가에도 walltime 1324.8 ms → 829/1109 ms로 hash 비중 폭증 신호 없음 보강) + keep-drop 유지 박제. 측정 결과 surface 임계는 별도 instrumentation task 도입 시점 — Phase 7 scope 외 (yagni 일관).
 - [ ] **W**: Phase 7 종합 measurements `docs/research/phase7-vault-scale-bench.md` 완성 + CHANGELOG.md v0.3.0 entry vault dogfood 결과 추가.
 
 #### Phase 7.4 — release tag (3 task)
