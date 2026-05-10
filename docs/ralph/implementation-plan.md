@@ -48,7 +48,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 - [x] **J**: `compare.rs::FileEntry` struct에 `size_bytes: Option<u64>` field 추가 — `#[serde(skip_serializing_if = "Option::is_none")]`. spec-output-schema.md § v1.2 정합.
 - [x] **K**: `commands/scan/hash_local.rs::try_hash_local` size pre-flight 추가 — `fs::metadata().len()` 측정 + 100MB/50MB 분기. spec-hash-and-normalize.md § 검출 알고리즘 정합.
 - [x] **L**: `commands/scan/pipeline/short_circuit.rs::try_short_circuit_failed` cascade에 `file_too_large` + `memory_exceeded` 분기 추가 (LFS 다음 우선순위). spec-hash-and-normalize.md § 우선순위 정합.
-- [ ] **M**: `shared/github/blobs.rs::fetch_blob_with_size_gate` 신규 — Trees response size field pre-flight + 임계치 분기. spec-hash-and-normalize.md § fetch_blob_with_size_gate 정합.
+- [~] **M**: `shared/github/blobs.rs::fetch_blob_with_size_gate` 신규 — Trees response size field pre-flight + 임계치 분기. spec-hash-and-normalize.md § fetch_blob_with_size_gate 정합.
 - [ ] **N**: `commands/scan/hash_remote.rs` update — Trees entry size field 전달 (caller plumbing). pre-flight skip 시 fetch_blob 호출 0회 검증.
 - [ ] **O**: unit test 4 시나리오 — 49MB local (정상 hash) + 51MB local (memory_exceeded) + 101MB local (file_too_large) + 30MB LFS pointer (LFS 우선순위). fixture file `tests/fixtures/large-files/`.
 - [ ] **P**: `output.rs::SCHEMA_VERSION` "1.1" → "1.2" + lock test 갱신 (v1.0/v1.1 backward-compat 검증). spec-output-schema.md § v1.2 신규 Acceptance Criteria 정합.
