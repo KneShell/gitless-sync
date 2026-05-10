@@ -93,3 +93,29 @@ pub(super) fn stub_commits(
 ) {
     mock.stub(commits_args(repo, branch, path), ok_resp(body.as_bytes()));
 }
+
+/// Stub the sub-tree fallback chain (`refs/heads/{branch}` →
+/// `commits/c0` → `trees/root_tree`) so a truncated `recursive=1`
+/// response routed through `fetch_tree_with_fallback` keeps surfacing
+/// `GitlessError::TreesTruncated` (root sub-tree body itself
+/// `truncated:true`). G-002 no-partial-result inside the fallback.
+pub(super) fn stub_truncated_fallback_chain(mock: &mut MockGhClient, repo: &str, branch: &str) {
+    mock.stub(
+        vec![
+            "api".to_string(),
+            format!("repos/{repo}/git/refs/heads/{branch}"),
+        ],
+        ok_resp(br#"{"object":{"sha":"c0"}}"#),
+    );
+    mock.stub(
+        vec!["api".to_string(), format!("repos/{repo}/git/commits/c0")],
+        ok_resp(br#"{"tree":{"sha":"root_tree"}}"#),
+    );
+    mock.stub(
+        vec![
+            "api".to_string(),
+            format!("repos/{repo}/git/trees/root_tree"),
+        ],
+        ok_resp(br#"{"sha":"root_tree","tree":[],"truncated":true}"#),
+    );
+}

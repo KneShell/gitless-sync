@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.1 task D 완료 — fetch_subtree_recursive 재귀 알고리즘 + Descent struct + 2 cap early-abort, LOC 게이트 위해 fallback.rs를 fallback/{mod,recursive}.rs 폴더로 분할)
+- Last updated: 2026-05-10 (Phase 7.1 task E 완료 — fetch_tree_with_fallback entry point + caller wiring (scan + diff) + scenario_12 fallback chain stub + dead_code 4건 제거)
 - Total tasks: 86
-- Completed: 64 / 86
+- Completed: 65 / 86
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -37,7 +37,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 - [x] **B**: `shared/github/trees/fallback.rs` 신규 module — `Budget` struct + 2 cap 상수 (`MAX_TREE_CALL_BUDGET = 1000` + `MAX_TREE_ENTRIES = 500_000`). spec-github-api.md § Trees truncation handling § 한도 상수 정합.
 - [x] **C**: `shared/github/trees/fallback.rs::resolve_root_tree_sha` — ref → commit sha → root tree sha 1회 resolve. 2회 gh api 호출 (`refs/heads/{branch}` + `commits/{commit_sha}`). unit test mock fixture.
 - [x] **D**: `shared/github/trees/fallback.rs::fetch_subtree_recursive` — sub-tree non-recursive 재귀 알고리즘. 2 cap check + early-abort. spec-github-api.md § sub-tree 재귀 알고리즘 정합.
-- [~] **E**: `shared/github/trees/mod.rs::fetch_tree_with_fallback` — 1차 truncated 검출 → fallback 진입 entry point. 정상 path는 v0.2.x 동작 유지.
+- [x] **E**: `shared/github/trees/mod.rs::fetch_tree_with_fallback` — 1차 truncated 검출 → fallback 진입 entry point. 정상 path는 v0.2.x 동작 유지.
 - [ ] **F**: unit test 2 시나리오 — call budget 1001 (mock fixture 1001번째 호출 trigger) + entries 500_001 (누적 cap trigger). 둘 다 `GitlessError::TreesTruncated` 검증.
 - [ ] **G**: integration test — 합성 truncated mock fixture (Trees response `truncated:true` → fallback 진입 → sub-tree 정상 응답 → 합산 entries 반환). `tests/scan_trees_fallback.rs` 신규.
 - [ ] **H**: G-002 본문 update + spec-github-api.md § Trees truncation handling cross-ref 정합 자체 검증. doc-only.

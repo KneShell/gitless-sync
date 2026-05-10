@@ -77,6 +77,14 @@ fn scenario_11_secondary_rate_limit_maps_to_same_variant_and_exit_code() {
 }
 
 // ---- PRD 시나리오 12: trees truncated → TreesTruncated (exit 5) ------------
+//
+// Phase 7 task E: caller now routes through `fetch_tree_with_fallback`, so a
+// truncated `recursive=1` response no longer fails immediately — it triggers
+// the sub-tree fallback descent. To preserve the scenario's exit-5 contract
+// the fallback also has to terminate in `TreesTruncated`. We stub the resolve
+// chain (ref → commit → root tree) and make the root sub-tree response itself
+// `truncated: true`, which `parse_tree_body` propagates as `TreesTruncated`
+// (G-002 no-partial-result policy applies inside the fallback as well).
 
 #[test]
 fn scenario_12_trees_truncated_when_response_flag_set() {
@@ -85,6 +93,24 @@ fn scenario_12_trees_truncated_when_response_flag_set() {
     mock.stub(
         tree_args("o/r", "main"),
         ok_resp(br#"{"sha":"x","tree":[],"truncated":true}"#),
+    );
+    mock.stub(
+        vec![
+            "api".to_string(),
+            "repos/o/r/git/refs/heads/main".to_string(),
+        ],
+        ok_resp(br#"{"object":{"sha":"c0"}}"#),
+    );
+    mock.stub(
+        vec!["api".to_string(), "repos/o/r/git/commits/c0".to_string()],
+        ok_resp(br#"{"tree":{"sha":"root_tree"}}"#),
+    );
+    mock.stub(
+        vec![
+            "api".to_string(),
+            "repos/o/r/git/trees/root_tree".to_string(),
+        ],
+        ok_resp(br#"{"sha":"root_tree","tree":[],"truncated":true}"#),
     );
 
     let args = args_for(dir.path(), "o/r");

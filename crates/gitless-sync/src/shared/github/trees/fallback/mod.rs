@@ -7,13 +7,10 @@
 //! and the [`Budget`] counter live here because the recursion reads /
 //! writes them through `super::`. The two-step
 //! [`resolve_root_tree_sha`] (`ref` → commit → root tree) also lives
-//! here — task E wires it together with the recursive descent into
+//! here — task E wired it together with the recursive descent into
 //! `super::fetch_tree_with_fallback`.
-//!
-//! `resolve_root_tree_sha` keeps `allow(dead_code)` until task E plugs
-//! it into the parent entry point.
 
-mod recursive;
+pub(super) mod recursive;
 
 use serde::Deserialize;
 
@@ -42,7 +39,6 @@ pub(super) struct Budget {
 }
 
 impl Budget {
-    #[allow(dead_code)]
     pub(super) const fn new() -> Self {
         Self { calls_used: 0 }
     }
@@ -86,7 +82,6 @@ struct CommitTree {
 ///   delegated to [`map_gh_error`]).
 /// - [`GitlessError::Http`] for JSON decode failures, prefixed
 ///   `"decode refs response:"` or `"decode commits response:"`.
-#[allow(dead_code)]
 pub(super) fn resolve_root_tree_sha(
     client: &impl GhClient,
     repo: &str,

@@ -41,7 +41,7 @@ pub(crate) fn compute_diff<C: GhClient>(
 
     let key = args.path.replace('\\', "/");
 
-    let tree = github::fetch_tree(client, &repo, branch)?;
+    let tree = github::fetch_tree_with_fallback(client, &repo, branch)?;
     let remote_entry = tree.iter().find(|e| e.path == key);
 
     let local_abs = local_root.join(&args.path);

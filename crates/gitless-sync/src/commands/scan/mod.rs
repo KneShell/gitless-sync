@@ -89,7 +89,7 @@ pub fn build_report<C: GhClient + Sync>(
         eprintln!("info: scanning {} against {repo}@{branch}", args.local);
     }
 
-    let remote_files = github::fetch_tree(client, &repo, &branch)?;
+    let remote_files = github::fetch_tree_with_fallback(client, &repo, &branch)?;
     let local_files = walker::walk(local_root, &matcher)?;
     let gitattr = Arc::new(GitAttributes::load(local_root)?);
 
@@ -140,7 +140,9 @@ pub fn build_report<C: GhClient + Sync>(
 
 #[cfg(test)]
 mod tests {
-    use super::test_helpers::{args_for, err_resp, stub_tree, tree_args};
+    use super::test_helpers::{
+        args_for, err_resp, stub_tree, stub_truncated_fallback_chain, tree_args,
+    };
     use super::*;
     use crate::shared::gh::MockGhClient;
     use std::fs;
@@ -221,6 +223,7 @@ mod tests {
 
     #[test]
     fn build_report_propagates_truncated_error() {
+        // Phase 7 task E: caller routes through `fetch_tree_with_fallback`.
         let dir = TempDir::new().unwrap();
         let mut mock = MockGhClient::new();
         stub_tree(
@@ -229,6 +232,7 @@ mod tests {
             "main",
             r#"{"sha":"x","tree":[],"truncated":true}"#,
         );
+        stub_truncated_fallback_chain(&mut mock, "o/r", "main");
 
         let args = args_for(dir.path(), Some("o/r"));
         let err = build_report(&args, &mock).unwrap_err();
@@ -287,6 +291,7 @@ mod tests {
             "main",
             r#"{"sha":"x","tree":[],"truncated":true}"#,
         );
+        stub_truncated_fallback_chain(&mut mock, "o/r", "main");
         let args = args_for(dir.path(), Some("o/r"));
         let err = run_with_client(&args, &mock).unwrap_err();
         assert!(matches!(err, GitlessError::TreesTruncated));
