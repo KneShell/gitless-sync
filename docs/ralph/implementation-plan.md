@@ -53,7 +53,7 @@ vault scale + Trees sub-tree fallback + 큰 파일 임계치 + clean-context aud
 #### Phase 8.2 — F1 (diff_meaningful) + F2 (presence) (8 task)
 
 - [x] **F**: `compare.rs::FileEntry` struct에 2 field 추가 — `diff_meaningful: Option<bool>` + `presence: Presence` (`#[derive(Serialize)]` + `#[serde(rename_all = "snake_case")]` enum). spec-output-schema.md § v1.3 정합.
-- [ ] **G** (deps: F): `Presence` enum 정의 — `LocalOnly` / `Both` / `RemoteOnly`. compare.rs.
+- [~] **G** (deps: F): `Presence` enum 정의 — `LocalOnly` / `Both` / `RemoteOnly`. compare.rs.
 - [ ] **H** (deps: G): `compare.rs::compare` 함수 — local/remote 존재 여부로 presence 결정 + Hashed entry는 sha 비교 + normalize-equal 검증으로 diff_meaningful 계산 (sha differ but normalize-equal → false, sha differ AND normalize-diff → true, identical → false). Failed/local-or-remote-only entry는 None.
 - [ ] **I** (deps: H): `commands/scan/pipeline/finalize.rs` (또는 동등) — entry assemble 시점에 presence + diff_meaningful 채움. spec-hash-and-normalize.md § normalize 정합 검증 재사용.
 - [ ] **J** (deps: I): unit test 6 시나리오 — Identical (presence=both, diff_meaningful=Some(false)), LocalOnlyChanged-both (presence=both, diff_meaningful=Some(true) or Some(false)), LocalOnly (presence=local_only, diff_meaningful=None), RemoteOnly (presence=remote_only, diff_meaningful=None), Drift (presence=both, diff_meaningful=Some(true)), Failed (presence=both, diff_meaningful=None).
