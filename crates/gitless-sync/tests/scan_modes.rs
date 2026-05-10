@@ -145,7 +145,7 @@ fn trees_mode_combo_summary_counts_match_v1_1_classification() {
     // that flips a single mode also surfaces here.
     let (_dir, json) = scan_all_modes();
 
-    assert_eq!(json["schema_version"], "1.2");
+    assert_eq!(json["schema_version"], "1.3");
     assert_eq!(json["summary"]["identical"], 1);
     assert_eq!(json["summary"]["local_only_changed"], 0);
     assert_eq!(json["summary"]["remote_only_changed"], 0);
