@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.1 task F 완료 — call budget 1001 / entries 500_001 cap-trip unit tests + recursive 모듈 분할 (mod/walk/iter) for LOC gate + run_descent test harness)
+- Last updated: 2026-05-10 (Phase 7.1 task G 완료 — `tests/scan_trees_fallback.rs` integration fixture: truncated→fallback 4-blob multi-layer descent → ScanReport summary + forward-slash depth-2 path 검증)
 - Total tasks: 86
-- Completed: 66 / 86
+- Completed: 67 / 86
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -39,7 +39,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 - [x] **D**: `shared/github/trees/fallback.rs::fetch_subtree_recursive` — sub-tree non-recursive 재귀 알고리즘. 2 cap check + early-abort. spec-github-api.md § sub-tree 재귀 알고리즘 정합.
 - [x] **E**: `shared/github/trees/mod.rs::fetch_tree_with_fallback` — 1차 truncated 검출 → fallback 진입 entry point. 정상 path는 v0.2.x 동작 유지.
 - [x] **F**: unit test 2 시나리오 — call budget 1001 (mock fixture 1001번째 호출 trigger) + entries 500_001 (누적 cap trigger). 둘 다 `GitlessError::TreesTruncated` 검증.
-- [~] **G**: integration test — 합성 truncated mock fixture (Trees response `truncated:true` → fallback 진입 → sub-tree 정상 응답 → 합산 entries 반환). `tests/scan_trees_fallback.rs` 신규.
+- [x] **G**: integration test — 합성 truncated mock fixture (Trees response `truncated:true` → fallback 진입 → sub-tree 정상 응답 → 합산 entries 반환). `tests/scan_trees_fallback.rs` 신규.
 - [ ] **H**: G-002 본문 update + spec-github-api.md § Trees truncation handling cross-ref 정합 자체 검증. doc-only.
 
 #### Phase 7.2 — 큰 파일 임계치 (file_too_large + memory_exceeded) (10 task)
