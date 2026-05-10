@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.7 task II — 8 stale `*.rs` ref 일괄 fix across 4 spec files: spec-error-contracts.md (1 row, `pipeline/hash_pass::build_one_pre_entry`), spec-hash-and-normalize.md (5 hits → `pipeline/short_circuit`/`pipeline::assemble_entries`/`pipeline/hash_pass::build_pre_entries`/`shared/gitattributes/` ×2), spec-domain-pitfalls.md (`shared/gitattributes/`), spec-classification.md (`shared/github/trees/classify.rs::to_nfc`). Phase 5.13.1 module-folder split aftermath stale path 일괄 정정. doc-only, spec semantics 변경 0. JJ에서 deterministic grep 0 hit 검증 → CONVERGE PASS → X tag.)
+- Last updated: 2026-05-10 (Phase 7.7 task JJ — deterministic grep 검증 4종 (main `\b(pipeline|gitattributes|github/trees)\.rs` + `pipeline.rs` 단독 + `gitattributes.rs` 단독 + `trees.rs` 단독) 모두 0 hit. CONVERGE PASS 확정 — G-019 수렴 기준 ("동일 finding 2회 연속 + 신규 0건") 충족, chain depth 3/3 cap 도달 직전 deterministic grep으로 cycle 차단 성공. X(v0.3.0 release tag) dep 해소 — X 본문 "(deps: Phase 7.7 JJ)" 제거. doc-only, spec semantics 변경 0.)
 - Total tasks: 96
-- Completed: 93 / 96
+- Completed: 94 / 96
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -68,7 +68,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 > Task 순서 swap (2026-05-10): Y(CHANGELOG finalize) → X(tag) → Z(plan 갱신). semver release 정합 — `[Unreleased]` → `[0.3.0]` heading commit 후 그 commit 위에 v0.3.0 tag 박힘. plan 본문 task ID는 보존, position만 swap.
 
 - [x] **Y**: CHANGELOG.md v0.3.0 entry finalize — Added (sub-tree fallback / file_too_large / memory_exceeded / size_bytes / schema v1.2 / 합성 vault generator) + Changed (G-002 obsolete) + Verified (vault dogfood) + Known limitations.
-- [ ] **X** (deps: Phase 7.7 JJ): v0.3.0 release tag — `git tag v0.3.0 -m "..." && git push origin v0.3.0`. 사전 deterministic grep 검증 + 0 stale ref CONVERGE PASS 확인. (2026-05-10 [~]→[ ] revert: 첫 audit 3 finding → Phase 7.5 chain depth 2 진입, fix + DD audit 결과 3 신규 finding → Phase 7.6 chain depth 3 진입, fix + HH audit 결과 grep cross-check로 8 stale ref surface → Phase 7.7 chain depth 3/3 deterministic grep 검증으로 전환. JJ CONVERGE PASS 후 X 자연 진행. Tag message + main push 패턴은 v0.2.1 정합 (origin/main..v0.2.1 ancestor=0 검증).)
+- [ ] **X**: v0.3.0 release tag — `git tag v0.3.0 -m "..." && git push origin v0.3.0`. 사전 deterministic grep 검증 + 0 stale ref CONVERGE PASS 확인 (Phase 7.7 JJ 완료 — 2026-05-10). (2026-05-10 [~]→[ ] revert: 첫 audit 3 finding → Phase 7.5 chain depth 2 진입, fix + DD audit 결과 3 신규 finding → Phase 7.6 chain depth 3 진입, fix + HH audit 결과 grep cross-check로 8 stale ref surface → Phase 7.7 chain depth 3/3 deterministic grep 검증으로 전환. JJ CONVERGE PASS 후 X 자연 진행. Tag message + main push 패턴은 v0.2.1 정합 (origin/main..v0.2.1 ancestor=0 검증).)
 - [ ] **Z** (deps: X): 본 plan Phase 7 task 모두 [x] mark + § 갱신 (Active → Completed Phases).
 
 #### Phase 7.5 — clean-context audit finding fix (4 task)
@@ -105,7 +105,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
   - spec-hash-and-normalize.md:90 `shared/gitattributes.rs` 구현 → `shared/gitattributes/` 구현
   - spec-classification.md:10 `shared/github/trees.rs` (line 63/75/87, remote 3 mode) → `shared/github/trees/classify.rs::to_nfc` (line range drop)
   - Files: docs/specs/spec-error-contracts.md, docs/specs/spec-hash-and-normalize.md, docs/specs/spec-domain-pitfalls.md, docs/specs/spec-classification.md.
-- [~] **JJ** (deps: II): deterministic grep 검증 — `grep -rn '\b(pipeline|gitattributes|github/trees)\.rs' docs/specs/` 결과 0 hit이면 CONVERGE PASS mark (X dep 해소 — X 본문 "(deps: Phase 7.7 JJ)" 문구 제거 + Phase 7 task 모두 [x] mark + § 갱신 Active → Completed Phases). ≥1 hit이면 II 재실행 필요 — grep output을 본 task 결과 noting + escape hatch BLOCK ([!]) + 사용자 wake-up surface (chain depth 3/3 cap 도달, G-019 escape hatch). Files: docs/ralph/implementation-plan.md.
+- [x] **JJ** (deps: II): deterministic grep 검증 — `grep -rn '\b(pipeline|gitattributes|github/trees)\.rs' docs/specs/` 결과 0 hit이면 CONVERGE PASS mark (X dep 해소 — X 본문 "(deps: Phase 7.7 JJ)" 문구 제거 + Phase 7 task 모두 [x] mark + § 갱신 Active → Completed Phases). ≥1 hit이면 II 재실행 필요 — grep output을 본 task 결과 noting + escape hatch BLOCK ([!]) + 사용자 wake-up surface (chain depth 3/3 cap 도달, G-019 escape hatch). Files: docs/ralph/implementation-plan.md. **결과**: deterministic grep 4종 (main pattern + `pipeline.rs`/`gitattributes.rs`/`trees.rs` 단독) 모두 0 hit. CONVERGE PASS 확정 — G-019 수렴 기준 충족. X dep 해소 (X 본문 "(deps: Phase 7.7 JJ)" 제거). Z (Phase 7 task 모두 [x] mark + § Active → Completed Phases 이동)는 별도 task scope 유지 (X 완료 후 진행).
 
 ## Pending Phases (v0.4+)
 
