@@ -61,6 +61,9 @@ jobs:
       - name: cargo test --workspace
         run: cargo test --workspace
 
+      - name: cargo xtask check-readme-examples
+        run: cargo xtask check-readme-examples
+
       - name: cargo tarpaulin (--fail-under 80)
         run: cargo tarpaulin --engine llvm --workspace --out Stdout --fail-under 80
 
