@@ -6,6 +6,7 @@ use clap::{ArgAction, Parser, Subcommand};
 
 use gitless_sync::commands;
 use gitless_sync::commands::scan::Backend;
+use gitless_sync::commands::scan::args::{StatusFilter, collect_status_filter};
 use gitless_sync::shared::gh::RealGhClient;
 
 #[derive(Parser, Debug)]
@@ -58,8 +59,8 @@ enum Commands {
         summary_only: bool,
 
         /// Comma-separated status filter (e.g. `drift,local_only_changed`).
-        #[arg(long)]
-        status: Option<String>,
+        #[arg(long, value_enum, value_delimiter = ',')]
+        status: Vec<StatusFilter>,
     },
     Diff {
         /// Relative path (forward slash) of the file to diff.
@@ -93,7 +94,7 @@ fn main() -> ExitCode {
                 keep_bom: cli.keep_bom,
                 pretty: cli.pretty,
                 summary_only,
-                status,
+                status: collect_status_filter(status),
                 backend: cli.backend,
                 verbose: cli.verbose,
             };

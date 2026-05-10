@@ -13,9 +13,10 @@ pub mod long_path;
 pub mod nfd_collision;
 pub mod output;
 pub mod pipeline;
-pub mod status_filter;
 pub mod walker;
 
+#[cfg(test)]
+mod status_filter;
 #[cfg(test)]
 mod test_helpers;
 
@@ -27,7 +28,6 @@ use chrono::Utc;
 pub use self::args::{Backend, ScanArgs};
 use self::output::{SCHEMA_VERSION, ScanReport};
 use self::pipeline::{GitHubContext, assemble_entries};
-use self::status_filter::parse_status_filter;
 use crate::shared::config;
 use crate::shared::error::GitlessError;
 use crate::shared::gh::GhClient;
@@ -115,8 +115,8 @@ pub fn build_report<C: GhClient + Sync>(
     let (mut entries, summary, failed_count) =
         assemble_entries(&local_files, &remote_files, &ctx, args.keep_bom, &gitattr)?;
 
-    if let Some(filter) = parse_status_filter(args.status.as_deref())? {
-        entries.retain(|e| filter.contains(&e.status));
+    if let Some(filter) = &args.status {
+        entries.retain(|e| filter.iter().any(|&f| args::to_status(f) == e.status));
     }
 
     let files = if args.summary_only {
