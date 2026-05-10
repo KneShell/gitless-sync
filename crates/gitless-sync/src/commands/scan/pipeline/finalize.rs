@@ -61,6 +61,7 @@ fn pre_entry_to_file(
             local_mtime,
             failed_reason,
             is_binary,
+            size_bytes,
         } => {
             summary.failed += 1;
             *failed_count += 1;
@@ -75,7 +76,7 @@ fn pre_entry_to_file(
                 mode,
                 lfs_pointer: lfs::placeholder_pointer_for(failed_reason),
                 failed_reason,
-                size_bytes: None,
+                size_bytes,
             }
         }
         PreState::Hashed {
@@ -143,6 +144,7 @@ mod tests {
                 local_mtime: Some(mtime(1_700_000_000)),
                 failed_reason: reason,
                 is_binary: false,
+                size_bytes: None,
             },
         }
     }
@@ -238,6 +240,7 @@ mod tests {
                 local_mtime: Some(mtime(1_700_000_000)),
                 failed_reason: Some(FailedReason::Encoding),
                 is_binary: true,
+                size_bytes: None,
             },
         };
         let mut summary = Summary::default();
