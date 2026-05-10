@@ -10,8 +10,11 @@ use crate::shared::error::GitlessError;
 /// Arguments parsed from the `init` subcommand.
 #[derive(Debug)]
 pub struct InitArgs {
+    /// `GitHub` repository (`owner/name`). Required — empty value returns `GitlessError::Config`.
     pub repo: String,
+    /// Branch name to emit. `None` omits the field; `scan` falls back to `main` later.
     pub branch: Option<String>,
+    /// Ignore patterns (`gitignore` syntax). Empty vector omits the field.
     pub ignore: Vec<String>,
 }
 
