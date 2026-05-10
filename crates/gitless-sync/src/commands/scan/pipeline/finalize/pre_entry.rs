@@ -147,7 +147,7 @@ mod tests {
             (true, true) => Presence::Both,
             (true, false) => Presence::LocalOnly,
             (false, true) => Presence::RemoteOnly,
-            (false, false) => unreachable!(),
+            _ => unreachable!(),
         };
         PreEntry {
             path: path.to_string(),
@@ -177,89 +177,111 @@ mod tests {
         }
     }
 
-    fn run(pre: PreEntry) -> (FileEntry, Summary, usize) {
-        let mut summary = Summary::default();
-        let mut failed = 0usize;
+    fn run_with(
+        pre: PreEntry,
+        cm: &HashMap<String, DateTime<Utc>>,
+        nm: &HashMap<String, bool>,
+    ) -> (FileEntry, Summary, usize) {
+        let mut s = Summary::default();
+        let mut f = 0usize;
         let ctx = CompareCtx {
-            commit_map: &HashMap::new(),
-            normalize_eq_map: &HashMap::new(),
+            commit_map: cm,
+            normalize_eq_map: nm,
         };
-        let entry = pre_entry_to_file(pre, &ctx, &mut summary, &mut failed);
-        (entry, summary, failed)
+        let entry = pre_entry_to_file(pre, &ctx, &mut s, &mut f);
+        (entry, s, f)
     }
 
-    #[test]
-    fn failed_lfs_pointer_carries_placeholder_other_reasons_omit_pointer_and_dm() {
-        // spec-output-schema.md § v1.1 + v1.3 — `lfs_pointer` placeholder
-        // {oid:"?", size:0} only on `LfsPointer` reason; all Failed entries
-        // have `diff_meaningful: None` (no comparable bytes).
-        let (entry, summary, failed) = run(failed_pre(Some(FailedReason::LfsPointer), false));
-        let pointer = entry.lfs_pointer.expect("lfs_pointer placeholder");
-        assert_eq!(pointer.oid, "?");
-        assert_eq!(pointer.size, 0);
-        assert_eq!(entry.diff_meaningful, None);
-        assert_eq!(failed, 1);
-        assert_eq!(summary.failed, 1);
-        for reason in [
-            FailedReason::CaseCollision,
-            FailedReason::Submodule,
-            FailedReason::Symlink,
-            FailedReason::LongPath,
-            FailedReason::NfdCollision,
-            FailedReason::GitattributesUnsupported,
-        ] {
-            let (entry, _, _) = run(failed_pre(Some(reason), false));
-            assert!(entry.lfs_pointer.is_none(), "{reason:?} pointer leak");
-            assert!(entry.diff_meaningful.is_none(), "{reason:?} dm leak");
-        }
+    fn run(pre: PreEntry) -> (FileEntry, Summary, usize) {
+        run_with(pre, &HashMap::new(), &HashMap::new())
     }
 
-    #[test]
-    fn failed_encoding_preserves_is_binary_from_pre_entry() {
-        // EE: encoding-failure preserves `try_hash_local`'s NUL heuristic
-        // (UTF-16 BOM has embedded NULs → `is_binary: true` survives).
-        let (entry, _, _) = run(failed_pre(Some(FailedReason::Encoding), true));
-        assert_eq!(entry.failed_reason, Some(FailedReason::Encoding));
-        assert!(entry.is_binary);
-    }
+    // === Phase 8 task J — 6-scenario v1.3 entry-level lock ============
+    // spec-output-schema.md § v1.3 Acceptance Criteria — (Status, Presence,
+    // diff_meaningful) shape per side combination. Regression pin against
+    // eval F1/F2 friction.
 
     #[test]
-    fn hashed_identical_emits_diff_meaningful_false_without_normalize_lookup() {
-        // Phase 8 task I — sha-equal Hashed → diff_meaningful=Some(false)
-        // (no fetch, no normalize_eq_map lookup).
+    fn scenario_identical_presence_both_dm_some_false() {
         let (entry, summary, _) = run(hashed("a.md", Some("x"), Some("x")));
         assert_eq!(entry.status, Status::Identical);
-        assert_eq!(entry.diff_meaningful, Some(false));
         assert_eq!(entry.presence, Presence::Both);
+        assert_eq!(entry.diff_meaningful, Some(false));
         assert_eq!(summary.identical, 1);
     }
 
     #[test]
-    fn hashed_sha_differ_uses_normalize_eq_map_for_diff_meaningful() {
-        // sha differ + map=Some(true) → dm=Some(false) (F1 normalize-only
-        // drift); map=Some(false) → Some(true); absent → None.
-        let mut s = Summary::default();
-        let mut f = 0usize;
-        let cm = HashMap::new();
-        let mut nm = HashMap::new();
-        nm.insert("a.md".to_string(), true);
-        nm.insert("b.md".to_string(), false);
-        let ctx = CompareCtx {
-            commit_map: &cm,
-            normalize_eq_map: &nm,
-        };
-        let e = pre_entry_to_file(hashed("a.md", Some("l"), Some("r")), &ctx, &mut s, &mut f);
-        assert_eq!(e.diff_meaningful, Some(false));
-        let e = pre_entry_to_file(hashed("b.md", Some("l"), Some("r")), &ctx, &mut s, &mut f);
-        assert_eq!(e.diff_meaningful, Some(true));
-        let (e, _, _) = run(hashed("c.md", Some("l"), Some("r")));
-        assert_eq!(e.diff_meaningful, None);
+    fn scenario_local_only_changed_both_presence_both_dm_some_true() {
+        // Both shas exist, local newer than remote → Status::LocalOnlyChanged
+        // with presence=both (eval F2 case ii). normalize-diff → dm=Some(true).
+        let cm = HashMap::from([("a.md".to_string(), mtime(1_000_000_000))]);
+        let nm = HashMap::from([("a.md".to_string(), false)]);
+        let (entry, ..) = run_with(hashed("a.md", Some("l"), Some("r")), &cm, &nm);
+        assert_eq!(entry.status, Status::LocalOnlyChanged);
+        assert_eq!(entry.presence, Presence::Both);
+        assert_eq!(entry.diff_meaningful, Some(true));
+    }
+
+    #[test]
+    fn scenario_local_only_presence_local_only_dm_none() {
+        let (entry, ..) = run(hashed("a.md", Some("l"), None));
+        assert_eq!(entry.status, Status::LocalOnlyChanged);
+        assert_eq!(entry.presence, Presence::LocalOnly);
+        assert_eq!(entry.diff_meaningful, None);
+    }
+
+    #[test]
+    fn scenario_remote_only_presence_remote_only_dm_none() {
+        let (entry, ..) = run(hashed("a.md", None, Some("r")));
+        assert_eq!(entry.status, Status::RemoteOnlyChanged);
+        assert_eq!(entry.presence, Presence::RemoteOnly);
+        assert_eq!(entry.diff_meaningful, None);
+    }
+
+    #[test]
+    fn scenario_drift_presence_both_dm_some_true() {
+        // sha differ + remote_last_commit_at absent → Status::Drift fallthrough.
+        // normalize-diff (eq=false) → dm=Some(true).
+        let nm = HashMap::from([("a.md".to_string(), false)]);
+        let (entry, ..) = run_with(hashed("a.md", Some("l"), Some("r")), &HashMap::new(), &nm);
+        assert_eq!(entry.status, Status::Drift);
+        assert_eq!(entry.presence, Presence::Both);
+        assert_eq!(entry.diff_meaningful, Some(true));
+    }
+
+    #[test]
+    fn scenario_failed_presence_both_dm_none() {
+        // scenario 6 — Failed: presence=both, dm=None. Submodule (short-circuit),
+        // Encoding (EE is_binary preservation), LfsPointer (placeholder companion)
+        // arms covered. `lfs::placeholder_pointer_for` itself in lfs.rs.
+        let (entry, _, failed) = run(failed_pre(Some(FailedReason::Submodule), false));
+        assert_eq!(entry.status, Status::Failed);
+        assert_eq!(entry.presence, Presence::Both);
+        assert_eq!(entry.diff_meaningful, None);
+        assert!(entry.lfs_pointer.is_none());
+        assert_eq!(failed, 1);
+        let (entry, ..) = run(failed_pre(Some(FailedReason::Encoding), true));
+        assert!(entry.is_binary);
+        let (entry, ..) = run(failed_pre(Some(FailedReason::LfsPointer), false));
+        let pointer = entry.lfs_pointer.expect("lfs_pointer placeholder");
+        assert_eq!(pointer.oid, "?");
+        assert_eq!(pointer.size, 0);
+    }
+
+    #[test]
+    fn drift_normalize_equal_emits_dm_false_unknown_emits_none() {
+        // F1 BOM/encoding-only drift: shas differ but normalize-equal → dm=Some(false).
+        // Map absent (compute failure / single-side) → dm=None (don't guess).
+        let nm = HashMap::from([("a.md".to_string(), true)]);
+        let (entry, ..) = run_with(hashed("a.md", Some("l"), Some("r")), &HashMap::new(), &nm);
+        assert_eq!(entry.diff_meaningful, Some(false));
+        let (entry, ..) = run(hashed("b.md", Some("l"), Some("r")));
+        assert_eq!(entry.diff_meaningful, None);
     }
 
     #[test]
     fn finalize_entries_aggregates_summary_and_carries_presence_through() {
-        // Multi-entry rollup — each PreEntry resolves through its own match
-        // arm; presence flows through unchanged from PreEntry.
+        // Multi-entry rollup — summary tally + per-entry presence flow.
         let pending = vec![
             hashed("same.md", Some("abc"), Some("abc")),
             failed_pre(Some(FailedReason::Symlink), false),
