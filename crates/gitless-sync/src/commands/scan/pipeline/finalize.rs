@@ -1,17 +1,14 @@
-//! Pass 2 + Pass 3 of `assemble_entries`:
-//!
-//! - [`extract_commit_paths`] — filter pre-entries that need a Commits API
-//!   call (only Hashed entries with `local_sha != remote_sha`). Identical /
-//!   one-side-only paths skip the Commits API entirely (G-003 contract).
-//! - [`finalize_entries`] — feed the commit timestamp map back into the
-//!   pre-entries, run [`classify`], emit the final [`FileEntry`] vec.
+//! Pass 2 + Pass 3 of `assemble_entries`. `extract_commit_paths` filters
+//! pre-entries that need a Commits API call (Hashed + sha differ); skipped
+//! paths follow the G-003 contract. `finalize_entries` runs `classify`
+//! against the commit map and emits the final [`FileEntry`] vec.
 
 use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 
 use super::hash_pass::{PreEntry, PreState};
-use crate::commands::scan::compare::{FileEntry, Status, classify};
+use crate::commands::scan::compare::{FileEntry, Presence, Status, classify};
 use crate::commands::scan::lfs;
 use crate::commands::scan::output::Summary;
 
@@ -68,12 +65,14 @@ fn pre_entry_to_file(
             FileEntry {
                 path,
                 status: Status::Failed,
+                presence: Presence::Both,
                 local_sha: None,
                 remote_sha,
                 local_mtime,
                 remote_last_commit_at: None,
                 is_binary,
                 mode,
+                diff_meaningful: None,
                 lfs_pointer: lfs::placeholder_pointer_for(failed_reason),
                 failed_reason,
                 size_bytes,
@@ -92,22 +91,18 @@ fn pre_entry_to_file(
                 local_mtime,
                 remote_last_commit_at,
             );
-            match status {
-                Status::Identical => summary.identical += 1,
-                Status::LocalOnlyChanged => summary.local_only_changed += 1,
-                Status::RemoteOnlyChanged => summary.remote_only_changed += 1,
-                Status::Drift => summary.drift += 1,
-                Status::Failed => summary.failed += 1,
-            }
+            summary.tally(status);
             FileEntry {
                 path,
                 status,
+                presence: Presence::Both,
                 local_sha,
                 remote_sha,
                 local_mtime,
                 remote_last_commit_at,
                 is_binary,
                 mode,
+                diff_meaningful: None,
                 failed_reason: None,
                 lfs_pointer: None,
                 size_bytes: None,

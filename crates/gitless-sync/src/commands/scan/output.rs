@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
-use super::compare::FileEntry;
+use super::compare::{FileEntry, Status};
 
 pub const SCHEMA_VERSION: &str = "1.2";
 
@@ -12,6 +12,18 @@ pub struct Summary {
     pub remote_only_changed: usize,
     pub drift: usize,
     pub failed: usize,
+}
+
+impl Summary {
+    pub(super) fn tally(&mut self, status: Status) {
+        match status {
+            Status::Identical => self.identical += 1,
+            Status::LocalOnlyChanged => self.local_only_changed += 1,
+            Status::RemoteOnlyChanged => self.remote_only_changed += 1,
+            Status::Drift => self.drift += 1,
+            Status::Failed => self.failed += 1,
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -48,7 +60,7 @@ pub fn serialize(report: &ScanReport, pretty: bool) -> Result<String, serde_json
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commands::scan::compare::{FailedReason, FileEntry, LfsPointer, Status};
+    use crate::commands::scan::compare::{FailedReason, FileEntry, LfsPointer, Presence, Status};
     use chrono::TimeZone;
 
     fn ts(secs: i64) -> DateTime<Utc> {
@@ -78,12 +90,14 @@ mod tests {
         FileEntry {
             path: "p".into(),
             status: Status::Failed,
+            presence: Presence::Both,
             local_sha: None,
             remote_sha: None,
             local_mtime: None,
             remote_last_commit_at: None,
             is_binary: false,
             mode: "100644".into(),
+            diff_meaningful: None,
             failed_reason: Some(reason),
             lfs_pointer: None,
             size_bytes: Some(size),
@@ -94,12 +108,14 @@ mod tests {
         FileEntry {
             path: "i".into(),
             status: Status::Identical,
+            presence: Presence::Both,
             local_sha: Some("abc".into()),
             remote_sha: Some("abc".into()),
             local_mtime: Some(ts(1)),
             remote_last_commit_at: Some(ts(1)),
             is_binary: false,
             mode: "100644".into(),
+            diff_meaningful: None,
             failed_reason: None,
             lfs_pointer: None,
             size_bytes: None,
