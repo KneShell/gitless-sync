@@ -75,7 +75,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 
 > Phase 7.4 Y(CHANGELOG finalize) 직후 sub-claude clean-context audit 결과 3 finding (struct name typo + ADR cross-ref typo + spec literal swap, 모두 doc-only, spec semantics 변경 X). 자동 신규 phase chain 진입 — memory `feedback_release_phase_chain.md` (긴 자율 루프 + 0 finding 수렴까지) + G-019 정합. Chain depth 2/3, token loose (≪ 200k), wall-clock loose (≪ 6h).
 
-- [ ] **AA**: CHANGELOG.md `ResponseEntry::size` → `TreeEntry::size` typo fix (실제 struct 이름 정합). Files: CHANGELOG.md.
+- [~] **AA**: CHANGELOG.md `ResponseEntry::size` → `TreeEntry::size` typo fix (실제 struct 이름 정합). Files: CHANGELOG.md.
 - [ ] **BB** (deps: AA): guardrails.md G-019 § "cap 변경: ADR 0014 갱신 동반" → "ADR 0013 갱신 동반" cross-ref typo fix (자율 chain hard cap 결정 ADR 본은 0013, 역방향 cross-ref는 정합). Files: docs/ralph/guardrails.md.
 - [ ] **CC** (deps: BB): spec-hash-and-normalize.md § Phase 7 우선순위 cascade spec literal swap — spec 본문 (1=case_collision, 2=nfd_collision)을 코드 `short_circuit.rs::try_short_circuit_failed` dispatch 순서 (1=nfd_collision, 2=case_collision) + module doc 정합으로 swap (두 collision mutually exclusive로 실동작 영향 0, literal 정합 only). Files: docs/specs/spec-hash-and-normalize.md.
 - [ ] **DD** (deps: CC): clean-context audit re-run + 0 finding CONVERGE PASS 검증. 0 finding이면 X dep 해소 mark (X 본문 "(deps: Phase 7.5 DD)" 문구 제거). ≥1 finding이면 G-019 수렴 기준 ("동일 finding 2회 연속 + 신규 0건") 또는 cap 적용. Files: docs/ralph/implementation-plan.md.
