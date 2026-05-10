@@ -107,6 +107,7 @@ mod tests {
             mode: "100644".into(),
             failed_reason: None,
             lfs_pointer: None,
+            size_bytes: None,
         };
         let lfs_failed = FileEntry {
             path: "vendor/lib.zip".into(),
@@ -122,6 +123,7 @@ mod tests {
                 oid: "?".into(),
                 size: 0,
             }),
+            size_bytes: None,
         };
         ScanReport {
             schema_version: SCHEMA_VERSION.to_string(),

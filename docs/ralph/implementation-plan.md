@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.2 task I 완료 — `FailedReason` enum에 `FileTooLarge` + `MemoryExceeded` 2 variant 추가 + serde snake_case round-trip test 2개. caller plumbing은 K~M 후속.)
+- Last updated: 2026-05-10 (Phase 7.2 task J 완료 — `FileEntry` struct에 `size_bytes: Option<u64>` field 추가 + caller plumbing minimal None default 갱신 (`finalize.rs` 2곳 + `output.rs` fixture 2곳 + `compare.rs::sample_entry` helper). 실제 size 측정은 K~M 후속.)
 - Total tasks: 86
-- Completed: 69 / 86
+- Completed: 70 / 86
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -45,7 +45,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 #### Phase 7.2 — 큰 파일 임계치 (file_too_large + memory_exceeded) (10 task)
 
 - [x] **I**: `compare.rs::FailedReason` enum에 2 variant 추가 — `FileTooLarge` + `MemoryExceeded`. Display impl 갱신.
-- [~] **J**: `compare.rs::FileEntry` struct에 `size_bytes: Option<u64>` field 추가 — `#[serde(skip_serializing_if = "Option::is_none")]`. spec-output-schema.md § v1.2 정합.
+- [x] **J**: `compare.rs::FileEntry` struct에 `size_bytes: Option<u64>` field 추가 — `#[serde(skip_serializing_if = "Option::is_none")]`. spec-output-schema.md § v1.2 정합.
 - [ ] **K**: `commands/scan/hash_local.rs::try_hash_local` size pre-flight 추가 — `fs::metadata().len()` 측정 + 100MB/50MB 분기. spec-hash-and-normalize.md § 검출 알고리즘 정합.
 - [ ] **L**: `commands/scan/pipeline/short_circuit.rs::try_short_circuit_failed` cascade에 `file_too_large` + `memory_exceeded` 분기 추가 (LFS 다음 우선순위). spec-hash-and-normalize.md § 우선순위 정합.
 - [ ] **M**: `shared/github/blobs.rs::fetch_blob_with_size_gate` 신규 — Trees response size field pre-flight + 임계치 분기. spec-hash-and-normalize.md § fetch_blob_with_size_gate 정합.
