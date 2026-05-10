@@ -23,10 +23,6 @@ struct Cli {
     #[arg(long, global = true)]
     repo: Option<String>,
 
-    /// Branch to read from the repo (defaults to `main`).
-    #[arg(long, global = true)]
-    branch: Option<String>,
-
     /// Local directory to scan against the repo.
     #[arg(long, global = true, default_value = ".")]
     local: String,
@@ -54,6 +50,10 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     Scan {
+        /// Branch to read from the repo.
+        #[arg(long, default_value = "main")]
+        branch: String,
+
         /// Emit only the summary object, omit the files array.
         #[arg(long)]
         summary_only: bool,
@@ -63,6 +63,10 @@ enum Commands {
         status: Vec<StatusFilter>,
     },
     Diff {
+        /// Branch to read from the repo.
+        #[arg(long, default_value = "main")]
+        branch: String,
+
         /// Relative path (forward slash) of the file to diff.
         path: String,
 
@@ -74,7 +78,11 @@ enum Commands {
         about = "Print a gitless-sync.toml template to stdout (you redirect to a file)",
         after_help = "Example:\n  gitless-sync init --repo owner/name --branch main > gitless-sync.toml"
     )]
-    Init,
+    Init {
+        /// Branch name to emit. Omit to leave the field out of the generated toml.
+        #[arg(long)]
+        branch: Option<String>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -83,12 +91,13 @@ fn main() -> ExitCode {
 
     let result = match cli.command {
         Commands::Scan {
+            branch,
             summary_only,
             status,
         } => {
             let scan_args = commands::scan::ScanArgs {
                 repo: cli.repo,
-                branch: cli.branch.unwrap_or_else(|| "main".to_string()),
+                branch,
                 local: cli.local,
                 ignore: cli.ignore,
                 keep_bom: cli.keep_bom,
@@ -100,10 +109,10 @@ fn main() -> ExitCode {
             };
             commands::scan::run_with_client(&scan_args, &client)
         }
-        Commands::Diff { path, json } => commands::diff::run_with_client(
+        Commands::Diff { branch, path, json } => commands::diff::run_with_client(
             &commands::diff::DiffArgs {
                 repo: cli.repo,
-                branch: cli.branch.unwrap_or_else(|| "main".to_string()),
+                branch,
                 local: cli.local,
                 keep_bom: cli.keep_bom,
                 path,
@@ -113,10 +122,10 @@ fn main() -> ExitCode {
             &mut std::io::stdout().lock(),
             &mut std::io::stderr().lock(),
         ),
-        Commands::Init => {
+        Commands::Init { branch } => {
             let init_args = commands::init::InitArgs {
                 repo: cli.repo.unwrap_or_default(),
-                branch: cli.branch,
+                branch,
                 ignore: cli.ignore,
             };
             commands::init::run(
