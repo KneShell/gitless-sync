@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.2 task R 완료 — CHANGELOG.md `[Unreleased]` v0.3.0 prep entry 갱신. 기존 "TBD — Phase 7+ 진입 시점 추가" placeholder를 Phase 7.1 (Trees sub-tree fallback) + Phase 7.2 (큰 파일 임계치) 누적 결과로 교체. Added 7 entry (Phase 7.1 / 7.2 본진 / Schema v1.2 minor bump / TreeEntry size field / specs / ADR 0011-0013 / G-019) + Changed 2 entry (G-002 정책 update / FailedReason enum 8→10 variant) + Verified 3 entry (Phase 7.1 unit+integration / Phase 7.2 4 시나리오 / v1.2 acceptance 7 시나리오) + Known limitations 2 entry (vault scale dogfood / release tag). v0.2.1 entry 형식 정합. final v0.3.0 entry는 task Y에서 finalize 명시. doc-only — 모든 validation 자연 통과 (fmt/clippy/test/cycles/LOC/machete clean), tarpaulin 91.35% baseline 유지 (G-012 spec-only 정합).)
+- Last updated: 2026-05-10 (Phase 7.3 task S 완료 — `xtask/src/synth_vault/{mod.rs, tests.rs}` 신규 sub-command. seed=42 default + Xorshift64 deterministic PRNG + ASCII filename(`note-{i:05}.md`, NFC trivially) + LF-only content + fixed mtime epoch `2025-01-01T00:00:00Z` (1735689600s) + markdown 1000+ default count + size 1KB~100KB(+slack). xtask folder 패턴(`check_cycles/`, `check_line_limits/`) 정합 — plan 명시 single-file `synth_vault.rs`이지만 unit test sibling-test 금지(spec-architecture.md § 금지 패턴) + LOC 300 게이트로 module 폴더 채택. Args parse + generate + build_content + Xorshift64 + bounded_usize 5 함수 + Error enum(MissingOut/InvalidArg/Io). 18 unit test (parse_args 4 / xorshift 2 / build_content 2 / generate 6 / run 3 / display 1) — NFC/LF/mtime/size/case-collision/determinism 검증. 모든 validation 통과 (fmt/clippy/test 374+18=392 / cycles 0 / LOC 300 / machete clean / tarpaulin 91.40% +0.05).)
 - Total tasks: 86
-- Completed: 78 / 86
+- Completed: 79 / 86
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -57,7 +57,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 
 #### Phase 7.3 — vault scale 1000+ dogfood (5 task)
 
-- [~] **S**: `xtask/src/synth_vault.rs` 신규 sub-command — seed/UTF-8 NFC/LF/mtime epoch/markdown 1000+ 정책 정합. spec-domain-pitfalls.md § Phase 7 — 합성 vault generator 정합. unit test (generate 후 NFC/LF/mtime 검증).
+- [x] **S**: `xtask/src/synth_vault.rs` 신규 sub-command — seed/UTF-8 NFC/LF/mtime epoch/markdown 1000+ 정책 정합. spec-domain-pitfalls.md § Phase 7 — 합성 vault generator 정합. unit test (generate 후 NFC/LF/mtime 검증).
 - [ ] **T**: 합성 vault generate + scan 측정 — `cargo xtask synth-vault --out tmp/synth-vault-42` + `cargo run -- scan --local tmp/synth-vault-42 --repo {public-test-repo}` 실행. 결과 raw data `docs/research/phase7-vault-scale-bench.md` 신규.
 - [ ] **U**: public repo cross-check sanity (manual) — linux/torvalds 또는 동등 1000+ entry repo. commit sha 박제. 결과 phase7-vault-scale-bench.md § public 추가.
 - [ ] **V**: mtime cache 재도입 트리거 검토 (ADR 0008 § Future work) — 1000+ scale 측정 결과 hash 비중 ↑ 시 cache 재도입 정당성 검토. 결과 ADR (cache 재도입 OR keep-drop confirmed). 측정 결과 surface 안 하면 task skip 표시.
