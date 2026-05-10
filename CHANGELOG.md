@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+> Phase 8 (LLM-as-Caller Usability Fix, eval 7 friction 해소) 누적 예정 — v0.4.0. 상세 task별 결과는 git history (`git log --grep="Phase 8"`) + `docs/ralph/implementation-plan.md`.
+
+### Added
+
+- Phase 8.2 — `files[].diff_meaningful: Option<bool>` + `files[].presence: "local_only"|"both"|"remote_only"` field 추가 (F1+F2). F1: sha differ but normalize-equal (e.g., CRLF vs LF) 케이스를 AI 호출자가 1 scan 호출로 판별 가능 — `diff_meaningful=Some(false)`로 불필요한 `diff` 호출 생략. F2: 4-state status 유지 + `presence` field로 방향 즉시 확인. Failed / local-or-remote-only entry는 `diff_meaningful=None`.
+- Phase 8.3 — `diff --json` opt-in flag (F3). 기존 unified text output 기본 유지 + `--json` 분기 시 `{"side": "...", "unified": "..." | null, "raw": "..." | null, "binary": bool}` 직렬화. AI 호출자가 파싱 없이 구조화 diff 수신 가능.
+- Phase 8.4 — clap surface 개선 3종 (F4/F5/F6). F4: 각 flag `///` doc comment 1줄 (--help 가독성). F5: `--status` `value_enum` derive + `value_delimiter = ','` (valid 후보 자동 노출 + 에러 친화). F6: `--branch` `default_value = "main"` (--help에 기본값 노출).
+- Phase 8.5 — `cargo xtask check-readme-examples` sub-command 신규 (F7). README Quick Start 코드블록 실제 실행 + exit 0 검증. CI hard gate 합류.
+- Schema v1.2 → v1.3 minor bump — `files[].diff_meaningful: Option<bool>` + `files[].presence: enum` 신규 field. v1.0/v1.1/v1.2 backward-compat 유지 (lock test 갱신).
+- ADR 0014 'scan-diff metadata contract' 신규 — F1+F2 묶음 결정 trail.
+
+### Changed
+
+- schema_version `"1.2"` → `"1.3"`.
+
+### Verified
+
+- eval 7 friction (P0~P3) 해소 + Phase 8.5 regression baseline (`cargo xtask synth-vault --count 1000 --seed 42` — 추가 field가 4-state breakdown 유지 검증). 상세 결과: `docs/research/phase8-regression.md`.
+
 ## [0.3.0] - 2026-05-10
 
 > Phase 7 (vault scale + Trees sub-tree + 큰 파일 임계치) 누적. Phase 7.1 (Trees sub-tree fallback) + Phase 7.2 (큰 파일 임계치) + Phase 7.3 (vault scale dogfood, T main bench + U public repo cross-check + V mtime cache keep-drop confirm + W 종합) + Phase 7.4 (release tag). 상세 task별 결과는 git history (`git log --grep="<task ID>"`) + `docs/ralph/implementation-plan.md`.
