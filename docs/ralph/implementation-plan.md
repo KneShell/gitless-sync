@@ -95,7 +95,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 >
 > Phase 5.13.1 split target 박제 (grep 검증 패턴 base): `pipeline.rs` → `pipeline/{mod, orchestrator, short_circuit, finalize, hash_pass}` (commit `09bd5e6`), `shared/github/trees.rs` → `shared/github/trees/{mod, parse, classify, fetch, fallback}` (`445f1ec`), `shared/gitattributes.rs` → `shared/gitattributes/{mod, parser, classify, matching}` (Phase 5.13 Z `07aa888`). 향후 추가 split 발생 시 본 phase grep 패턴 갱신 — 본 plan에 base 박제.
 
-- [ ] **II** (deps: HH): 8 stale `*.rs` ref 일괄 fix (grep `\b(pipeline|gitattributes|github/trees)\.rs` `docs/specs/` 기반). 매핑:
+- [~] **II** (deps: HH): 8 stale `*.rs` ref 일괄 fix (grep `\b(pipeline|gitattributes|github/trees)\.rs` `docs/specs/` 기반). 매핑:
   - spec-error-contracts.md:156 `pipeline.rs::build_one_pre_entry` line 122~128 → `pipeline/hash_pass::build_one_pre_entry` (line range drop, FF style)
   - spec-hash-and-normalize.md:15 `pipeline.rs::try_short_circuit_failed` → `pipeline/short_circuit::try_short_circuit_failed`
   - spec-hash-and-normalize.md:114 `commands/scan/pipeline.rs::assemble_entries` → `commands/scan/pipeline::assemble_entries` (module path, 향후 internal split survive)
