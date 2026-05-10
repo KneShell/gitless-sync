@@ -10,6 +10,7 @@
 //! via the parent's existing re-exports in `shared/github/mod.rs`.
 
 mod classify;
+mod fallback;
 mod fetch;
 mod parse;
 
