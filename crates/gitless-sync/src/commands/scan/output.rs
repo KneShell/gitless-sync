@@ -263,4 +263,38 @@ mod tests {
         assert!(entry.contains_key("mode"), "v1.1 mode field missing");
         assert!(!entry.contains_key("size_bytes"));
     }
+
+    /// v1.3 wire: `presence` (#2-5/#12) + `diff_meaningful` (#6-11) per spec Acceptance.
+    #[test]
+    fn v1_3_wire_emits_presence_and_diff_meaningful_per_acceptance() {
+        let mk = |status, presence, diff_meaningful| FileEntry {
+            status,
+            presence,
+            diff_meaningful,
+            ..identical_entry()
+        };
+        let json = parse(&report_with(vec![
+            mk(Status::Identical, Presence::Both, Some(false)),
+            mk(Status::Drift, Presence::Both, Some(false)),
+            mk(Status::Drift, Presence::Both, Some(true)),
+            mk(Status::LocalOnlyChanged, Presence::Both, Some(true)),
+            mk(Status::LocalOnlyChanged, Presence::LocalOnly, None),
+            mk(Status::RemoteOnlyChanged, Presence::RemoteOnly, None),
+            mk(Status::Failed, Presence::Both, None),
+        ]));
+        let f = json["files"].as_array().unwrap();
+        assert_eq!(f[0]["presence"], "both");
+        assert_eq!(f[1]["presence"], "both");
+        assert_eq!(f[2]["presence"], "both");
+        assert_eq!(f[3]["presence"], "both");
+        assert_eq!(f[4]["presence"], "local_only");
+        assert_eq!(f[5]["presence"], "remote_only");
+        assert_eq!(f[6]["presence"], "both");
+        for (i, want) in [false, false, true, true].into_iter().enumerate() {
+            assert_eq!(f[i]["diff_meaningful"], serde_json::Value::Bool(want));
+        }
+        for e in &f[4..] {
+            assert!(!e.as_object().unwrap().contains_key("diff_meaningful"));
+        }
+    }
 }
