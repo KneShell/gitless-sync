@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-> Phase 8 (LLM-as-Caller Usability Fix, eval 7 friction 해소) 누적 예정 — v0.4.0. 상세 task별 결과는 git history (`git log --grep="Phase 8"`) + `docs/ralph/implementation-plan.md`.
+## [0.4.0] - 2026-05-10
+
+> Phase 8 (LLM-as-Caller Usability Fix, eval 7 friction 해소) 누적. Phase 8.1 (spec/ADR 사전 확정) + Phase 8.2 (F1+F2 schema) + Phase 8.3 (F3 diff --json) + Phase 8.4 (F4/F5/F6 clap surface) + Phase 8.5 (F7 CI README sanity) + Phase 8.6 (release tag). 상세 task별 결과는 git history (`git log --grep="<task ID>"`) + `docs/ralph/implementation-plan.md`.
 
 ### Added
 
@@ -25,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Verified
 
 - eval 7 friction (P0~P3) 해소 + Phase 8.5 regression baseline (`cargo xtask synth-vault --count 1000 --seed 42` — 추가 field가 4-state breakdown 유지 검증). 상세 결과: `docs/research/phase8-regression.md`.
+
+### Known limitations (v0.5+ 해소 예정)
+
+- sub-tree fallback real public repo dogfood 부재 — git/git는 truncation 영역 외, linux/torvalds는 budget 1000 cap 위반. 현 baseline은 unit/integration test (Phase 7.1 task F/G) cover. budget 정책 진화 task 도입 시 재검토.
+- hash phase instrumentation 부재 — ADR 0008 § Phase 7.3 재검토 mtime cache 재도입 트리거 (a)/(b) 정량 verify에 필요. yagni 일관 deferred — 별도 instrumentation work 도입 시점에 검토.
 
 ## [0.3.0] - 2026-05-10
 
