@@ -22,6 +22,15 @@ pub(super) struct TreeEntry {
     #[serde(rename = "type")]
     pub(super) entry_type: String,
     pub(super) sha: String,
+    /// Blob byte size from the Trees response. Present for `type == "blob"`
+    /// entries; absent for `tree`/`commit` entries (`Option::None`). Phase 7
+    /// `fetch_blob_with_size_gate` consumes this for pre-flight (spec
+    /// `spec-hash-and-normalize.md` § 검출 알고리즘). `allow(dead_code)` is
+    /// removed in Phase 7.2 task N when `RemoteFile` carries the size into
+    /// `hash_remote`.
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub(super) size: Option<u64>,
 }
 
 /// Decode `gh api ...trees/{branch}?recursive=1` stdout.
@@ -63,6 +72,25 @@ mod tests {
         assert_eq!(parsed.tree[0].mode, "100644");
         assert_eq!(parsed.tree[0].entry_type, "blob");
         assert_eq!(parsed.tree[0].sha, "s1");
+        assert_eq!(parsed.tree[0].size, Some(100));
+    }
+
+    #[test]
+    fn parse_tree_body_size_none_when_field_absent_for_tree_entry() {
+        let body = br#"{
+            "sha":"root",
+            "tree":[
+                {"path":"src","mode":"040000","type":"tree","sha":"tsha"},
+                {"path":"main.rs","mode":"100644","type":"blob","sha":"bsha","size":42}
+            ],
+            "truncated":false
+        }"#;
+        let parsed = parse_tree_body(body).unwrap();
+        assert_eq!(parsed.tree.len(), 2);
+        assert_eq!(parsed.tree[0].entry_type, "tree");
+        assert_eq!(parsed.tree[0].size, None);
+        assert_eq!(parsed.tree[1].entry_type, "blob");
+        assert_eq!(parsed.tree[1].size, Some(42));
     }
 
     #[test]

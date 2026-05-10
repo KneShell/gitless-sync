@@ -75,6 +75,7 @@ mod tests {
             mode: mode.to_string(),
             entry_type: entry_type.to_string(),
             sha: sha.to_string(),
+            size: None,
         }
     }
 
