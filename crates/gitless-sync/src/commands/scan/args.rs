@@ -74,6 +74,16 @@ pub struct ScanArgs {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use clap::Parser;
+
+    /// Mirrors the `--status` field of `main.rs::Cli::Scan` so the F5
+    /// `value_enum + value_delimiter = ','` parsing surface can be exercised
+    /// in a unit test without invoking the full binary.
+    #[derive(Parser, Debug)]
+    struct StatusHarness {
+        #[arg(long, value_enum, value_delimiter = ',')]
+        status: Vec<StatusFilter>,
+    }
 
     #[test]
     fn collect_status_filter_returns_none_when_empty() {
@@ -101,5 +111,40 @@ mod tests {
         );
         assert_eq!(to_status(StatusFilter::Drift), Status::Drift);
         assert_eq!(to_status(StatusFilter::Failed), Status::Failed);
+    }
+
+    #[test]
+    fn status_parses_single_value() {
+        let parsed = StatusHarness::try_parse_from(["test", "--status", "drift"]).unwrap();
+        assert_eq!(parsed.status, vec![StatusFilter::Drift]);
+    }
+
+    #[test]
+    fn status_parses_comma_separated_values() {
+        let parsed =
+            StatusHarness::try_parse_from(["test", "--status", "drift,local_only_changed"])
+                .unwrap();
+        assert_eq!(
+            parsed.status,
+            vec![StatusFilter::Drift, StatusFilter::LocalOnlyChanged]
+        );
+    }
+
+    #[test]
+    fn status_invalid_value_error_lists_all_five_candidates() {
+        let err = StatusHarness::try_parse_from(["test", "--status", "drif"]).unwrap_err();
+        let msg = err.to_string();
+        for candidate in [
+            "identical",
+            "local_only_changed",
+            "remote_only_changed",
+            "drift",
+            "failed",
+        ] {
+            assert!(
+                msg.contains(candidate),
+                "expected error to list `{candidate}` but got: {msg}"
+            );
+        }
     }
 }
