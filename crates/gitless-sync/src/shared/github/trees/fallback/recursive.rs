@@ -32,12 +32,11 @@ use crate::shared::github::map_gh_error;
 /// shared accumulators (`entries`, `budget`). All four share one
 /// lifetime so caller code can build a `Descent` once and reborrow
 /// it on each recursive call.
-#[allow(dead_code)]
-pub(super) struct Descent<'a, C: GhClient> {
-    pub(super) client: &'a C,
-    pub(super) repo: &'a str,
-    pub(super) entries: &'a mut Vec<RemoteFile>,
-    pub(super) budget: &'a mut Budget,
+pub(in super::super) struct Descent<'a, C: GhClient> {
+    pub(in super::super) client: &'a C,
+    pub(in super::super) repo: &'a str,
+    pub(in super::super) entries: &'a mut Vec<RemoteFile>,
+    pub(in super::super) budget: &'a mut Budget,
 }
 
 /// Walk the sub-tree rooted at `tree_sha`, appending discovered
@@ -57,8 +56,7 @@ pub(super) struct Descent<'a, C: GhClient> {
 ///   (mapping delegated to [`map_gh_error`]).
 /// - [`GitlessError::Http`] for JSON decode failures or `truncated:true`
 ///   on a sub-tree response (parse propagates `TreesTruncated`).
-#[allow(dead_code)]
-pub(super) fn fetch_subtree_recursive<C: GhClient>(
+pub(in super::super) fn fetch_subtree_recursive<C: GhClient>(
     descent: &mut Descent<'_, C>,
     tree_sha: &str,
     path_prefix: &str,
@@ -109,9 +107,7 @@ pub(super) fn fetch_subtree_recursive<C: GhClient>(
 #[cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 mod tests {
     use super::super::super::classify::RemoteFile;
-    use super::{
-        Budget, Descent, MAX_TREE_CALL_BUDGET, MAX_TREE_ENTRIES, fetch_subtree_recursive,
-    };
+    use super::{Budget, Descent, MAX_TREE_CALL_BUDGET, MAX_TREE_ENTRIES, fetch_subtree_recursive};
     use crate::shared::error::GitlessError;
     use crate::shared::gh::{GhResponse, MockGhClient};
 
