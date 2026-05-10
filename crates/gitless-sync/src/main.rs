@@ -59,7 +59,7 @@ enum Commands {
         #[arg(long)]
         summary_only: bool,
 
-        /// Comma-separated status filter (e.g. drift,local_only_changed).
+        /// Comma-separated status filter.
         #[arg(long, value_enum, value_delimiter = ',')]
         status: Vec<StatusFilter>,
     },
@@ -89,11 +89,17 @@ enum Commands {
 fn main() -> ExitCode {
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
-        Err(err) => return handle_clap_parse_error(err),
+        Err(err) => return handle_clap_parse_error(&err),
     };
     let client = RealGhClient::new();
+    match dispatch(cli, &client) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(err) => emit_error(&err),
+    }
+}
 
-    let result = match cli.command {
+fn dispatch(cli: Cli, client: &RealGhClient) -> Result<(), GitlessError> {
+    match cli.command {
         Commands::Scan {
             branch,
             summary_only,
@@ -111,7 +117,7 @@ fn main() -> ExitCode {
                 backend: cli.backend,
                 verbose: cli.verbose,
             };
-            commands::scan::run_with_client(&scan_args, &client)
+            commands::scan::run_with_client(&scan_args, client)
         }
         Commands::Diff { branch, path, json } => commands::diff::run_with_client(
             &commands::diff::DiffArgs {
@@ -122,7 +128,7 @@ fn main() -> ExitCode {
                 path,
                 json,
             },
-            &client,
+            client,
             &mut std::io::stdout().lock(),
             &mut std::io::stderr().lock(),
         ),
@@ -138,34 +144,24 @@ fn main() -> ExitCode {
                 &mut std::io::stderr().lock(),
             )
         }
-    };
-
-    match result {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(err) => {
-            eprintln!(
-                "{}",
-                serde_json::to_string(&err.to_stderr_payload()).unwrap_or_else(|_| err.to_string())
-            );
-            ExitCode::from(err.exit_code())
-        }
     }
 }
 
-fn handle_clap_parse_error(err: clap::Error) -> ExitCode {
-    match map_clap_parse_error(&err) {
+fn emit_error(err: &GitlessError) -> ExitCode {
+    eprintln!(
+        "{}",
+        serde_json::to_string(&err.to_stderr_payload()).unwrap_or_else(|_| err.to_string())
+    );
+    ExitCode::from(err.exit_code())
+}
+
+fn handle_clap_parse_error(err: &clap::Error) -> ExitCode {
+    match map_clap_parse_error(err) {
         None => {
             let _ = err.print();
             ExitCode::SUCCESS
         }
-        Some(gle) => {
-            eprintln!(
-                "{}",
-                serde_json::to_string(&gle.to_stderr_payload())
-                    .unwrap_or_else(|_| gle.to_string())
-            );
-            ExitCode::from(gle.exit_code())
-        }
+        Some(gle) => emit_error(&gle),
     }
 }
 
@@ -222,8 +218,7 @@ mod tests {
 
     #[test]
     fn invalid_status_maps_to_config_with_candidates_and_did_you_mean() {
-        let err =
-            Cli::try_parse_from(["gitless-sync", "scan", "--status", "drif"]).unwrap_err();
+        let err = Cli::try_parse_from(["gitless-sync", "scan", "--status", "drif"]).unwrap_err();
         let mapped = map_clap_parse_error(&err).expect("non-display kind must map to Some");
         let GitlessError::Config(msg) = &mapped else {
             panic!("expected Config variant, got {mapped:?}");
