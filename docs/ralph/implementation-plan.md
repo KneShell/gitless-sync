@@ -3,7 +3,7 @@
 ## Status
 - Phase 8 진입 (2026-05-10)
 - Tasks: 31 (Phase 8)
-- Completed: 24 / 31
+- Completed: 25 / 31
 
 ## Notes for Build Mode
 - ralph build mode는 첫 미완료 task (`[ ]`)부터 처리. 의존 순서가 본 plan에 명시 안 됐으면 acceptance + spec 본문에 잠재 의존 명시 (e.g., "X task 결과 위에서 진행").
@@ -80,7 +80,7 @@ vault scale + Trees sub-tree fallback + 큰 파일 임계치 + clean-context aud
 
 #### Phase 8.5 — F7 (CI README sanity) (3 task)
 
-- [~] **Y**: `xtask/src/check_readme_examples.rs` 신규 sub-command — README.md에서 ` ```sh ` 코드블록 추출 + Quick Start 섹션 코드 실제 실행 (`cargo build --release` 사전 + `gitless-sync init --repo dummy/dummy --branch main` stdout redirect target은 `tempfile::NamedTempFile` 또는 `std::env::temp_dir()` join한 OS-agnostic path). exit 0 검증. 본 PC Windows + CI Linux runner 둘 다 cross-platform 호환 필수 — `/tmp/` 같은 POSIX 경로 hardcode 금지.
+- [x] **Y**: `xtask/src/check_readme_examples.rs` 신규 sub-command — README.md에서 ` ```sh ` 코드블록 추출 + Quick Start 섹션 코드 실제 실행 (`cargo build --release` 사전 + `gitless-sync init --repo dummy/dummy --branch main` stdout redirect target은 `tempfile::NamedTempFile` 또는 `std::env::temp_dir()` join한 OS-agnostic path). exit 0 검증. 본 PC Windows + CI Linux runner 둘 다 cross-platform 호환 필수 — `/tmp/` 같은 POSIX 경로 hardcode 금지.
 - [ ] **Z** (deps: Y): `.github/workflows/ci.yml` 새 step 추가 — `cargo xtask check-readme-examples`. Phase 6 hard gate에 합류.
 - [ ] **AA** (deps: Z): Phase 8 결과 baseline regression 검증 — `cargo xtask synth-vault --out tmp/synth-vault-42 --count 1000 --seed 42` (Phase 7 task S xtask 재생성, 본 PC Windows에서 generate 가능) + KneShell/gitless-sync remote scan 측정 + Phase 7 task T 결과 (1000 local_only_changed / 129 remote_only_changed / 0 drift / 0 failed)와 4-state 카운트 정합. 추가 field (diff_meaningful / presence)가 4-state breakdown 안 깨뜨림 검증. 결과 `docs/research/phase8-regression.md` 신규. 주의: eval 본문 vault (`C:\Users\admin\iCloudDrive\iCloud~md~obsidian`)는 다른 PC (admin user) 한정 — 본 PC (dasgut user) 접근 불가, 합성 vault로 대체.
 
