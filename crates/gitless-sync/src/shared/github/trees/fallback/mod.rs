@@ -1,15 +1,19 @@
-//! Sub-tree fallback budget caps + root tree sha resolution (Phase 7).
+//! Sub-tree fallback budget caps + root tree sha resolution + recursive descent (Phase 7).
 //!
-//! Holds [`Budget`] + the two hard caps from `spec-github-api.md`
-//! § Trees truncation handling § 한도 상수, plus
-//! [`resolve_root_tree_sha`] which performs the two-step
-//! ref → commit → root-tree resolution before sub-tree fallback enters.
-//! Task D adds the recursive descent (`fetch_subtree_recursive`) in this
-//! same file; the caps + counter live here so the recursion reads/writes
-//! them inline.
+//! Module split per `spec-architecture.md` § Module 폴더 정책 — task D
+//! pushed total LOC past 300, so the recursive descent
+//! ([`recursive::fetch_subtree_recursive`]) sits in the [`recursive`]
+//! sibling. Cap constants ([`MAX_TREE_CALL_BUDGET`] + [`MAX_TREE_ENTRIES`])
+//! and the [`Budget`] counter live here because the recursion reads /
+//! writes them through `super::`. The two-step
+//! [`resolve_root_tree_sha`] (`ref` → commit → root tree) also lives
+//! here — task E wires it together with the recursive descent into
+//! `super::fetch_tree_with_fallback`.
 //!
-//! The `allow(dead_code)` markers fall away as tasks D/E wire this
-//! module into `super::fetch_tree_with_fallback`.
+//! `resolve_root_tree_sha` keeps `allow(dead_code)` until task E plugs
+//! it into the parent entry point.
+
+mod recursive;
 
 use serde::Deserialize;
 
@@ -21,27 +25,24 @@ use crate::shared::github::map_gh_error;
 /// sub-tree fallback recovery. Exceeding aborts with
 /// [`crate::shared::error::GitlessError::TreesTruncated`] (G-002
 /// no-partial-result policy).
-#[allow(dead_code)]
 pub(super) const MAX_TREE_CALL_BUDGET: u32 = 1000;
 
 /// Hard cap on cumulative entries during sub-tree fallback. Compared
 /// against `Vec::<RemoteFile>::len()`. Exceeding aborts with
 /// [`crate::shared::error::GitlessError::TreesTruncated`] (memory
 /// safety).
-#[allow(dead_code)]
 pub(super) const MAX_TREE_ENTRIES: usize = 500_000;
 
 /// Mutable counter advanced by the recursive descent. Read by the call
 /// budget check; incremented after each `gh api` call. Initial value
 /// is `0`.
 #[derive(Debug, Default)]
-#[allow(dead_code)]
 pub(super) struct Budget {
-    calls_used: u32,
+    pub(super) calls_used: u32,
 }
 
-#[allow(dead_code)]
 impl Budget {
+    #[allow(dead_code)]
     pub(super) const fn new() -> Self {
         Self { calls_used: 0 }
     }
