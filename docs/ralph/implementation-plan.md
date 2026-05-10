@@ -48,7 +48,7 @@ vault scale + Trees sub-tree fallback + 큰 파일 임계치 + clean-context aud
 - [x] **B** (deps: A): spec-output-schema.md schema v1.2 → v1.3 minor bump — `files[].diff_meaningful: Option<bool>` + `files[].presence: enum` field 추가 spec. v1.0/v1.1/v1.2 backward-compat lock test 정합 (Phase 7.2 task P 패턴). spec § v1.2 → v1.3 변경 § 신규. Files: docs/specs/spec-output-schema.md.
 - [x] **C** (deps: B): spec-cli-interface.md `diff --json` 옵션 spec — opt-in, default unified text 유지. JSON 형식 `{"side": "...", "unified": "..." | null, "raw": "..." | null, "binary": bool}`. Files: docs/specs/spec-cli-interface.md.
 - [x] **D** (deps: C): spec-output-schema.md § diff sub-schema 신규 — C의 JSON 형식 authoritative spec. Files: docs/specs/spec-output-schema.md.
-- [ ] **E** (deps: D): CHANGELOG.md `[Unreleased]` v0.4.0 prep entry — Added (diff_meaningful / presence / diff --json / clap surface fix), Changed (schema v1.3), Verified (eval 7 friction 해소). Files: CHANGELOG.md.
+- [~] **E** (deps: D): CHANGELOG.md `[Unreleased]` v0.4.0 prep entry — Added (diff_meaningful / presence / diff --json / clap surface fix), Changed (schema v1.3), Verified (eval 7 friction 해소). Files: CHANGELOG.md.
 
 #### Phase 8.2 — F1 (diff_meaningful) + F2 (presence) (8 task)
 
