@@ -1,4 +1,4 @@
-# Spec: Output JSON Schema v1.2
+# Spec: Output JSON Schema v1.3
 
 ## 목적
 `scan` 명령어가 stdout으로 출력하는 결과 JSON의 안정적 스키마. AI 호출자가 파싱·소비할 수 있도록 버전 보장.
@@ -6,20 +6,23 @@
 > **Phase 5 갱신 (2026-05-09)**: schema_version 1.0 → **1.1** (minor bump). 새 필드 `mode` + `failed_reason` + `lfs_pointer` 추가. 기존 필드 변경 없음 — 호출자 backward-compat 유지.
 >
 > **Phase 7 갱신 (2026-05-10)**: schema_version 1.1 → **1.2** (minor bump). `failed_reason` enum 9 → 11 (`file_too_large` + `memory_exceeded` 추가) + 신규 field `size_bytes` (Failed entry size 진단). 기존 필드 변경 없음 — 호출자 backward-compat 유지.
+>
+> **Phase 8 갱신 (2026-05-10)**: schema_version 1.2 → **1.3** (minor bump). 신규 field `diff_meaningful: Option<bool>` (F1 — scan/diff 비교 기준 불일치 해소) + `presence: "local_only" | "both" | "remote_only"` (F2 — `local_only_changed` 의미 모호 해소). 4-state status (`identical` / `local_only_changed` / `remote_only_changed` / `drift` / `failed`) 그대로 유지 — backward compat 보장. 결정 trail은 `docs/adr/0014-scan-diff-metadata-contract.md`.
 
 ## 현재 상태
 - `crates/gitless-sync/src/commands/scan/output.rs::{ScanReport, Summary}` 구조체 + serde 직렬화 완료 (v1.0).
-- `crates/gitless-sync/src/commands/scan/compare.rs::{FileEntry, Status, FailedReason, LfsPointer}` 정의됨 (v1.1 신규 필드 mode/failed_reason/lfs_pointer 포함).
-- `SCHEMA_VERSION = "1.2"` 상수 정의 (Phase 7에서 갱신).
+- `crates/gitless-sync/src/commands/scan/compare.rs::{FileEntry, Status, FailedReason, LfsPointer}` 정의됨 (v1.1 신규 필드 mode/failed_reason/lfs_pointer 포함, v1.2 신규 size_bytes 포함).
+- `SCHEMA_VERSION = "1.2"` 상수 정의 — Phase 8 task L에서 `"1.3"`으로 bump 예정.
 - `serialize(report, pretty)` 함수 구현 완료.
+- `FileEntry`에 `diff_meaningful` + `presence` field는 Phase 8 task F~I에서 신규 추가 예정.
 
 ## 작업 범위
 
-### 스키마 v1.2 (전체)
+### 스키마 v1.3 (전체)
 ```json
 {
-  "schema_version": "1.2",
-  "scanned_at": "2026-05-09T10:30:00Z",
+  "schema_version": "1.3",
+  "scanned_at": "2026-05-10T10:30:00Z",
   "repo": "owner/name",
   "branch": "main",
   "local_root": "/path/to/dir",
@@ -34,6 +37,8 @@
     {
       "path": "notes/foo.md",
       "status": "drift",
+      "presence": "both",
+      "diff_meaningful": true,
       "local_sha": "abc...",
       "remote_sha": "def...",
       "local_mtime": "2026-04-26T18:00:00Z",
@@ -42,8 +47,22 @@
       "mode": "100644"
     },
     {
+      "path": "notes/bom-only-drift.md",
+      "status": "drift",
+      "presence": "both",
+      "diff_meaningful": false,
+      "local_sha": "111...",
+      "remote_sha": "222...",
+      "local_mtime": "2026-04-26T18:00:00Z",
+      "remote_last_commit_at": "2026-04-26T22:30:00Z",
+      "is_binary": false,
+      "mode": "100644"
+    },
+    {
       "path": "scripts/build.sh",
       "status": "identical",
+      "presence": "both",
+      "diff_meaningful": false,
       "local_sha": "ghi...",
       "remote_sha": "ghi...",
       "local_mtime": "2026-04-26T18:00:00Z",
@@ -52,8 +71,27 @@
       "mode": "100755"
     },
     {
+      "path": "drafts/local-new.md",
+      "status": "local_only_changed",
+      "presence": "local_only",
+      "local_sha": "jkl...",
+      "local_mtime": "2026-05-10T09:00:00Z",
+      "is_binary": false,
+      "mode": "100644"
+    },
+    {
+      "path": "remote/orphan.md",
+      "status": "remote_only_changed",
+      "presence": "remote_only",
+      "remote_sha": "mno...",
+      "remote_last_commit_at": "2026-05-09T22:00:00Z",
+      "is_binary": false,
+      "mode": "100644"
+    },
+    {
       "path": "vendor/lib.zip",
       "status": "failed",
+      "presence": "both",
       "failed_reason": "lfs_pointer",
       "lfs_pointer": {
         "oid": "sha256:4d7a214614ab2935...",
@@ -64,12 +102,14 @@
     {
       "path": "ext/dependency",
       "status": "failed",
+      "presence": "both",
       "failed_reason": "submodule",
       "mode": "160000"
     },
     {
       "path": "media/big-video.mp4",
       "status": "failed",
+      "presence": "both",
       "failed_reason": "file_too_large",
       "size_bytes": 157286400,
       "mode": "100644"
@@ -77,6 +117,7 @@
     {
       "path": "data/largish-archive.tar",
       "status": "failed",
+      "presence": "both",
       "failed_reason": "memory_exceeded",
       "size_bytes": 62914560,
       "mode": "100644"
@@ -101,8 +142,39 @@
 - `file_too_large` — local 또는 remote file size가 100 MB (GitHub Blobs API hard limit) 초과.
 - `memory_exceeded` — local 또는 remote file size가 50 MB (tool 메모리 안전 임계) 초과.
 
+### v1.2 → v1.3 변경 (minor)
+
+LLM-as-caller usability eval (2026-05-10) 7 friction 중 P0 2건 (F1 + F2) 해소. 결정 trail은 `docs/adr/0014-scan-diff-metadata-contract.md`.
+
+추가 필드 (기존 필드 변경 0):
+
+- `files[].diff_meaningful` (F1 — scan과 diff 비교 기준 불일치 해소) — `Option<bool>`. caller에게 "이 entry가 `diff` 호출했을 때 의미 있는 결과 나오는지" hint. 4-case lock:
+
+  | 시나리오 | 값 | 근거 |
+  |---|---|---|
+  | Identical (sha same, presence=both) | `false` | normalize 전후 동일. diff 호출 stdout 0 bytes 확정. |
+  | sha differ + normalize-equal (presence=both) | `false` | F1 케이스 본체 — BOM/encoding 차이만 있는 sha drift. diff 호출 stdout 0 bytes. |
+  | sha differ + normalize-diff (presence=both) | `true` | 진짜 의미 차이. diff 호출 unified text 출력 expected. |
+  | LocalOnly / RemoteOnly / Failed | omit (`None`) | 비교 대상 한쪽 부재 또는 비교 불가 — diff_meaningful 정의 자체가 N/A. |
+
+  계산 근거 — `docs/specs/spec-hash-and-normalize.md` § Normalize 규칙 재사용. compare 시점에 sha 비교 후 differ면 normalize-equal 검증 1회 추가. `Option::is_none` 시 `#[serde(skip_serializing_if = "Option::is_none")]`로 wire JSON에서 omit.
+
+- `files[].presence` (F2 — `local_only_changed` 의미 모호 해소) — `"local_only" | "both" | "remote_only"` enum (`#[serde(rename_all = "snake_case")]`). 직교: status는 액션 분류(push/pull/conflict 후보), presence는 존재성 분류. 모든 entry에 포함됨 (Failed 포함).
+
+  | local exists | remote exists | presence |
+  |---|---|---|
+  | yes | yes | `both` |
+  | yes | no | `local_only` |
+  | no | yes | `remote_only` |
+
+  status (`local_only_changed` / `remote_only_changed`)와 직교 — 같은 status가 (i) "한쪽만 존재" + (ii) "양쪽 존재 + 한쪽만 변경" 둘 다 cover했던 모호함을 presence가 1차 분기로 해소. caller는 `presence == "local_only"` → push 후보, `presence == "both"` + `status == "local_only_changed"` → conflict 후보처럼 분기 가능.
+
+기각된 대안 (ADR 0014):
+- F2 status 4→6 split (`local_only_added` / `local_only_modified` 등) — breaking change + 호출자 분기 늘어남 + status semantics(액션 분류)와 presence(존재성)를 한 enum에 묶어 직교성 깨짐.
+- F1 diff stderr hint — 호출 2회 필요. scan 1회로 모든 정보 받게 함이 caller-decides 본성에 더 정합.
+
 ### 안정성 보장
-- `schema_version`: 호환성 깨는 변경 시 major 증가. v0.1은 `"1.0"`, Phase 5는 `"1.1"` (minor).
+- `schema_version`: 호환성 깨는 변경 시 major 증가. v0.1은 `"1.0"`, Phase 5는 `"1.1"`, Phase 7은 `"1.2"`, Phase 8은 `"1.3"` (모두 minor — 신규 field 추가만, 기존 필드 변경 0).
 - `status` enum 동결: `identical` / `local_only_changed` / `remote_only_changed` / `drift` / `failed`. 추가는 minor 버전, 제거·이름 변경은 major. **Phase 5에서 새 status 미추가** — LFS/submodule/symlink는 모두 `failed` + `failed_reason` 분류.
 - `failed_reason` enum 동결 정책: 추가는 minor, 제거·이름 변경은 major. Phase 5에서 정의된 9 reason (`hash_io` / `encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported`) 모두 구현 (Phase 5.13 task AA, 2026-05-09 — `compare.rs::FailedReason` 8 variant + `None` special case `hash_io`). Phase 7에서 2 reason 추가 — `file_too_large` + `memory_exceeded` (총 11 reason, `compare.rs::FailedReason` 10 variant + `None` special case).
 - 시간 필드: 모두 ISO-8601 UTC (`Z` suffix). 로컬 타임존 출력 금지.
@@ -160,3 +232,22 @@
 - `[AUTO]` `failed_reason` 가 `file_too_large` / `memory_exceeded` 외 entry는 `size_bytes` 필드 omit (`#[serde(skip_serializing_if = "Option::is_none")]`).
 - `[AUTO]` `file_too_large` / `memory_exceeded` entry는 `is_binary: false` (size pre-flight short-circuit, local read 전 격하, Phase 5.13.1 task EE 정합).
 - `[AUTO]` v1.0 / v1.1 호출자가 v1.2 JSON 파싱 시 추가 필드 (`size_bytes`) + 추가 enum 값 (`file_too_large` / `memory_exceeded`) 무시 + 기존 필드 정상 동작 (backward-compat 검증).
+
+### v1.3 신규 (Phase 8)
+
+ADR 0014 결정 trail. 코드 변경은 Phase 8.2 (task F~M) + 8.3 (task N~R) scope — 본 § 는 spec authoritative.
+
+- `[AUTO]` `report.schema_version` == `"1.3"`.
+- `[AUTO]` `files[].presence` 필드가 모든 entry에 포함 (`"local_only"` / `"both"` / `"remote_only"` 중 하나). Failed entry 포함.
+- `[AUTO]` local 존재 + remote 부재 → `presence == "local_only"`.
+- `[AUTO]` local 부재 + remote 존재 → `presence == "remote_only"`.
+- `[AUTO]` local 존재 + remote 존재 → `presence == "both"`.
+- `[AUTO]` Identical entry (presence=both, sha same): `diff_meaningful == false` (wire JSON에 `"diff_meaningful": false` 포함).
+- `[AUTO]` Drift entry (presence=both, sha differ) + normalize-equal: `diff_meaningful == false`. F1 evidence 케이스 (BOM/encoding 차이만 있는 sha drift) — caller는 `diff` 호출 stdout 0 bytes 예측 가능.
+- `[AUTO]` Drift entry (presence=both, sha differ) + normalize-diff: `diff_meaningful == true`. caller는 `diff` 호출 unified text 출력 expected.
+- `[AUTO]` LocalOnlyChanged entry (presence=both case ii — 양쪽 존재 + local만 변경): `diff_meaningful` 필드 emit (`true` or `false`, normalize 결과 따라). status semantics 그대로 — status는 액션 분류, presence + diff_meaningful는 caller 분기 hint.
+- `[AUTO]` LocalOnly / RemoteOnly entry (presence ≠ both): `diff_meaningful` 필드 omit (`#[serde(skip_serializing_if = "Option::is_none")]`). 비교 대상 한쪽 부재라 diff 의미 자체가 N/A.
+- `[AUTO]` Failed entry: `diff_meaningful` 필드 omit (presence 값 무관). 비교 불가.
+- `[AUTO]` `presence` 필드는 `Failed` entry에서도 누락 안 함 — 호출자가 "Failed인데 어느 쪽이 존재해서 fail인가" 분기 가능 (예: `presence == "local_only"` + `failed_reason == "lfs_pointer"` → local LFS pointer 만 있는 케이스).
+- `[AUTO]` v1.0 / v1.1 / v1.2 호출자가 v1.3 JSON 파싱 시 추가 필드 (`presence` / `diff_meaningful`) 무시 + 기존 필드 정상 동작 (backward-compat 검증, Phase 7.2 task P 패턴 — `tests/scan_output_backward_compat.rs` V10/V11/V12 client 정합).
+- `[AUTO]` `presence` enum 동결 정책: 추가는 minor, 제거·이름 변경은 major. `local_only` / `both` / `remote_only` 3 값으로 시작.
