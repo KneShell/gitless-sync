@@ -63,6 +63,8 @@ pub struct FileEntry {
     pub failed_reason: Option<FailedReason>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lfs_pointer: Option<LfsPointer>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<u64>,
 }
 
 /// Classify a single path into one of the 4-state categories.
@@ -243,6 +245,7 @@ mod tests {
             mode: "100644".into(),
             failed_reason,
             lfs_pointer: None,
+            size_bytes: None,
         }
     }
 
@@ -286,5 +289,11 @@ mod tests {
         let json = serde_json::to_string(&placeholder).unwrap();
         let parsed: LfsPointer = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, placeholder);
+    }
+
+    #[test]
+    fn size_bytes_field_omitted_when_none() {
+        let json = serde_json::to_value(sample_entry(None)).unwrap();
+        assert!(!json.as_object().unwrap().contains_key("size_bytes"));
     }
 }

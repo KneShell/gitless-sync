@@ -75,6 +75,7 @@ fn pre_entry_to_file(
                 mode,
                 lfs_pointer: lfs::placeholder_pointer_for(failed_reason),
                 failed_reason,
+                size_bytes: None,
             }
         }
         PreState::Hashed {
@@ -108,6 +109,7 @@ fn pre_entry_to_file(
                 mode,
                 failed_reason: None,
                 lfs_pointer: None,
+                size_bytes: None,
             }
         }
     }
