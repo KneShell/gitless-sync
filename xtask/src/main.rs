@@ -5,6 +5,7 @@ use std::process::ExitCode;
 
 mod check_cycles;
 mod check_line_limits;
+mod check_readme_examples;
 mod synth_vault;
 
 fn main() -> ExitCode {
@@ -39,6 +40,13 @@ fn run(args: &[String]) -> u8 {
                 1
             }
         },
+        Some("check-readme-examples") => match check_readme_examples::run() {
+            Ok(code) => code,
+            Err(err) => {
+                eprintln!("xtask check-readme-examples: {err}");
+                1
+            }
+        },
         Some(cmd) => {
             eprintln!("xtask: unknown command '{cmd}'");
             print_help();
@@ -57,6 +65,7 @@ fn print_help() {
     println!(
         "  synth-vault        Generate synthetic markdown vault (--out PATH [--count N] [--seed N])"
     );
+    println!("  check-readme-examples  Run Quick Start `init` line(s) from README.md (deny stage)");
 }
 
 #[cfg(test)]
