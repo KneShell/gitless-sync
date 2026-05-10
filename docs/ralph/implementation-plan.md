@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.6 task HH — clean-context audit re-run 2nd round 결과 3 신규 finding 보고 (LLM auditor) + grep cross-check로 추가 5건 surface (auditor가 long line/scan range miss, 총 8 stale `*.rs` ref). 모두 doc-only Phase 5.13.1 module-folder split (`pipeline.rs`/`gitattributes.rs`/`trees.rs` → `*/`) aftermath stale path. G-019 0 finding 미충족 → Phase 7.7 chain depth 3/3 (cap) 진입. Phase 7.7은 LLM audit 대신 **deterministic grep 검증**으로 sampling blind spot 차단 (advisor 권고 — LLM audit는 round마다 다른 finding 표면, sampling이라 수렴 안 함).)
+- Last updated: 2026-05-10 (Phase 7.7 task II — 8 stale `*.rs` ref 일괄 fix across 4 spec files: spec-error-contracts.md (1 row, `pipeline/hash_pass::build_one_pre_entry`), spec-hash-and-normalize.md (5 hits → `pipeline/short_circuit`/`pipeline::assemble_entries`/`pipeline/hash_pass::build_pre_entries`/`shared/gitattributes/` ×2), spec-domain-pitfalls.md (`shared/gitattributes/`), spec-classification.md (`shared/github/trees/classify.rs::to_nfc`). Phase 5.13.1 module-folder split aftermath stale path 일괄 정정. doc-only, spec semantics 변경 0. JJ에서 deterministic grep 0 hit 검증 → CONVERGE PASS → X tag.)
 - Total tasks: 96
-- Completed: 92 / 96
+- Completed: 93 / 96
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -95,7 +95,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 >
 > Phase 5.13.1 split target 박제 (grep 검증 패턴 base): `pipeline.rs` → `pipeline/{mod, orchestrator, short_circuit, finalize, hash_pass}` (commit `09bd5e6`), `shared/github/trees.rs` → `shared/github/trees/{mod, parse, classify, fetch, fallback}` (`445f1ec`), `shared/gitattributes.rs` → `shared/gitattributes/{mod, parser, classify, matching}` (Phase 5.13 Z `07aa888`). 향후 추가 split 발생 시 본 phase grep 패턴 갱신 — 본 plan에 base 박제.
 
-- [~] **II** (deps: HH): 8 stale `*.rs` ref 일괄 fix (grep `\b(pipeline|gitattributes|github/trees)\.rs` `docs/specs/` 기반). 매핑:
+- [x] **II** (deps: HH): 8 stale `*.rs` ref 일괄 fix (grep `\b(pipeline|gitattributes|github/trees)\.rs` `docs/specs/` 기반). 매핑:
   - spec-error-contracts.md:156 `pipeline.rs::build_one_pre_entry` line 122~128 → `pipeline/hash_pass::build_one_pre_entry` (line range drop, FF style)
   - spec-hash-and-normalize.md:15 `pipeline.rs::try_short_circuit_failed` → `pipeline/short_circuit::try_short_circuit_failed`
   - spec-hash-and-normalize.md:114 `commands/scan/pipeline.rs::assemble_entries` → `commands/scan/pipeline::assemble_entries` (module path, 향후 internal split survive)
