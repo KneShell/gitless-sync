@@ -33,7 +33,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 
 #### Phase 7.1 — Trees sub-tree 재귀 fallback (8 task)
 
-- [ ] **A**: `shared/github/trees/parse.rs::ResponseEntry` struct에 `size: Option<u64>` field 추가 (Trees response size field 활용). spec-github-api.md § fetch_tree 정합. unit test 갱신 (size field 파싱).
+- [~] **A**: `shared/github/trees/parse.rs::ResponseEntry` struct에 `size: Option<u64>` field 추가 (Trees response size field 활용). spec-github-api.md § fetch_tree 정합. unit test 갱신 (size field 파싱).
 - [ ] **B**: `shared/github/trees/fallback.rs` 신규 module — `Budget` struct + 2 cap 상수 (`MAX_TREE_CALL_BUDGET = 1000` + `MAX_TREE_ENTRIES = 500_000`). spec-github-api.md § Trees truncation handling § 한도 상수 정합.
 - [ ] **C**: `shared/github/trees/fallback.rs::resolve_root_tree_sha` — ref → commit sha → root tree sha 1회 resolve. 2회 gh api 호출 (`refs/heads/{branch}` + `commits/{commit_sha}`). unit test mock fixture.
 - [ ] **D**: `shared/github/trees/fallback.rs::fetch_subtree_recursive` — sub-tree non-recursive 재귀 알고리즘. 2 cap check + early-abort. spec-github-api.md § sub-tree 재귀 알고리즘 정합.
