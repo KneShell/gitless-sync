@@ -1,9 +1,9 @@
 # Implementation Plan
 
 ## Status
-- Last updated: 2026-05-10 (Phase 7.5 task AA — CHANGELOG.md v0.3.0 Added 항목 `ResponseEntry::size` → `TreeEntry::size` typo fix (실제 struct `parse.rs:19` 이름 정합 검증 후 swap). Files: CHANGELOG.md 1건. Validation 빠른 게이트 4/4 통과 (fmt clean / 70 file LOC ≤ 300 / 0 cycle 0 cross-slice / 0 unused dep). step 2/6/7은 코드 0 변경이라 G-012 spec-only 일반화 면제로 baseline 유지 자동 통과. Phase 7.5 chain depth 2/3, token loose (≪ 200k), wall-clock loose (≪ 6h) — G-019 cap 정합 유지.)
+- Last updated: 2026-05-10 (Phase 7.5 task BB — guardrails.md G-019 § "ADR 0014" → "ADR 0013" cross-ref typo fix. 두 instance(line 75 "Phase 7 vague 결과, 2026-05-10, ADR 0014):" + line 81 "cap 변경: ADR 0014 갱신 동반") 동일 typo 일괄 swap (DD 재audit 시 line 75 신규 finding 재surface 회피, chain depth 절약). 실제 ADR 본은 `docs/adr/0013-autonomous-chain-cap.md`, ADR 0013 → G-019 역방향 cross-ref는 정합 유지. Files: docs/ralph/guardrails.md 1건. Validation 빠른 게이트 4/4 통과 (fmt clean / 70 file LOC ≤ 300 / 0 cycle 0 cross-slice / 0 unused dep). step 2/6/7은 코드 0 변경이라 G-012 spec-only 일반화 면제로 baseline 유지 자동 통과. Phase 7.5 chain depth 2/3, token loose (≪ 200k), wall-clock loose (≪ 6h) — G-019 cap 정합 유지.)
 - Total tasks: 90
-- Completed: 85 / 90
+- Completed: 86 / 90
 
 ## Notes for Build Mode
 - 이 plan은 사람이 직접 작성한 초안. ralph plan 모드는 스킵.
@@ -76,7 +76,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 > Phase 7.4 Y(CHANGELOG finalize) 직후 sub-claude clean-context audit 결과 3 finding (struct name typo + ADR cross-ref typo + spec literal swap, 모두 doc-only, spec semantics 변경 X). 자동 신규 phase chain 진입 — memory `feedback_release_phase_chain.md` (긴 자율 루프 + 0 finding 수렴까지) + G-019 정합. Chain depth 2/3, token loose (≪ 200k), wall-clock loose (≪ 6h).
 
 - [x] **AA**: CHANGELOG.md `ResponseEntry::size` → `TreeEntry::size` typo fix (실제 struct 이름 정합). Files: CHANGELOG.md.
-- [~] **BB** (deps: AA): guardrails.md G-019 § "cap 변경: ADR 0014 갱신 동반" → "ADR 0013 갱신 동반" cross-ref typo fix (자율 chain hard cap 결정 ADR 본은 0013, 역방향 cross-ref는 정합). Files: docs/ralph/guardrails.md.
+- [x] **BB** (deps: AA): guardrails.md G-019 § "cap 변경: ADR 0014 갱신 동반" → "ADR 0013 갱신 동반" cross-ref typo fix (자율 chain hard cap 결정 ADR 본은 0013, 역방향 cross-ref는 정합). Files: docs/ralph/guardrails.md.
 - [ ] **CC** (deps: BB): spec-hash-and-normalize.md § Phase 7 우선순위 cascade spec literal swap — spec 본문 (1=case_collision, 2=nfd_collision)을 코드 `short_circuit.rs::try_short_circuit_failed` dispatch 순서 (1=nfd_collision, 2=case_collision) + module doc 정합으로 swap (두 collision mutually exclusive로 실동작 영향 0, literal 정합 only). Files: docs/specs/spec-hash-and-normalize.md.
 - [ ] **DD** (deps: CC): clean-context audit re-run + 0 finding CONVERGE PASS 검증. 0 finding이면 X dep 해소 mark (X 본문 "(deps: Phase 7.5 DD)" 문구 제거). ≥1 finding이면 G-019 수렴 기준 ("동일 finding 2회 연속 + 신규 0건") 또는 cap 적용. Files: docs/ralph/implementation-plan.md.
 
