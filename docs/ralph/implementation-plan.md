@@ -52,7 +52,7 @@ Code Quality Strengthening 본진 (clippy 60/15/5 + LOC 300 + cycle/cross-slice 
 - [x] **N**: `commands/scan/hash_remote.rs` update — Trees entry size field 전달 (caller plumbing). pre-flight skip 시 fetch_blob 호출 0회 검증.
 - [x] **O**: unit test 4 시나리오 — 49MB local (정상 hash) + 51MB local (memory_exceeded) + 101MB local (file_too_large) + 30MB LFS pointer (LFS 우선순위). fixture file `tests/fixtures/large-files/`.
 - [x] **P**: `output.rs::SCHEMA_VERSION` "1.1" → "1.2" + lock test 갱신 (v1.0/v1.1 backward-compat 검증). spec-output-schema.md § v1.2 신규 Acceptance Criteria 정합.
-- [ ] **Q**: spec-output-schema.md § v1.2 신규 Acceptance Criteria 7 시나리오 unit test (`output.rs::tests`). schema_version "1.2" + size_bytes field 정확 직렬화 + omit 검증.
+- [~] **Q**: spec-output-schema.md § v1.2 신규 Acceptance Criteria 7 시나리오 unit test (`output.rs::tests`). schema_version "1.2" + size_bytes field 정확 직렬화 + omit 검증.
 - [ ] **R**: CHANGELOG.md `[Unreleased]` → v0.3.0 prep entry — schema v1.2 + 2 reason + size_bytes field 포함 prep section.
 
 #### Phase 7.3 — vault scale 1000+ dogfood (5 task)
