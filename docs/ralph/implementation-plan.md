@@ -58,7 +58,7 @@ vault scale + Trees sub-tree fallback + 큰 파일 임계치 + clean-context aud
 - [x] **I** (deps: H): `commands/scan/pipeline/finalize.rs` (또는 동등) — entry assemble 시점에 presence + diff_meaningful 채움. spec-hash-and-normalize.md § normalize 정합 검증 재사용.
 - [x] **J** (deps: I): unit test 6 시나리오 — Identical (presence=both, diff_meaningful=Some(false)), LocalOnlyChanged-both (presence=both, diff_meaningful=Some(true) or Some(false)), LocalOnly (presence=local_only, diff_meaningful=None), RemoteOnly (presence=remote_only, diff_meaningful=None), Drift (presence=both, diff_meaningful=Some(true)), Failed (presence=both, diff_meaningful=None).
 - [x] **K** (deps: J): integration test — eval F1 evidence 케이스 (sha differ but normalize-equal, e.g., CRLF vs LF 한쪽) 합성 fixture + scan + diff_meaningful=Some(false) 검증.
-- [ ] **L** (deps: K): SCHEMA_VERSION "1.2" → "1.3" + lock test 갱신 (v1.0/v1.1/v1.2 backward-compat). spec-output-schema.md § v1.3 신규 Acceptance Criteria 정합.
+- [~] **L** (deps: K): SCHEMA_VERSION "1.2" → "1.3" + lock test 갱신 (v1.0/v1.1/v1.2 backward-compat). spec-output-schema.md § v1.3 신규 Acceptance Criteria 정합.
 - [ ] **M** (deps: L): spec-output-schema.md § v1.3 신규 Acceptance Criteria N 시나리오 unit test (output.rs::tests).
 
 #### Phase 8.3 — F3 (diff --json) (5 task)
