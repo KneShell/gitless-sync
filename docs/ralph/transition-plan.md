@@ -45,16 +45,9 @@
 
 ### D. Rust 템플릿 vault export (Task #29)
 
-- [ ] M: `D:\11.vault\001_PARA\03 Resources\Rust\` 폴더 생성.
-- [ ] N: `Rust/template.md` 신규 작성. H2 섹션 6개:
-    1. Vertical Slice (`commands/<name>/` + `shared/`, cross-slice ref 0건, slice-internal directional discipline)
-    2. Hard Gate Set (clippy 60/15/5 + LOC 300 + cycle 0 + panic 검출 + tarpaulin 80%)
-    3. xtask 패턴 (check-line-limits / check-cycles / check-panic-limits / check-readme-examples)
-    4. ADR 형식 (1번 file 시작, status / context / decision / consequences)
-    5. Cargo Workspace + MSRV (`rust-toolchain.toml` pin + `Cargo.lock` commit + `panic = "abort"`)
-    6. CI Runner 선택 (Linux runner 이유 + actions/checkout v6 + Node.js deprecation 회피)
-  각 섹션: 한 문단 설명 + 권장 설정값 + 본 repo file 경로 reference (예: `crates/gitless-sync/src/commands/scan/`).
-- [ ] O: `Rust/template.md` 끝에 'Source Project' 한 줄 — 본 프로젝트 (gitless-sync) URL + 라이선스 명시. 외부 사용자가 실제 file 직접 참조하도록 가이드.
+- [x] M: `D:\11.vault\001_PARA\03 Resources\Rust\` 폴더 생성.
+- [x] N: `001-rust-template.md` 작성. H2 8개 (Vertical Slice / Hard Gate Set / xtask 패턴 / ADR Format / Cargo Workspace + MSRV / CI Runner / Test 분리 정책 / Cargo Command Cheat Sheet). snippet 0 + 외부 reference 0 (vault standalone).
+- [x] O: skip (Source Project link 사용자 결정으로 제외 — vault standalone 정합).
 
 ### E. ralph reference vault 갱신 (Task #30 본진)
 
