@@ -21,6 +21,12 @@ desktop.ini
 # Logs
 *.log
 
+# Coverage artifacts (tarpaulin / llvm-profdata)
+*.profraw
+*.profdata
+tarpaulin-report.html
+cobertura.xml
+
 # Temporary scan artifacts (race noise from `> tmp/X.json` redirects;
 # spec phase5-vault-baseline.md / phase5-vault-after.md / phase5-regression.md
 # 본문에 명시. Phase 5.13.1 LL task 추가)

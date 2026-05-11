@@ -1,11 +1,13 @@
 //! Remote-side size gate — short-circuits 50 MB+ blobs using only the
 //! Trees response size field, BEFORE any local read or blob fetch.
 //!
-//! `scan` never calls `fetch_blob` (Trees SHA is the comparison key per
-//! `spec-hash-and-normalize.md` § 원격 측 비교), so the gate's role is to
-//! mark oversize remote entries `Status::Failed` and skip the local hash
-//! pass entirely. `diff` (future) will reuse `fetch_blob_with_size_gate`
-//! at its own caller plumbing point.
+//! `scan` calls `fetch_blob` only in `pipeline::normalize_pass` for
+//! sha-mismatch Hashed entries (cosmetic drift verification per
+//! `spec-hash-and-normalize.md` § 원격 측 비교, Phase 8 task I).
+//! This module's role is the size pre-flight: mark oversize remote
+//! entries `Status::Failed` and skip the local hash pass entirely.
+//! `diff` (future) will reuse `fetch_blob_with_size_gate` at its own
+//! caller plumbing point.
 //!
 //! Cascade priority (`spec-hash-and-normalize.md` § 우선순위):
 //!  1–7. `pipeline::short_circuit` (path/mode-only, no size).

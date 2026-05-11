@@ -3,7 +3,7 @@ use serde::Serialize;
 
 use super::compare::{FileEntry, Status};
 
-pub const SCHEMA_VERSION: &str = "1.3";
+pub const SCHEMA_VERSION: &str = "1.4";
 
 #[derive(Debug, Default, Serialize)]
 pub struct Summary {
@@ -126,12 +126,12 @@ mod tests {
         serde_json::from_str(&serialize(report, false).unwrap()).unwrap()
     }
 
-    /// Acceptance #1: `report.schema_version` == `"1.3"`. `SCHEMA_VERSION`
+    /// Acceptance #1: `report.schema_version` == `"1.4"`. `SCHEMA_VERSION`
     /// constant + `ScanReport` 직렬화 결과의 `schema_version` field 두 layer.
     #[test]
-    fn schema_version_field_serializes_as_1_3() {
-        assert_eq!(SCHEMA_VERSION, "1.3");
-        assert_eq!(parse(&empty_report())["schema_version"], "1.3");
+    fn schema_version_field_serializes_as_1_4() {
+        assert_eq!(SCHEMA_VERSION, "1.4");
+        assert_eq!(parse(&empty_report())["schema_version"], "1.4");
     }
 
     /// Acceptance #2: `failed_reason` enum 11 값 cover (10 variant + `None`

@@ -1,22 +1,21 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-//! Phase 8 task K — integration regression for the F1 evidence case
-//! (`docs/research/llm-as-caller-usability-eval.md` § F1).
+//! Phase 8 task K + v0.4.2 issue #1 regression — end-to-end pipeline for
+//! "sha differ but normalize-equal" (cosmetic SHA drift).
 //!
-//! Covers the end-to-end pipeline for "sha differ but normalize-equal":
-//! local stores LF, remote stores CRLF, the Trees-API sha differs from the
-//! local sha (because the raw bytes differ by the CR), but
-//! `prepare_for_hash` LF-normalizes both sides → recomputed remote hash
-//! matches `local_sha` → `normalize_equal=true` →
-//! `diff_meaningful=Some(false)`. Caller can predict that `diff` would emit
-//! 0 stdout bytes without invoking it.
+//! Local stores LF, remote stores CRLF. Trees-API sha differs from
+//! `local_sha` (raw bytes differ by the CR), but `prepare_for_hash`
+//! LF-normalizes both sides → recomputed remote hash matches `local_sha`
+//! → `normalize_equal=true`.
 //!
-//! The scenario routes through `Status::Drift` (timestamps tie via
-//! `read_mtime_rfc3339`) per `spec-output-schema.md` § v1.3 evidence row.
-//! The triple-pin (`status=drift`, `presence=both`, `diff_meaningful=false`)
-//! ensures the test fails on three distinct regressions: classify drift
-//! collapse, presence enum drop, or `diff_meaningful` degradation to `null`
-//! / `true`.
+//! v1.3 (Phase 8): scenario classified as `Status::Drift` + `diff_meaningful=false`
+//! (caller hint, but status still mismatched spec-hash-and-normalize.md § 목적).
+//! v1.4 (v0.4.2 issue #1 fix): scenario classifies as `Status::Identical`
+//! per `spec-classification.md` § Status 정의 (sha-differ + `normalize_equal=Some(true)`
+//! → Identical). The triple-pin (`status=identical`, `presence=both`,
+//! `diff_meaningful=false`) ensures the test fails on three distinct regressions:
+//! classify cosmetic-Identical arm removal, presence enum drop, or
+//! `diff_meaningful` degradation.
 
 mod common;
 
@@ -30,14 +29,15 @@ use common::{
 };
 
 #[test]
-fn f1_crlf_remote_lf_local_yields_drift_with_diff_meaningful_false() {
+fn f1_crlf_remote_lf_local_yields_identical_via_normalize_equal() {
     // Local file stores LF — `local_sha` is `blob_hash(prepare_for_hash(b"hello\n"))`,
     // which is just `blob_hash(b"hello\n")` for an LF input (no normalization
     // change). Remote Trees-API reports a different sha (the raw blob hash of
     // CRLF bytes). Pipeline pass 1.5 fetches the blob, runs `prepare_for_hash`
     // on the CRLF payload → LF → recomputed hash matches `local_sha` →
-    // `normalize_equal=true` → `diff_meaningful=Some(false)`. Status drifts
-    // because timestamps tie (G-005).
+    // `normalize_equal=true`. v1.4 (v0.4.2 issue #1 fix): classify promotes
+    // sha-differ + normalize_equal=Some(true) → Status::Identical, overriding
+    // the timestamp arm (which would have landed Drift via G-005 tie).
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("hello.md");
     fs::write(&path, "hello\n").unwrap();
@@ -64,8 +64,10 @@ fn f1_crlf_remote_lf_local_yields_drift_with_diff_meaningful_false() {
     // Remote blob carries CRLF — prepare_for_hash strips it back to LF on the
     // way to the recomputed hash.
     stub_blob(&mut mock, "o/r", remote_trees_sha, b"hello\r\n");
-    // Drift requires the Commits API call (sha differ); tie the timestamp to
-    // the local mtime so classify lands on `Status::Drift` (G-005).
+    // sha-differ entry still triggers the Commits API call from
+    // `extract_commit_paths` (it filters before classify runs). Stub a
+    // timestamp tie so a regression that drops the cosmetic-Identical arm
+    // would fall through to Drift via G-005 (clear failure mode).
     mock.stub(
         commits_args("o/r", "main", "hello.md"),
         ok_resp(commits_body_with_date(&mtime_str).as_bytes()),
@@ -73,9 +75,10 @@ fn f1_crlf_remote_lf_local_yields_drift_with_diff_meaningful_false() {
 
     let json = run_to_json(&args_for(dir.path(), "o/r"), &mock);
 
-    // Summary — only one entry, classified as drift via the timestamp tie.
-    assert_eq!(json["summary"]["drift"], 1);
-    assert_eq!(json["summary"]["identical"], 0);
+    // Summary — single entry, classified as Identical via cosmetic-SHA fix
+    // (v1.4 issue #1). drift count must be 0.
+    assert_eq!(json["summary"]["identical"], 1);
+    assert_eq!(json["summary"]["drift"], 0);
     assert_eq!(json["summary"]["local_only_changed"], 0);
     assert_eq!(json["summary"]["remote_only_changed"], 0);
     assert_eq!(json["summary"]["failed"], 0);
@@ -84,7 +87,7 @@ fn f1_crlf_remote_lf_local_yields_drift_with_diff_meaningful_false() {
     assert_eq!(files.len(), 1);
     let entry = &files[0];
     assert_eq!(entry["path"], "hello.md");
-    assert_eq!(entry["status"], "drift");
+    assert_eq!(entry["status"], "identical");
     assert_eq!(entry["presence"], "both");
     // Load-bearing assertion: `false` discriminates from both `null` (the
     // "unknown" arm — would mean the blob fetch / normalize pipeline broke)

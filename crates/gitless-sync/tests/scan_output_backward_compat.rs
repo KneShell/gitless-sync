@@ -260,7 +260,7 @@ fn raw_files(json: &str) -> Vec<serde_json::Value> {
 #[test]
 fn v1_0_client_parses_v1_3_envelope_fields() {
     let parsed = parse_v1_0(&v1_3_sample_json());
-    assert_eq!(parsed.schema_version, "1.3");
+    assert_eq!(parsed.schema_version, "1.4");
     assert_eq!(parsed.repo, "owner/name");
     assert_eq!(parsed.branch, "main");
     assert_eq!(parsed.local_root, "/tmp/root");
@@ -319,7 +319,7 @@ fn v1_0_client_parses_v1_3_new_entries_as_existing_status() {
 #[test]
 fn v1_1_client_parses_v1_3_envelope_and_lfs_entry() {
     let parsed = parse_v1_1(&v1_3_sample_json());
-    assert_eq!(parsed.schema_version, "1.3");
+    assert_eq!(parsed.schema_version, "1.4");
     let files = parsed.files.expect("files must be present");
     let lfs_failed = &files[1];
     assert_eq!(lfs_failed.path, "vendor/lib.zip");
@@ -359,7 +359,7 @@ fn v1_1_client_parses_v1_3_size_gate_enum_values_gracefully() {
 #[test]
 fn v1_2_client_parses_v1_3_envelope_and_v1_1_baseline_fields() {
     let parsed = parse_v1_2(&v1_3_sample_json());
-    assert_eq!(parsed.schema_version, "1.3");
+    assert_eq!(parsed.schema_version, "1.4");
     let files = parsed.files.expect("files must be present");
     assert_eq!(files.len(), 8);
     let lfs_failed = &files[1];

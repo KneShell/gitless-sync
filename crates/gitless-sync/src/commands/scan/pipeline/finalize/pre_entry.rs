@@ -109,13 +109,14 @@ fn hashed_to_file_entry(pre: PreEntry, ctx: &CompareCtx<'_>, summary: &mut Summa
         unreachable!("hashed_to_file_entry called with non-Hashed state");
     };
     let remote_last_commit_at = ctx.commit_map.get(path.as_str()).copied();
+    let normalize_equal = ctx.normalize_eq_map.get(path.as_str()).copied();
     let status = classify(
         local_sha.as_deref(),
         remote_sha.as_deref(),
         local_mtime,
         remote_last_commit_at,
+        normalize_equal,
     );
-    let normalize_equal = ctx.normalize_eq_map.get(path.as_str()).copied();
     let (_, diff_meaningful) =
         compare(local_sha.as_deref(), remote_sha.as_deref(), normalize_equal);
     summary.tally(status);

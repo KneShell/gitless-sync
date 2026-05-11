@@ -16,7 +16,7 @@
 
 | Status | 조건 |
 |--------|------|
-| `identical` | 양쪽 자체 SHA 동일 |
+| `identical` | 양쪽 자체 SHA 동일, **또는** sha-differ + `normalize_equal == Some(true)` (cosmetic drift — BOM/encoding/LF-CRLF만 차이, F1 케이스, `spec-hash-and-normalize.md` § 목적 정합). |
 | `local_only_changed` | 원격에 없거나 SHA 다름 + `remote_last_commit_at ≤ local_mtime`. push 후보. |
 | `remote_only_changed` | 로컬에 없거나 SHA 다름 + `local_mtime ≤ remote_last_commit_at`. pull 후보. |
 | `drift` | 양쪽 SHA 다름 + 시간 비교로 한쪽 우위 판단 불가. 충돌 의심. |
@@ -29,16 +29,20 @@ pub fn classify(
     remote_sha: Option<&str>,
     local_mtime: Option<DateTime<Utc>>,
     remote_last_commit_at: Option<DateTime<Utc>>,
+    normalize_equal: Option<bool>,
 ) -> Status
 ```
+
+`normalize_equal`은 `pipeline::normalize_pass`가 사하-differ Hashed entry 한정 계산한 결과 (`local_sha != remote_sha` 인 경우만 fetch + 자체 hash 재계산). 정상 단일 자체 hash 동일 케이스 (raw SHA 같음) + 신규 cosmetic drift 케이스 (raw SHA 다름 + normalize-equal) 둘 다 Identical로 분류.
 
 ### 판정 로직 (의사코드)
 ```
 match (local_sha, remote_sha) {
-    (Some(a), Some(b)) if a == b => Identical
+    (Some(a), Some(b)) if a == b => Identical                          // 정상 byte 동일
+    (Some(_), Some(_)) if normalize_equal == Some(true) => Identical   // cosmetic drift
     (Some(_), None)  => LocalOnlyChanged   // 원격 없음
     (None, Some(_))  => RemoteOnlyChanged  // 로컬 없음
-    (Some(_), Some(_)) => {                // 양쪽 있고 SHA 다름
+    (Some(_), Some(_)) => {                // 양쪽 있고 SHA 다름 + normalize_equal != Some(true)
         match (local_mtime, remote_last_commit_at) {
             (Some(l), Some(r)) if r < l => LocalOnlyChanged
             (Some(l), Some(r)) if l < r => RemoteOnlyChanged
@@ -112,6 +116,7 @@ ignored path는 비교 대상 자체에서 제외 — `summary` 카운트에도 
 - `[AUTO]` PRD 검증 시나리오 2: 로컬 변경(원격 last_commit < 로컬 mtime) → `LocalOnlyChanged`.
 - `[AUTO]` PRD 검증 시나리오 3: 원격 변경(로컬 mtime < 원격 last_commit) → `RemoteOnlyChanged`.
 - `[AUTO]` PRD 검증 시나리오 4: 양쪽 다른 SHA + 시간 동률 → `Drift`.
+- `[AUTO]` 양쪽 다른 SHA + `normalize_equal == Some(true)` → `Identical` (v1.4 cosmetic drift — UTF-8 BOM / LF-CRLF / `.gitattributes` 정책 차이만 있는 byte-동일 케이스. issue #1 regression pin).
 - `[AUTO]` 로컬만 있는 파일 (`remote_sha == None`) → `LocalOnlyChanged`.
 - `[AUTO]` 원격만 있는 파일 (`local_sha == None`) → `RemoteOnlyChanged`.
 - `[AUTO]` 양쪽 다른 SHA + `local_mtime == remote_last_commit_at` → `Drift` (G-005).
