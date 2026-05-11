@@ -103,7 +103,7 @@ ignored path는 비교 대상 자체에서 제외 — `summary` 카운트에도 
 
 **호출자가 알아야 할 사실**:
 - 동일 path에서 cascade reason과 encoding이 동시 가능한 fixture (예: `*.psd filter=lfs` + UTF-16 BOM raw bytes)에서는 항상 cascade reason이 wire JSON에 surface. encoding은 누락.
-- 이 priority는 spec 박제 — `try_short_circuit_failed` cascade arm 순서 변경 또는 encoding을 cascade 안으로 옮기는 변경은 spec § Cascade priority 갱신 동반.
+- 이 priority는 spec 정의 — `try_short_circuit_failed` cascade arm 순서 변경 또는 encoding을 cascade 안으로 옮기는 변경은 spec § Cascade priority 갱신 동반.
 
 자세한 구현 정합은 `commands/scan/pipeline/{short_circuit, hash_pass}.rs` 참조. encoding 정책 본체는 `spec-domain-pitfalls.md` § Encoding 변환 시도.
 

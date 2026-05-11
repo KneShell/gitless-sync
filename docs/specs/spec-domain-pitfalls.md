@@ -1,7 +1,5 @@
 # Spec — Domain Pitfalls
 
-> Phase 5 박제 (2026-05-09, vague + clean-context 외부 시각 보강). v0.1 비목표였던 "도메인 함정 정리"를 영구 박제. 박제 expiration: Phase 진입마다 재검토 (CLAUDE.md § 박제 expiration 정책).
-
 ## 목적
 
 GitHub repo와 로컬 디렉토리 간 비교에서 OS / 인코딩 / git 메타데이터 차이로 발생하는 false drift / silent drift 함정을 정확히 처리. v0.1 vault 검증(356 파일, 0 drift) 위에 누락된 도메인 케이스 보강.
@@ -214,7 +212,7 @@ T task (vault dogfooding before/after)에서 v0.1 vs v0.2 출력 차이를 자�
 
 > 합성 vault main 측정 + public repo 1회 cross-check (사용자 결정, 2026-05-10).
 
-- public repo: linux/torvalds 또는 동등 1000+ entry repo. commit sha 박제 (HEAD floating 금지).
+- public repo: linux/torvalds 또는 동등 1000+ entry repo. commit sha 고정 (HEAD floating 금지).
 - manual 1회 sanity (CI 자동 X). 결과 `docs/research/phase7-vault-scale-bench.md` 안 별도 § 기록.
 
 ### Cross-platform CI는 Phase 5 범위 외

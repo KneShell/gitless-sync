@@ -41,11 +41,10 @@ gitless-sync init --repo owner/name --branch main > gitless-sync.toml
 - `tty 감지` 분기 0. `atty` / `is-terminal` crate 도입 0.
 
 ### 문서 / spec
-- `CLAUDE.md` § Critical Rules § Read-only 룰 갱신 0 (이미 영구). § Current State + § 사용자 취향 결정에 한 줄씩 추가.
+- `CLAUDE.md` § Critical Rules § Read-only 룰 갱신 0 (이미 영구).
 - ADR 0001 갱신 0 (read-only 영구가 그대로 유효).
 - README + `--help`(clap `after_help`) + stderr hint 보강 필요 → P6에서 처리.
-- `docs/roadmap.md` § Phase 2 원안 ("현재 디렉토리에 작성 + `--force`")는 P2에서 stdout redirect로 갱신, 실패 모드 (`--force` / 파일 권한 / 기존 파일 충돌) 항목은 obsolete로 제거.
-- `spec-cli-interface.md` / `spec-config.md` / `spec-error-contracts.md`는 P2에서 init 정의 추가.
+- `spec-cli-interface.md` / `spec-config.md` / `spec-error-contracts.md`는 init 정의 포함.
 
 ### 운영
 - 사용자 마찰: shell redirect 1회. unix 관행에 일치하여 학습 비용 0.

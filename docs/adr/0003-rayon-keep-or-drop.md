@@ -36,7 +36,7 @@ abuse detection 위험은 default 8로 cap된 상태에서 M5a 측정 중 0회 �
 - **변경 없음.** `rayon = "1"` 그대로.
 
 ### `spec-github-api.md` § 병렬 호출 정책
-- "⚠️ M5b 결과 미정 박스" blockquote 제거. baseline 정책을 확정 박제로 격상.
+- "⚠️ M5b 결과 미정 박스" blockquote 제거. baseline 정책을 확정으로 격상.
 - 본문에 ADR 0003 + M5a measurement 참조 한 줄 추가.
 
 ### 코드

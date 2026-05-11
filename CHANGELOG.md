@@ -148,7 +148,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Architecture decisions
 
-- Read-only 영구 (ADR 0001) + Vertical slice + cross-slice 직접 ref 금지 + slice 안 acyclic + directional discipline (orchestrator → domain → IO) + Windows 1차 (실행 환경) + MSRV 1.95.0 stable + `#![forbid(unsafe_code)]` + release `panic = "abort"` + `lto = "thin"` + `strip = true` + 박제 expiration (Phase 진입마다 재검토).
+- Read-only 영구 (ADR 0001) + Vertical slice + cross-slice 직접 ref 금지 + slice 안 acyclic + directional discipline (orchestrator → domain → IO) + Windows 1차 (실행 환경) + MSRV 1.95.0 stable + `#![forbid(unsafe_code)]` + release `panic = "abort"` + `lto = "thin"` + `strip = true`.
 
 ### Verified
 

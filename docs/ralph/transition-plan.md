@@ -30,13 +30,13 @@
 
 ### B. 본진 정리 (Task #26 + #27 + #28 융합)
 
-- [ ] D: `docs/specs/spec-architecture.md` § '사용자 취향 (박제)' 제거. 향후 contributor 가이드로 가치 있는 항목은 중립 톤 rewrite (vertical slice 정의 / module 폴더 정책 / panic 검출 룰 / sibling test 금지 등은 keep, 결정자 명시는 제거).
-- [ ] E: `CLAUDE.md` (project) § '사용자 취향 결정' 제거 또는 중립 rewrite. § '검증된 함정' 같은 contributor 가치 항목은 keep.
-- [ ] F: A 단계에서 `delete` 라벨 받은 spec/research/ralph 파일 `git rm`.
-- [ ] G: A 단계에서 `strip` 라벨 받은 file에서 phase trail / 박제 trail 제거. phase trail은 `CHANGELOG.md`로 일원화.
-- [ ] H: `keep` 라벨 받은 spec verbose 영역 간결화. 목표: 외부 contributor가 1독으로 핵심 요지 흡수 가능한 length.
-- [ ] I: `README.md` public-facing 검수. 구성: 한 문장 소개 / 설치 (cargo install or release binary) / 빠른 사용 예시 / 아키텍처 1단락 / 링크 (CHANGELOG, ADR, LICENSE).
-- [ ] J: hard gate full pipeline PASS 확인 + 본진 정리 commit (`docs: prep public — strip personal-stance, prune deprecated specs, simplify` 류).
+- [x] D: `docs/specs/spec-architecture.md` rewrite. § Vertical slice / § LOC 임계 / § 박제 expiration 헤더에서 '사용자 취향' / '박제' 단어 제거. verbose 간결화 같이 (154 → 130 line).
+- [x] E: `CLAUDE.md` (project) rewrite. § Current State 통째 제거 + § 사용자 취향 결정 (박제) 통째 제거 + § 비목표 roadmap.md reference 제거 + § 검증된 함정 '페르소나가 단언해도' → '외부 자료에 적혀있을 수 있으나' 일반화.
+- [x] F: docs/research/* (14건) + docs/roadmap.md `git rm` (commit `dd8922e`, 15 file 2907 line 삭제).
+- [x] G: spec/ralph/ADR file에서 박제 trail / 페르소나 mention 정리. spec-{domain-pitfalls, classification, error-contracts}.md / ralph/{guardrails, project-ops, prompt-build}.md / adr/{0001, 0003, 0004, 0006, 0010}.md / CHANGELOG.md.
+- [x] H: task D/E rewrite에 verbose 간결화 같이 처리. ADR 0010도 통째 rewrite (84 → 60 line).
+- [x] I: `README.md` 검수 — public-facing 호환 통과. 변경 0건.
+- [x] J: hard gate (fmt/clippy/test/xtask check-line-limits/check-cycles) PASS 확인 + Phase B commit. xtask `check-panic-limits` sub-command는 미존재 — panic 검출은 clippy lint이 cover.
 
 ### C. ralph 워크스페이스 정리 (Task #30 일부)
 

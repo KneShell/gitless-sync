@@ -35,9 +35,9 @@
 
 위 1~7을 순서대로 통과하면 task 완료 가능. 8~9는 의존성 추가/변경한 task에 한해 추가. `cargo-public-api`는 CI gate(`.github/workflows/ci.yml`) 한정 — local에서는 사용 안 함 (ref + nightly 부담).
 
-## Architecture Tools (Phase 6)
+## Architecture Tools
 
-`docs/specs/spec-architecture.md` § 외부 도구 박제. Phase 6 Step 3/4에서 cycle/LOC/API/unused dependency 게이트 적용 시 사용.
+`docs/specs/spec-architecture.md` § 외부 도구 정의. cycle/LOC/API/unused dependency 게이트 적용 시 사용.
 
 ### 설치
 ```
@@ -52,18 +52,18 @@ rustup toolchain install nightly  # cargo-public-api 전용. 본 프로젝트 �
 - `cargo modules dependencies -p gitless-sync --lib --no-fns --no-types --no-traits --no-sysroot` — graphviz dot 출력. `cargo xtask check-cycles`가 이 출력을 파싱해 module-level uses 그래프에서 cycle 검출 + cross-slice ref 위반 검출 (`commands/scan` ↔ `commands/diff` ↔ `commands/init` 간 import 금지). 위반 1건 이상이면 exit 1.
   - **WHY 직접 파싱**: cargo-modules `--acyclic` flag는 type-method edge(예: `enum GitlessError` ↔ `fn exit_code`)를 cycle로 잡는 false positive가 있어 모듈 단위 분석에 부적합.
 - `cargo public-api -p gitless-sync` — 워크스페이스 manifest는 미지원, `-p`로 패키지 지정 필수. 실행 시 nightly로 자동 fallback (rustup default는 stable 그대로). diff는 `cargo public-api diff <ref>`. 분할 회귀 가드 — 의도치 않은 public 노출 검출.
-- `cargo machete` — unused dependency 검출. Exit 0 = clean, exit 1 = 위반 발견. **현 baseline**: 위반 0건 (task O 시점 `anyhow` 제거로 정리, 2026-05-09). 정 false positive 시 `[package.metadata.cargo-machete] ignored = [...]`로 명시.
+- `cargo machete` — unused dependency 검출. Exit 0 = clean, exit 1 = 위반 발견. **현 baseline**: 위반 0건. 정 false positive 시 `[package.metadata.cargo-machete] ignored = [...]`로 명시.
 
 ### 게이트 적용 시점
 
-| 도구 | xtask wrap | 적용 task | enforcement |
-|---|---|---|---|
-| cargo-modules | `cargo xtask check-cycles` | E | deny active (cycles + cross-slice refs, baseline 0 위반) |
-| (없음 — pure xtask) | `cargo xtask check-line-limits` | D (warn) → J (deny) | deny active (300 LOC, baseline 0 위반, doc-heavy 면제) |
-| cargo-public-api | (직접 실행, CI 비교) | task O CI gate | PR 이벤트에서 `diff origin/<base>..HEAD` 표시 (deny 아님) |
-| cargo-machete | (직접 실행, CI gate) | task O CI gate | CI gate active (exit 1 deny, baseline 0 위반) |
+| 도구 | xtask wrap | enforcement |
+|---|---|---|
+| cargo-modules | `cargo xtask check-cycles` | deny active (cycles + cross-slice refs, baseline 0 위반) |
+| (없음 — pure xtask) | `cargo xtask check-line-limits` | deny active (300 LOC, baseline 0 위반, doc-heavy 면제) |
+| cargo-public-api | (직접 실행, CI 비교) | PR 이벤트에서 `diff origin/<base>..HEAD` 표시 (deny 아님) |
+| cargo-machete | (직접 실행, CI gate) | CI gate active (exit 1 deny, baseline 0 위반) |
 
-상세 권장 cli/exit 정책은 task E/J/L/O 시점 spec/plan 갱신 동반.
+상세 권장 cli/exit 정책은 spec/plan 변경 시 동반 갱신.
 
 ## Git Workflow
 - 브랜치: `main` 단일. 작업 브랜치 분기 없이 진행 (소규모 단일 개발자).
