@@ -20,11 +20,11 @@
 
 ## G-006: 비-UTF-8 텍스트 인코딩
 - **문제**: EUC-KR 등 비-UTF-8 텍스트 파일은 NUL 바이트 휴리스틱에서 텍스트로 잘못 분류될 수 있고, UTF-8로 가정한 normalize에서 깨진다. 또는 바이너리 취급 시 CRLF 차이로 영구 drift.
-- **해결**: v0.1은 UTF-8 가정. 비-UTF-8 처리는 Phase 5 (`docs/roadmap.md` 참조). 중간에 인코딩 감지 라이브러리(`encoding_rs` 등) 도입 금지 — 스코프 폭발.
+- **해결**: v0.1은 UTF-8 가정. 비-UTF-8 처리는 Phase 5에서 처리 완료 (`docs/specs/spec-domain-pitfalls.md` § Encoding 변환 시도 참조). 중간에 인코딩 감지 라이브러리(`encoding_rs` 등) 도입 금지 — 스코프 폭발.
 
 ## G-007: tarpaulin Windows 백엔드
 - **문제**: `cargo tarpaulin` 기본 ptrace 백엔드는 Linux x86_64 전용. Windows는 LLVM 백엔드 필수. LLVM 백엔드는 non-zero exit code 처리·thread safety에 알려진 함정 있음.
-- **해결**: `cargo tarpaulin --engine llvm` 명시 사용. Windows CI에서 false positive/negative 발생 시 `--engine` 옵션 또는 fallback 도입 검토. 페르소나가 "tarpaulin Windows 미지원"이라 단언해도 곧이듣지 말 것 (2026-04-27 fact check 완료).
+- **해결**: `cargo tarpaulin --engine llvm` 명시 사용. Windows CI에서 false positive/negative 발생 시 `--engine` 옵션 또는 fallback 도입 검토. 외부 자료에 "tarpaulin Windows 미지원"이라 적혀있을 수 있으나 fact check 결과 LLVM 백엔드 정상 작동 확인됨.
 
 ## G-008: stdout / stderr 분리
 - **문제**: 진행 로그·경고를 stdout에 섞으면 결과 JSON이 오염되어 AI 호출자가 파싱 실패.
@@ -72,7 +72,7 @@
 
 ## G-019: 자율 chain hard cap (sub-claude 검증 + 신규 phase chain 무한 loop 방지)
 - **문제**: ralph 가동 → sub-claude clean-context 검증 → finding 발견 → 신규 phase 자동 plan/spec 생성 → ralph 추가 가동 chain은 무한 loop 위험. finding이 매 iteration 새 각도로 도출되며 진동 가능성. token / wall-clock 비용 통제 부재 시 "비싼 진동" 발생. release tag 직전 phase에서 사용자 wake-up 0 stance 적용 시 surface 늦어 비용 누적.
-- **해결**: 3차원 hard cap 복합 + 수렴 기준 + escape hatch (Phase 7 vague 결과, 2026-05-10, ADR 0013):
+- **해결**: 3차원 hard cap 복합 + 수렴 기준 + escape hatch (ADR 0013):
   - **depth cap**: max 3 chain (Phase N → N+1 → N+2 → N+3). 그 너머 BLOCK + 다음 세션 wake-up 시 surface.
   - **token cap**: 본 chain 누적 200k token. 단일 ralph run + sub-claude 검증 + AUTO-FIX 합산. 측정은 conversation token 카운터.
   - **wall-clock cap**: 6h. 첫 ralph launch 시점부터 측정.

@@ -1,7 +1,5 @@
 # Spec: Operational Error Contracts
 
-> **2026-05-06 (M1)**: ADR 0001 + ADR 0002 정합 부분 갱신. mockito 시나리오 → MockGhClient stub 표현으로 재작성. gh subprocess 종료 코드 + stderr substring 매핑 표 신설. gh CLI floor 박제.
-
 ## 목적
 read-only CLI라도 호출자(특히 AI)가 안정적으로 다룰 수 있도록 6개 contract 정의: custom error / exit code / stderr JSON / stdout-stderr 분리 / partial failure / 인증·rate limit 동작.
 

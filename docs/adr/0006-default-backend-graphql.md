@@ -40,9 +40,9 @@ REST backend는 deprecated가 아니라 explicit fallback으로 유지. 별도 d
 - 마찰 0. `--backend graphql`을 명시할 필요 없어지므로 명령 한 줄 더 짧아짐. 결과 ScanReport 동일.
 - 운영 이슈 발생 시 `--backend rest` 추가 한 줄로 fallback. 인자 인터페이스는 v0.1과 그대로 호환.
 
-### 측정 / 박제 (P6, P7a)
-- P6b에서 REST vs GraphQL baseline 측정. raw data로 본 ADR 정당화 강화 + ADR 0007 batch size 박제용.
-- 측정 결과가 ~5x 추정과 ±50% 차이 시 default 전환 자체 재평가 가능. 그러나 raw data가 박힌 ADR 0006은 본 ADR로 정합 유지 (재결정 시 신규 ADR 분기).
+### 측정 결과
+- REST vs GraphQL baseline 측정 raw data로 본 ADR 정당화 + ADR 0007 batch size 결정 입력.
+- 측정 결과가 ~5x 추정과 ±50% 차이 시 default 전환 자체 재평가 가능. 본 ADR은 raw data 정합 유지 (재결정 시 신규 ADR 분기).
 
 ### 운영 / 관찰
 - secondary rate limit / abuse detection 패턴 변화 모니터링. GraphQL은 점수 기반 rate limit이라 REST와 다른 노이즈 패턴 가능. P9 dogfooding + 사용자 vault 운영에서 surface.
