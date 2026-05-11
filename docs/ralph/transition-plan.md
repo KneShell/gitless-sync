@@ -24,9 +24,9 @@
 
 ### A. 기준 수립 (audit)
 
-- [ ] A: deprecated 판정 list 작성. `docs/specs/*` + `docs/research/*` + `docs/ralph/*` 각 file에 `keep` / `strip` / `delete` 중 하나 라벨링. 결과는 본 plan 하단 § Audit Result 에 inline 기록.
-- [ ] B: 사용자 취향·박제 grep audit. `docs/**/*.md` + `CLAUDE.md` + `README.md` 대상으로 `취향` / `박제` / `Monday` / `페르소나` / `사용자 stance` 류 hit 위치 + 문맥 list업.
-- [ ] C: 개인 path / private 식별자 grep audit. `admin` / `dasgut` / `C:\\Users` / `\\11.vault` / `iCloud` / 다른 LLM 평가 trail (`eval`, `다른 PC`) 류 hit 위치 list업.
+- [x] A: deprecated 판정 list 작성. 결과는 § Audit Result 참조.
+- [x] B: 사용자 취향·박제 grep audit. 결과는 § Audit Result 참조.
+- [x] C: 개인 path / private 식별자 grep audit. 결과는 § Audit Result 참조.
 
 ### B. 본진 정리 (Task #26 + #27 + #28 융합)
 
@@ -76,6 +76,37 @@
 - **Self-cleanup** — task U가 마지막 step. 본 파일 삭제 후 commit, 그 다음 task V.
 - **자율 회피 영역** — public visibility 변경 (`gh repo edit --visibility public`)은 사용자 직접 실행. 외부 영향 + 되돌릴 때 비용 큼.
 
-## Audit Result
+## Audit Result (Phase A 결과, 2026-05-11)
 
-(task A 진행 시 inline 기록. file path → label → reason 형식.)
+### A. 라벨링 (file pattern 단위)
+
+| Pattern | Label | Reason |
+|---|---|---|
+| `docs/specs/*.md` (9건) | keep + strip | contributor 가이드 가치. phase 갱신 blockquote + 박제 marker 정리. |
+| `docs/research/*.md` (14건) | **delete** | phase별 측정 artifact. 결과는 ADR + CHANGELOG에 반영됨. private path 핫스팟. |
+| `docs/adr/*.md` (14건) | keep + strip | 결정 trail로 가치. 박제 단어 일반화 + tribunal/페르소나 mention 중립화. |
+| `docs/ralph/prompt-plan.md` | **delete** (task L) | plan 모드 폐지 (vague 결정). |
+| `docs/ralph/{prompt-build,project-ops,guardrails}.md` | keep + strip | ralph 운영 가이드. 페르소나/박제 trail 정리. |
+| `docs/ralph/implementation-plan.md` | skeleton (task K) | Phase entry 비우고 빈 틀 유지. |
+| `docs/ralph/transition-plan.md` | self-cleanup (task U) | 본 파일. |
+| `docs/roadmap.md` | **delete** | phase 진행 trail이 본문 대부분. CHANGELOG와 중복 + 박제/stance hit 다수. |
+| `CLAUDE.md` (project) | keep + strip | § '사용자 취향 결정 (박제)' 제거. § '검증된 함정' 유지. |
+| `CHANGELOG.md` | keep + strip | line 151 박제 trail 한 줄 일반화. release entry는 그대로. |
+| `README.md` | keep | public-facing 검수 통과. task I에서 최종 확인만. |
+
+### B. 사용자 취향·박제 hit 핫스팟 (50+ 건)
+
+- `CLAUDE.md:44-45` — § 사용자 취향 결정 (박제) — task E.
+- `docs/specs/spec-architecture.md:7,61,152-154` — § Vertical slice (사용자 취향 박제) + § LOC 임계 + § 박제 expiration — task D.
+- `docs/roadmap.md` 다수 — delete로 한 번에 해소 (task F).
+- `docs/ralph/implementation-plan.md:39` — skeleton화로 자연 해소 (task K).
+- `docs/specs/spec-{domain-pitfalls, classification, error-contracts}.md` — 박제 trail 1~2건씩 — task G.
+- `docs/adr/0001,0003,0004,0006,0010` — 박제/페르소나 trail — task G.
+- `docs/ralph/{guardrails, project-ops}.md` — 박제/페르소나 mention — task G.
+
+### C. 개인 path / private 식별자 hit 핫스팟 (15+ 건)
+
+- `docs/research/llm-as-caller-usability-eval.md:22,35,110,304,308` — `C:\Users\admin\iCloudDrive\...` + 다른 PC/LLM trail — delete로 일괄 해소 (task F).
+- `docs/research/phase8-regression.md:207-208` — dasgut/admin user vault — delete로 해소 (task F).
+- `CHANGELOG.md:105` — 이미 일반화됨 (Phase 5.14 audit entry). 추가 정리 불필요.
+- 도메인 컨텍스트 (iCloud 언급) **keep**: `CLAUDE.md:4`, `README.md:3`, `docs/specs/spec-classification.md:54`, `docs/adr/0009:38`, `docs/ralph/guardrails.md:18` — 도구 동기 설명에 필수.
