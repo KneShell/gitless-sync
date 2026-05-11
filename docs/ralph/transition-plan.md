@@ -56,9 +56,10 @@
 
 ### F. Public readiness + self-cleanup (Task #31)
 
-- [ ] R: 전체 grep audit 재시행. task B + C에서 잡은 hit 패턴 다시 grep — 잔존 0건 확인.
-- [ ] S: `.gitignore` 검증. vault path / 개인 path 류 우연 누출 차단.
-- [ ] T: `README.md` 최종 검수 + `LICENSE` 파일 존재 확인. LICENSE 없으면 사용자에게 권장 (MIT / Apache-2.0 dual 일반적).
+- [x] R: 전체 grep audit + 보안 sweep PASS. 잔존 위험 hit 0건. cargo audit (150 crate, 0 vuln) + cargo deny check (clean) + osv-scanner (No issues found) + gitleaks (484 commits, no leaks).
+- [x] S: `.gitignore` 검증 PASS. target/ + .env + secrets + tmp/ 정합.
+- [~] T: `README.md` public-facing 호환 PASS. **`LICENSE` 파일 미존재** — 사용자에게 권장 (MIT / Apache-2.0 dual 일반적, 사용자 결정 필요).
+- [x] T+: `.github/dependabot.yml` + `.github/workflows/codeql.yml` 신규 — public 전환 후 자동 활성. Dependabot (cargo + github-actions weekly) + CodeQL (rust, weekly + push/PR).
 - [ ] U: 본 plan 파일 (`docs/ralph/transition-plan.md`) `git rm` + commit (`chore: drop transition-plan post-cleanup`).
 - [ ] V: 사용자에게 `gh repo edit KneShell/gitless-sync --visibility public` 명령어 surface. 실행은 사용자가 직접 (destructive + 외부 영향 surface, 자율 회피).
 
