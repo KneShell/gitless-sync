@@ -3,7 +3,7 @@
 ## 목적
 로컬 파일과 원격 blob을 의미적 동일성("줄바꿈·BOM 차이는 동일로 간주") 기준으로 비교하기 위한 자체 정의 SHA-1 해시 계산. **git 표준 blob SHA가 아니다** (G-001).
 
-> **Phase 5 갱신 (2026-05-09, vague + clean-context 외부 시각 보강)**: v0.1 "항상 LF normalize" 정책에서 **`.gitattributes` 기반 conditional LF normalize**로 큰 구조 변경. 화이트리스트(text/binary/eol=lf|crlf만) + lifetime 계약(`Arc<GitAttributes>`) + encoding 변환 hash 입력 (b) 정책 적용.
+> **Phase 5 갱신 (2026-05-09)**: v0.1 "항상 LF normalize" 정책에서 **`.gitattributes` 기반 conditional LF normalize**로 큰 구조 변경. 화이트리스트(text/binary/eol=lf|crlf만) + lifetime 계약(`Arc<GitAttributes>`) + encoding 변환 hash 입력 (b) 정책 적용.
 
 ## 현재 상태
 
@@ -11,7 +11,7 @@
 - `crates/gitless-sync/src/shared/normalize.rs::{is_binary, normalize_text, prepare_for_hash}` 구현 완료. `prepare_for_hash`는 K2(2026-05-09) 시점 `.gitattributes` 분기 라우팅 + 5 helper(`apply_text_auto`/`apply_binary`/`apply_eol_lf`/`apply_eol_crlf`/`apply_unspecified`) 분리 적용.
 - **Phase 5 K1~K4 + K1.5 구현됨** (2026-05-09):
   - `.gitattributes` 파서 구현 (`shared/gitattributes/` 신규, K1).
-  - `AttributeMatch` enum 정의됨 — `TextAuto / Binary / EolLf / EolCrlf / LfsPointer / Unspecified / Unsupported { attribute_name }` 7 variant (K1.5, advisor BLOCKING fix로 `LfsPointer` variant 추가).
+  - `AttributeMatch` enum 정의됨 — `TextAuto / Binary / EolLf / EolCrlf / LfsPointer / Unspecified / Unsupported { attribute_name }` 7 variant (K1.5에서 `LfsPointer` variant 추가).
   - `prepare_for_hash` 시그니처 확정 — `(raw, keep_bom, gitattr: &Arc<GitAttributes>, path: &str) -> (Vec<u8>, bool)` 4 인자 (K2). 내부 분기는 7 variant → 5 helper 매핑(`LfsPointer`/`Unsupported`/`Unspecified`는 `apply_unspecified` 공유). caller(`pipeline/short_circuit::try_short_circuit_failed`)가 `.gitattributes` match arm에서 `LfsPointer` → `FailedReason::LfsPointer` + `Unsupported { .. }` → `FailedReason::GitattributesUnsupported`로 단락 (Phase 5.13 task AA에서 `is_lfs` predicate를 `classify_path` match 단일 arm으로 통합).
   - binary attribute 정확 적용 (NUL byte 휴리스틱 무시 + raw bytes 해시, K3).
   - `.gitattributes` 우선순위 (root < sub-dir depth < line-level last-wins) 정합 (K4).
@@ -43,7 +43,7 @@
 | `binary` (명시, **화이트리스트 ✓**) | raw bytes — NUL 휴리스틱 무시, normalize 안 함 |
 | `eol=lf` (명시, **화이트리스트 ✓**) | LF normalize (`\r\n` → `\n`) |
 | `eol=crlf` (명시, **화이트리스트 ✓**) | CRLF 보존 — `\r\n` → `\r\n` 그대로, `\n` → `\r\n` 변환 안 함 (GitHub 측 SHA와 일치) |
-| **`filter=lfs`** (명시, **화이트리스트 ✓**, advisor BLOCKING fix) | LFS-tracked 마커 — `Status::Failed` + `failed_reason: "lfs_pointer"` + `lfs_pointer: {oid, size}` (scan은 unknown, diff는 정확 파싱). `AttributeMatch::LfsPointer` variant. |
+| **`filter=lfs`** (명시, **화이트리스트 ✓**) | LFS-tracked 마커 — `Status::Failed` + `failed_reason: "lfs_pointer"` + `lfs_pointer: {oid, size}` (scan은 unknown, diff는 정확 파싱). `AttributeMatch::LfsPointer` variant. |
 | 미명시 (default) | v0.1 정책 그대로 — NUL 휴리스틱 + BOM + LF normalize |
 | **화이트리스트 외** (예: `working-tree-encoding`, `ident`, `filter=*` (lfs 외), macro attributes, `crlf` legacy) | `Status::Failed` + `failed_reason: "gitattributes_unsupported"` (spec-domain-pitfalls.md § 지원 attribute 화이트리스트) |
 
@@ -55,7 +55,7 @@
 2. 실패 시 다른 인코딩 detect (`encoding_rs` Mozilla, task E 결정 + Y task의 binary size 측정 결과 활용).
 3. 변환 실패 시 `Status::Failed` + `failed_reason: "encoding"`.
 
-**Hash 입력 정책 (b)** (clean-context §1):
+**Hash 입력 정책 (b)**:
 - detect 성공해도 hash 입력은 **원본 raw bytes**. UTF-8로 변환된 bytes 사용 안 함.
 - 근거: git core가 raw bytes 보존 — UTF-8 변환 hash는 git core와 mismatch.
 - detect는 `failed_reason` 마크 + 사용자 정보 제공 용도. hash 정확성과 무관.
@@ -93,7 +93,7 @@ UTF-8 BOM (`EF BB BF`)은 첫 3바이트가 valid UTF-8 (U+FEFF)이므로 `try_d
 - gitignore-style glob pattern matching.
 - 우선순위: 가장 깊은 디렉토리의 `.gitattributes`가 우선 + line-level pattern은 위에서 아래로 순회 (마지막 매칭이 winner).
 
-#### Lifetime 계약 (clean-context §3, K2 결정)
+#### Lifetime 계약
 
 ```rust
 pub struct GitAttributes {
@@ -113,7 +113,7 @@ pub(crate) fn prepare_for_hash(
 - `path: &str`는 `gitattr.classify_path(path)` 입력 — 매 파일별 attribute 매핑이 필요하므로 시그니처에 포함.
 - `commands/scan/mod.rs`가 vault root 진입 시 1회 `Arc::new(GitAttributes::load(local_root)?)` 호출 (`shared/normalize.rs::prepare_for_hash` → `commands/scan/hash_local.rs::try_hash_local` → `commands/scan/pipeline::assemble_entries` 경로로 reference 전파).
 
-#### 화이트리스트 강제 (clean-context §1, K1.5 sub-task)
+#### 화이트리스트 강제
 
 `.gitattributes` 매칭 결과 외 attribute는 자동 fail:
 

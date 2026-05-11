@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-05-10
-- **Related**: `docs/specs/spec-github-api.md` § Trees truncation handling, `docs/ralph/guardrails.md` § G-002, `docs/ralph/guardrails.md` § G-019, `docs/research/phase7-vague.md`
+- **Related**: `docs/specs/spec-github-api.md` § Trees truncation handling, `docs/ralph/guardrails.md` § G-002, `docs/ralph/guardrails.md` § G-019
 
 ## Context
 
@@ -21,7 +21,7 @@ sub-tree non-recursive 재귀 fallback 도입. v0.2.x 정책 (truncated 즉시 f
 | `MAX_TREE_CALL_BUDGET` | 1000 | linux/torvalds 기준 sub-tree 호출 약 5000 (truncated 케이스 가정). 1000 cap = 약 200K entry vault 한도 추정 + GitHub rate limit (5000/h auth) safety. |
 | `MAX_TREE_ENTRIES` | 500_000 | 누적 entry 한도. 도달 시 early-abort (메모리 안전). |
 
-depth cap / wall-clock cap은 monorepo 측정 도달 (depth 20+ 또는 호출 시간 600s+) 시 추가 검토. 초기 spec은 2 cap만 — memory `feedback_quality_vs_complexity.md` "추측 cap 추가 yagni" 정합.
+depth cap / wall-clock cap은 monorepo 측정 도달 (depth 20+ 또는 호출 시간 600s+) 시 추가 검토. 초기 spec은 2 cap만 (yagni — 추측 기반 cap 추가 회피).
 
 ### sha 일관성
 
@@ -39,12 +39,11 @@ depth cap / wall-clock cap은 monorepo 측정 도달 (depth 20+ 또는 호출 �
 - spec-github-api.md § Trees truncation handling 신규 § + § fetch_tree truncated 처리 update.
 - G-002 본문 update (Phase 7부터 sub-tree fallback 진입).
 - 신규 unit test 2 시나리오 (call budget 1001 + entries 500_001).
-- 합성 truncated mock fixture CI 자동 + linux/torvalds public repo manual 1회 sanity (사용자 결정 2026-05-10, `docs/research/phase7-vague.md` § Trees 검증 환경).
+- 합성 truncated mock fixture CI 자동 + linux/torvalds public repo manual 1회 sanity.
 - 신규 코드: `shared/github/trees/fallback.rs` 후보. budget struct + algorithm.
 
 ## References
 
 - `docs/specs/spec-github-api.md` § Trees truncation handling
 - `docs/ralph/guardrails.md` § G-002
-- `docs/research/phase7-vague.md`
 - [source: https://docs.github.com/en/rest/git/trees] (2026-05-10 fact check)
