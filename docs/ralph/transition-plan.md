@@ -58,7 +58,7 @@
 
 - [x] R: 전체 grep audit + 보안 sweep PASS. 잔존 위험 hit 0건. cargo audit (150 crate, 0 vuln) + cargo deny check (clean) + osv-scanner (No issues found) + gitleaks (484 commits, no leaks).
 - [x] S: `.gitignore` 검증 PASS. target/ + .env + secrets + tmp/ 정합.
-- [~] T: `README.md` public-facing 호환 PASS. **`LICENSE` 파일 미존재** — 사용자에게 권장 (MIT / Apache-2.0 dual 일반적, 사용자 결정 필요).
+- [x] T: `README.md` public-facing 호환 PASS + § License section 추가 + `LICENSE-MIT` + `LICENSE-APACHE` 신규 + Cargo.toml `license = "MIT OR Apache-2.0"` 갱신 (사용자 결정: dual).
 - [x] T+: `.github/dependabot.yml` + `.github/workflows/codeql.yml` 신규 — public 전환 후 자동 활성. Dependabot (cargo + github-actions weekly) + CodeQL (rust, weekly + push/PR).
 - [ ] U: 본 plan 파일 (`docs/ralph/transition-plan.md`) `git rm` + commit (`chore: drop transition-plan post-cleanup`).
 - [ ] V: 사용자에게 `gh repo edit KneShell/gitless-sync --visibility public` 명령어 surface. 실행은 사용자가 직접 (destructive + 외부 영향 surface, 자율 회피).
