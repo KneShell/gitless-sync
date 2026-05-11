@@ -139,7 +139,11 @@ pub enum AttributeMatch {
 
 ### 원격 측 비교
 
-GitHub Trees API가 반환하는 blob SHA는 working tree 바이트의 해시이며 `core.autocrlf` / `.gitattributes` 영향을 받음. 본 도구는 v0.2 (Phase 5)부터 `.gitattributes`를 파싱해 동일 정책 적용 → 자체 SHA 재계산해서 비교한다. **Trees API SHA는 무시** (자체 정의 hash 정책 그대로).
+GitHub Trees API가 반환하는 blob SHA는 working tree 바이트의 해시이며 `core.autocrlf` / `.gitattributes` 영향을 받음. 본 도구는 v0.2 (Phase 5)부터 `.gitattributes`를 파싱해 동일 정책 적용 → 자체 SHA 재계산해서 비교한다. **비교 key는 자체 정의 hash, Trees API SHA는 1차 후보**.
+
+구현 (`pipeline::normalize_pass`, Phase 8 task I + v0.4.2 fix):
+1. **1차 비교** — Trees API SHA를 `remote_sha` 값으로 받아 `local_sha` (= 자체 hash) 와 직접 비교. byte 동일 + normalize 결과 동일이면 1차에서 match → `Status::Identical` (대부분의 정상 케이스).
+2. **2차 fetch (mismatch 시)** — `fetch_blob` + `prepare_for_hash` + `blob_hash` 재계산. 결과가 `local_sha`와 일치하면 cosmetic drift (BOM/encoding/LF-CRLF만 차이) → `normalize_equal = Some(true)` → `Status::Identical` (`spec-classification.md` § 판정 로직, v1.4). 일치 안 하면 real semantic drift → 시간 비교 분기 (LocalOnlyChanged/RemoteOnlyChanged/Drift).
 
 ### Phase 7 — 큰 파일 처리
 

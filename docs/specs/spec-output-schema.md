@@ -1,4 +1,4 @@
-# Spec: Output JSON Schema v1.3
+# Spec: Output JSON Schema v1.4
 
 ## 목적
 `scan` 명령어가 stdout으로 출력하는 결과 JSON의 안정적 스키마. AI 호출자가 파싱·소비할 수 있도록 버전 보장.
@@ -8,20 +8,22 @@
 > **Phase 7 갱신 (2026-05-10)**: schema_version 1.1 → **1.2** (minor bump). `failed_reason` enum 9 → 11 (`file_too_large` + `memory_exceeded` 추가) + 신규 field `size_bytes` (Failed entry size 진단). 기존 필드 변경 없음 — 호출자 backward-compat 유지.
 >
 > **Phase 8 갱신 (2026-05-10)**: schema_version 1.2 → **1.3** (minor bump). 신규 field `diff_meaningful: Option<bool>` (F1 — scan/diff 비교 기준 불일치 해소) + `presence: "local_only" | "both" | "remote_only"` (F2 — `local_only_changed` 의미 모호 해소). 4-state status (`identical` / `local_only_changed` / `remote_only_changed` / `drift` / `failed`) 그대로 유지 — backward compat 보장. 결정 trail은 `docs/adr/0014-scan-diff-metadata-contract.md`.
+>
+> **v0.4.2 갱신 (2026-05-11)**: schema_version 1.3 → **1.4** (minor bump). `Identical` 정의 정확화 — sha-differ + `normalize_equal == Some(true)` (cosmetic drift, F1 케이스) 도 `Identical` 분류. 기존 caller 코드는 그대로 작동 — Identical 카운트가 더 정확해지고 LocalOnlyChanged/RemoteOnlyChanged 카운트는 cosmetic drift만큼 감소. backward compat 보장 (additive 의미 정확화). issue #1 regression. 결정 trail은 `docs/adr/0015-cosmetic-identical-classification.md`.
 
 ## 현재 상태
 - `crates/gitless-sync/src/commands/scan/output.rs::{ScanReport, Summary}` 구조체 + serde 직렬화 완료 (v1.0).
 - `crates/gitless-sync/src/commands/scan/compare.rs::{FileEntry, Status, FailedReason, LfsPointer}` 정의됨 (v1.1 신규 필드 mode/failed_reason/lfs_pointer 포함, v1.2 신규 size_bytes 포함).
-- `SCHEMA_VERSION = "1.2"` 상수 정의 — Phase 8 task L에서 `"1.3"`으로 bump 예정.
+- `SCHEMA_VERSION = "1.4"` 상수 정의 — Phase 8에서 `"1.3"` bump, v0.4.2에서 `"1.4"` bump (cosmetic Identical fix).
 - `serialize(report, pretty)` 함수 구현 완료.
 - `FileEntry`에 `diff_meaningful` + `presence` field는 Phase 8 task F~I에서 신규 추가 예정.
 
 ## 작업 범위
 
-### 스키마 v1.3 (전체)
+### 스키마 v1.4 (전체)
 ```json
 {
-  "schema_version": "1.3",
+  "schema_version": "1.4",
   "scanned_at": "2026-05-10T10:30:00Z",
   "repo": "owner/name",
   "branch": "main",
@@ -174,7 +176,7 @@ LLM-as-caller usability eval (2026-05-10) 7 friction 중 P0 2건 (F1 + F2) 해�
 - F1 diff stderr hint — 호출 2회 필요. scan 1회로 모든 정보 받게 함이 caller-decides 본성에 더 정합.
 
 ### 안정성 보장
-- `schema_version`: 호환성 깨는 변경 시 major 증가. v0.1은 `"1.0"`, Phase 5는 `"1.1"`, Phase 7은 `"1.2"`, Phase 8은 `"1.3"` (모두 minor — 신규 field 추가만, 기존 필드 변경 0).
+- `schema_version`: 호환성 깨는 변경 시 major 증가. v0.1은 `"1.0"`, Phase 5는 `"1.1"`, Phase 7은 `"1.2"`, Phase 8은 `"1.3"`, v0.4.2는 `"1.4"` (모두 minor — 신규 field 추가 또는 `Identical` 분류 정확화, 기존 필드 변경 0).
 - `status` enum 동결: `identical` / `local_only_changed` / `remote_only_changed` / `drift` / `failed`. 추가는 minor 버전, 제거·이름 변경은 major. **Phase 5에서 새 status 미추가** — LFS/submodule/symlink는 모두 `failed` + `failed_reason` 분류.
 - `failed_reason` enum 동결 정책: 추가는 minor, 제거·이름 변경은 major. Phase 5에서 정의된 9 reason (`hash_io` / `encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported`) 모두 구현 (Phase 5.13 task AA, 2026-05-09 — `compare.rs::FailedReason` 8 variant + `None` special case `hash_io`). Phase 7에서 2 reason 추가 — `file_too_large` + `memory_exceeded` (총 11 reason, `compare.rs::FailedReason` 10 variant + `None` special case).
 - 시간 필드: 모두 ISO-8601 UTC (`Z` suffix). 로컬 타임존 출력 금지.
@@ -250,6 +252,16 @@ ADR 0014 결정 trail. 코드 변경은 Phase 8.2 (task F~M) + 8.3 (task N~R) sc
 - `[AUTO]` Failed entry: `diff_meaningful` 필드 omit (presence 값 무관). 비교 불가.
 - `[AUTO]` `presence` 필드는 `Failed` entry에서도 누락 안 함 — 호출자가 "Failed인데 어느 쪽이 존재해서 fail인가" 분기 가능 (예: `presence == "local_only"` + `failed_reason == "lfs_pointer"` → local LFS pointer 만 있는 케이스).
 - `[AUTO]` v1.0 / v1.1 / v1.2 호출자가 v1.3 JSON 파싱 시 추가 필드 (`presence` / `diff_meaningful`) 무시 + 기존 필드 정상 동작 (backward-compat 검증, Phase 7.2 task P 패턴 — `tests/scan_output_backward_compat.rs` V10/V11/V12 client 정합).
+
+### v1.4 신규 (v0.4.2)
+
+ADR 0015 결정 trail (issue #1 regression). 코드 변경: `classify` 함수에 `normalize_equal: Option<bool>` 인자 추가 + sha-differ + `Some(true)` → `Status::Identical` arm.
+
+- `[AUTO]` `report.schema_version` == `"1.4"`.
+- `[AUTO]` Hashed entry (presence=both, sha differ) + `normalize_equal == Some(true)`: `Status::Identical` (cosmetic drift — UTF-8 BOM / LF-CRLF / `.gitattributes` 정책 차이만 있는 byte-동일 케이스).
+- `[AUTO]` Hashed entry (presence=both, sha differ) + `normalize_equal == Some(false)`: 기존 timestamp 분기 유지 (LocalOnlyChanged / RemoteOnlyChanged / Drift).
+- `[AUTO]` Hashed entry (presence=both, sha differ) + `normalize_equal == None` (compute 실패 또는 single-side): 기존 timestamp 분기 유지 (default).
+- `[AUTO]` v1.0 / v1.1 / v1.2 / v1.3 호출자가 v1.4 JSON 파싱 시 status enum 그대로 + Identical 카운트가 더 정확해지고 LocalOnlyChanged/RemoteOnlyChanged 카운트는 cosmetic drift만큼 감소 (additive 의미 정확화, breaking change 아님).
 - `[AUTO]` `presence` enum 동결 정책: 추가는 minor, 제거·이름 변경은 major. `local_only` / `both` / `remote_only` 3 값으로 시작.
 
 ## diff sub-schema

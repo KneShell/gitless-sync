@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-05-11
+
+> Issue #1 hotfix. byte-identical files (UTF-8 BOM / LF-CRLF cosmetic SHA drift) 가 `LocalOnlyChanged` 로 잘못 분류되던 spec/code drift fix. `classify` 함수에 `normalize_equal: Option<bool>` 인자 추가 + sha-differ + `Some(true)` → `Status::Identical` arm. schema_version 1.3 → **1.4** (additive 의미 정확화, backward compat 보장). 결정 trail은 `docs/adr/0015-cosmetic-identical-classification.md`.
+
+### Fixed
+
+- **Issue #1**: byte 동일 파일이 `status: local_only_changed` + `presence: both` + `diff_meaningful: false` 로 잘못 분류되던 bug fix. `pipeline::normalize_pass` 가 sha-differ Hashed entry 한정 fetch_blob + 자체 hash 재계산 결과를 `compare()` 의 `diff_meaningful` 결정에만 박았고 `classify()` 의 status 결정에는 안 박혔던 비대칭 처리 정정. 이제 `normalize_equal == Some(true)` 시 `Status::Identical` 분류.
+
+### Changed
+
+- `compare/decisions.rs::classify` signature — `normalize_equal: Option<bool>` 5번째 인자 추가. caller 1건 (`pipeline/finalize/pre_entry.rs::hashed_to_file_entry`) 갱신 + 기존 unit test 11건 갱신 (`None` 추가).
+- `output.rs::SCHEMA_VERSION` 1.3 → 1.4.
+- `hash_remote.rs` 모듈 코멘트 정정 — outdated ("scan never calls fetch_blob") → 정확 ("normalize_pass 에서 sha-mismatch 시 fetch_blob 호출").
+- `Cargo.toml` workspace.package — 본 release 는 crate version 만 (0.4.1 → 0.4.2).
+
+### Spec
+
+- `spec-classification.md` § Status 정의 + § classify 시그니처 + § 판정 로직 + § Acceptance Criteria 갱신.
+- `spec-output-schema.md` § 안정성 보장 version history + § v1.4 신규 acceptance section 추가.
+- `spec-hash-and-normalize.md` § 원격 측 비교 정확화 (1차 raw SHA + mismatch 시 자체 hash 재계산 흐름 명시).
+- `docs/adr/0015-cosmetic-identical-classification.md` 신규 — 결정 trail + 4 alternative 검토.
+
+### Verified
+
+- 신규 regression test 3건:
+  - `compare/decisions.rs::tests::identical_when_normalize_equal_despite_sha_differ` — F1 unit test.
+  - `compare/decisions.rs::tests::normalize_equal_some_false_falls_through_to_timestamp_arm` — `Some(false)` 시 기존 동작 유지.
+  - `pipeline/finalize/pre_entry.rs::tests::scenario_byte_identical_with_cosmetic_sha_differ_classifies_as_identical` — 통합 시나리오.
+- backward compat — v1.0 / v1.1 / v1.2 / v1.3 caller 가 v1.4 JSON 파싱 정상 (status enum 그대로, 의미 정확화 additive).
+
 ## [0.4.1] - 2026-05-10
 
 > Phase 8 post-eval minor fix. v0.4.0 가 도입한 clap `value_enum` (F5) 부산물 회복 + F4 백틱 노이즈 정리. 외부 surface 변경: 잘못된 인자 시 사람용 multi-line text + exit 2 → JSON 한 줄 + exit 1 (CONFIG_ERROR) 로 복귀 — v0.3 이전 한 줄 JSON contract 와 의미 일관.
