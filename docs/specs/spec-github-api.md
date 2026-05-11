@@ -101,7 +101,7 @@ v0.1 ureq baseline 시그니처에서 `token` 인자 제거 + `client: &impl GhC
 - `fetch_tree` 1차 호출 응답 `truncated: true` 검출 시 본 § 진입.
 - v0.2.x까지는 `GitlessError::TreesTruncated` 즉시 반환 + exit 5 (G-002). Phase 7부터 sub-tree fallback 진입 후 실패 시에만 동일 error 반환.
 
-##### sha 일관성 (sub-claude finding 5 정합)
+##### sha 일관성
 
 - Trees fallback 진입 직전 1회 ref → commit sha → root tree sha resolve.
 - 모든 sub-tree 호출은 `gh api repos/{owner}/{repo}/git/trees/{sub_tree_sha}` (immutable tree sha 직접 사용). branch 이름 / ref 사용 금지 (resolve 시점과 sub-tree 호출 시점의 HEAD drift 차단).
@@ -159,7 +159,7 @@ depth cap / wall-clock cap은 ADR 0011 raw data (monorepo 측정 — depth 20+ �
 ##### GraphQL backend 정합
 
 - GraphQL backend는 commits API 한정 (§ GraphQL backend). Trees는 REST 단일 통로 — backend 분기 없음.
-- 같은 commit sha 위에서 GraphQL eventual consistency window 우려 (sub-claude finding 6 정합) — Trees REST 호출이 시점 t의 root tree sha를 resolve 후 모든 sub-tree REST 호출이 동일 sha 위에서 평가 → 단일 backend 안 일관.
+- 같은 commit sha 위에서 GraphQL eventual consistency window 우려 — Trees REST 호출이 시점 t의 root tree sha를 resolve 후 모든 sub-tree REST 호출이 동일 sha 위에서 평가 → 단일 backend 안 일관.
 
 ##### G-002 update
 

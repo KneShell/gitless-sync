@@ -12,14 +12,14 @@ GitHub repo와 로컬 디렉토리 간 비교에서 OS / 인코딩 / git 메타�
 |---|---|---|
 | **NFD vs NFC** (path) | 정확 hash 재현 — path NFC 정규화 | spec-classification.md |
 | **대소문자 충돌** | 정확 hash 재현 — case-sensitive 비교 (Unix-style) + Windows local-side detection | spec-classification.md |
-| **비-UTF-8 인코딩** | 변환 시도 후 detect-only — hash 입력은 **(b) 원본 raw bytes** (clean-context §1) | spec-output-schema.md / spec-error-contracts.md / spec-hash-and-normalize.md |
+| **비-UTF-8 인코딩** | 변환 시도 후 detect-only — hash 입력은 **(b) 원본 raw bytes** | spec-output-schema.md / spec-error-contracts.md / spec-hash-and-normalize.md |
 | **submodule (`160000`)** | detect-only — `Status::Failed` + `failed_reason: "submodule"` + mode bit 보고 | spec-github-api.md / spec-output-schema.md |
 | **symlink (`120000`)** | detect-only — `Status::Failed` + `failed_reason: "symlink"` + mode bit 보고 | spec-github-api.md / spec-output-schema.md |
 | **빈 파일** | 정확 hash + 실파일 검증 | spec-hash-and-normalize.md |
 | **실행 권한 (`100755` vs `100644`)** | detect-only — content 같으면 `Status::Identical` 유지, mode bit 정보 보고 | spec-output-schema.md |
 | **`.gitattributes`** | **정확 hash 재현 (큰 변경) + 화이트리스트** | spec-hash-and-normalize.md (구조 변경) / spec-config.md |
 
-### 추가 함정 (clean-context §2 보강)
+### 추가 함정
 
 | 함정 | 정책 | 영향 spec |
 |---|---|---|
@@ -38,14 +38,14 @@ GitHub repo와 로컬 디렉토리 간 비교에서 OS / 인코딩 / git 메타�
 - **macOS default 환경** (`core.precomposeunicode = true`): NFD → NFC 자동 변환. 우리 NFC 정규화로 정합 [source: https://git.vger.kernel.narkive.com/OJcWG1uy/patch-v8-on-mac-os-and-precomposed-unicode].
 - **macOS `false` edge case**: NFC/NFD 동일 path 두 개 공존 vault → NFC 정규화 후 같은 key 충돌 → `Status::Failed` + `failed_reason: "nfd_collision"`. 99% 케이스는 NFC 정규화로 자동 처리, 1% edge case는 detect-only fallback 구현 (Phase 5.13 task AA, `commands/scan/nfd_collision.rs::detect`가 walker output `&[LocalFile]`을 NFC key로 group-by count ≥ 2, HashMap dedup 전).
 - **Case 정책**: case-sensitive 비교 (Unix-style). Windows NTFS는 normalize 안 하고 NFC/NFD 둘 다 저장 가능 [source: https://unicodefyi.com/guide/unicode-in-filenames/] — 우리 도구가 NFC 정규화 + case-sensitive로 통일.
-- **Windows NTFS local-side case detection** (clean-context §1): local에 `Foo.txt` + `foo.txt` 두 file 존재 케이스 → walker가 두 entry catch (NTFS는 case-preserving), case-sensitive 비교로 두 path key 생성. 한쪽 side에 다른 case sibling이 있으면 unmatched side는 `Status::Failed` + `failed_reason: "case_collision"`로 promote (D1, spec-classification.md § edge case + spec-output-schema.md § `failed_reason` 정합 — `failed_reason`은 `Status::Failed` 한정). 검출은 symmetric: (a) canonical case-insensitive volume(1개 entry만 catch + remote 두 case 존재) → unmatched remote-side 1개 promote, (b) local 두 case 모두 존재하는데 remote 1개 case → unmatched local-side promote, (c) local/remote가 서로 다른 case 1개씩만 존재하는 diagonal mismatch → 양쪽 모두 promote.
+- **Windows NTFS local-side case detection**: local에 `Foo.txt` + `foo.txt` 두 file 존재 케이스 → walker가 두 entry catch (NTFS는 case-preserving), case-sensitive 비교로 두 path key 생성. 한쪽 side에 다른 case sibling이 있으면 unmatched side는 `Status::Failed` + `failed_reason: "case_collision"`로 promote (spec-classification.md § edge case + spec-output-schema.md § `failed_reason` 정합 — `failed_reason`은 `Status::Failed` 한정). 검출은 symmetric: (a) canonical case-insensitive volume(1개 entry만 catch + remote 두 case 존재) → unmatched remote-side 1개 promote, (b) local 두 case 모두 존재하는데 remote 1개 case → unmatched local-side promote, (c) local/remote가 서로 다른 case 1개씩만 존재하는 diagonal mismatch → 양쪽 모두 promote.
 
 ### `.gitattributes` 정확 재현 (큰 변경)
 
 - v0.1 정책: 항상 LF normalize (모든 텍스트 파일).
 - v0.2 (Phase 5) 정책: **conditional LF normalize** + **화이트리스트**:
 
-#### 지원 attribute 화이트리스트 (clean-context §1)
+#### 지원 attribute 화이트리스트
 
 화이트리스트만 지원, 나머지는 `failed_reason: "gitattributes_unsupported"` 마크:
 
@@ -73,7 +73,7 @@ GitHub repo와 로컬 디렉토리 간 비교에서 OS / 인코딩 / git 메타�
 - gitignore-style glob pattern matching.
 - 우선순위: 가장 깊은 디렉토리의 `.gitattributes`가 우선 + line-level pattern은 마지막 매칭이 winner.
 
-#### lifetime 계약 (clean-context §3, K2 결정)
+#### lifetime 계약
 
 ```rust
 pub fn prepare_for_hash(
@@ -93,7 +93,7 @@ pub fn prepare_for_hash(
 
 ## detect-only 정책 상세
 
-### Encoding 변환 시도 (clean-context §1 — hash 입력 (b) 정책)
+### Encoding 변환 시도 (hash 입력 (b) 정책)
 
 - 1차: UTF-8 디코드 시도. 성공 시 `.gitattributes` 정합 normalize 적용.
 - 2차 (실패 시): 다른 인코딩 detect (`encoding_rs` Mozilla, task E 결정).
@@ -111,7 +111,7 @@ pub fn prepare_for_hash(
 - v0.2 (Phase 5): `Status::Failed` + `failed_reason: "submodule"` 또는 `"symlink"` + mode bit JSON 출력.
 - 정확 hash 재현 안 함 (submodule은 외부 repo, symlink는 OS-dependent target).
 
-### LFS pointer (clean-context §2 + advisor BLOCKING fix)
+### LFS pointer
 
 - git-lfs 표준 마커: `.gitattributes`에 `*.psd filter=lfs diff=lfs merge=lfs -text` 형식 [source: https://github.com/git-lfs/git-lfs/blob/main/docs/spec.md].
 - **detection 경로 — `.gitattributes` 파싱 시점**:
@@ -141,7 +141,7 @@ pub fn prepare_for_hash(
 - UTF-8 BOM (`EF BB BF`): v0.1 정책 그대로 strip (text=auto + 미명시). `--keep-bom` 시 보존.
 - UTF-16 BOM (`FF FE` LE / `FE FF` BE): detect → `Status::Failed` + `failed_reason: "encoding"` (UTF-16은 v0.2 비목표).
 
-## v0.1 vs v0.2 회귀 정의 (clean-context §3 보강)
+## v0.1 vs v0.2 회귀 정의
 
 ### 정확화 vs 회귀 분류
 
@@ -173,7 +173,7 @@ T task (vault dogfooding before/after)에서 v0.1 vs v0.2 출력 차이를 자�
 
 ### Windows 1차 + 실용 근사
 
-- macOS NFD 검증은 raw bytes injection unit test fixture + **NTFS 실파일 fixture** 둘 다 가능 (clean-context §5 fact check):
+- macOS NFD 검증은 raw bytes injection unit test fixture + **NTFS 실파일 fixture** 둘 다 가능 (fact check 결과):
   - NTFS는 normalize 안 함, UTF-16LE 그대로 저장 → NFD/NFC 파일 직접 생성 가능 [source: https://unicodefyi.com/guide/unicode-in-filenames/].
   - compose 한글 (`가` = `\u{AC00}`) vs decompose (`가` = `\u{1100}\u{1161}`) 둘 다 실파일 + raw bytes 시나리오 검증.
 - symlink는 Windows에서 unprivileged process 생성 불가 — Trees API mock 응답에 mode `120000` entry로 검증.
@@ -183,7 +183,7 @@ T task (vault dogfooding before/after)에서 v0.1 vs v0.2 출력 차이를 자�
 
 ### 부속 검증 task
 
-- **Y task**: `encoding_rs` binary size 사후 측정 (clean-context §5 — 정확 size impact 미확인). cargo-bloat dry-run + dependency tree 분석.
+- **Y task**: `encoding_rs` binary size 사후 측정 (정확 size impact 미확인). cargo-bloat dry-run + dependency tree 분석.
 - **X task**: `.gitattributes` parser performance gate (큰 vault 10K+ × 100+ 룰 P95 측정).
 - **R3 task**: large vault scale fixture (10K/100K 파일).
 

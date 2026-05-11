@@ -67,7 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `shared/github/trees/parse.rs::TreeEntry::size` — `Option<u64>` field 추가 (Trees response size field 활용, sub-tree fallback + remote-side size pre-flight 양쪽 사용).
 - Specs — spec-github-api.md § Trees truncation handling + spec-hash-and-normalize.md § Phase 7 — 큰 파일 처리 + spec-output-schema.md § v1.2 + 신규 Acceptance Criteria 7 시나리오.
 - ADR — 0011 (Trees sub-tree fallback) + 0012 (큰 파일 임계치 100/50 MB) + 0013 (자율 chain hard cap depth 3 + token 200k + wall-clock 6h). ADR 0008 § Phase 7.3 재검토 추가 — 1000+ path scale에서 mtime cache 재도입 트리거 keep-drop 유지 (path 20× scale에도 walltime 1324.8 ms → 829/1109 ms로 hash 비중 폭증 신호 없음, 향후 trigger (a)/(b) 명시).
-- guardrails — G-019 (자율 chain hard cap, Phase 7 vague 결과).
+- guardrails — G-019 (자율 chain hard cap, Phase 7 결정).
 - Phase 7.3 — `xtask synth-vault` sub-command (1000+ markdown 합성 vault generator, seed/UTF-8 NFC/LF/mtime epoch 정책 정합, `xtask/src/synth_vault.rs`). dogfood + scale 측정용 — 도구 본체 contract 영향 0.
 - Research — `docs/research/phase7-vault-scale-bench.md` (T main bench 1000 local × 129 remote 3 runs + U public repo cross-check 1000 local × 4964 remote git/git@94f0577 single run + W 종합 cross-comparison + ADR 0008 cross-link).
 
@@ -117,7 +117,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - G-005 mtime 휴리스틱 정합 — `local_mtime == remote_last_commit_at` 동률은 `Status::Drift`로 격하 (각 함정 처리 후 정합 재검증).
-- hash_pass.rs PreState doc comment 3줄 중복 (sub-claude AUTO-FIX, EE diff cleanup miss).
+- hash_pass.rs PreState doc comment 3줄 중복 (외부 시각 AUTO-FIX).
 - CLAUDE.md G-017 stale cross-ref + research 3 file 절대 경로 (`D:\00.Projects\02.Personal\05.gitless-sync` → `<project root>`).
 - scan_errors.rs:13 `use std::fs;` cfg(windows) gate (Linux CI unused import) + compute.rs:267 backslash test cfg(windows) gate (Linux invalid path).
 

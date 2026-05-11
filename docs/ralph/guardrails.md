@@ -70,12 +70,12 @@
   - **사례 B** (commit `edbb3fb`, run `25613446027`): `commands/diff/compute.rs:267` `compute_diff_normalizes_backslash_path_to_forward_slash` test가 `r"sub\a.md"` backslash path를 Windows normalization 검증용으로 사용 → Linux는 `\`가 valid filename char라 file lookup 실패 + stderr emit + assertion fail. fix: test 자체 `#[cfg(windows)]` gate.
 - **해결**: Windows-only `use` / `mod` / test는 `#[cfg(windows)]` gate 필수. cross-platform `use`/test는 top-level 그대로. 사전 검증 옵션: (a) Linux cross-build (Windows host에서 `cargo clippy --target x86_64-unknown-linux-gnu --workspace --all-targets -- -D warnings`, 단 std target 추가 + linker 설정 필요라 setup cost 큼). (b) push trigger CI 1회로 검출 (real signal, 본 사례 채택). Windows-only `#[cfg]` block 신규 추가 시 import + test 모두 동일 cfg gate 동시 적용. **신규 Windows-specific 가정 (path separator / filename char / fs API)** 의존 test 작성 시 `#[cfg(windows)]` gate 필수 체크리스트 항목 추가.
 
-## G-019: 자율 chain hard cap (sub-claude 검증 + 신규 phase chain 무한 loop 방지)
-- **문제**: ralph 가동 → sub-claude clean-context 검증 → finding 발견 → 신규 phase 자동 plan/spec 생성 → ralph 추가 가동 chain은 무한 loop 위험. finding이 매 iteration 새 각도로 도출되며 진동 가능성. token / wall-clock 비용 통제 부재 시 "비싼 진동" 발생. release tag 직전 phase에서 사용자 wake-up 0 stance 적용 시 surface 늦어 비용 누적.
+## G-019: 자율 chain hard cap (외부 시각 검증 + 신규 phase chain 무한 loop 방지)
+- **문제**: ralph 가동 → 외부 시각 검증 → finding 발견 → 신규 phase 자동 plan/spec 생성 → ralph 추가 가동 chain은 무한 loop 위험. finding이 매 iteration 새 각도로 도출되며 진동 가능성. token / wall-clock 비용 통제 부재 시 "비싼 진동" 발생. release tag 직전 phase에서 사용자 wake-up 0 stance 적용 시 surface 늦어 비용 누적.
 - **해결**: 3차원 hard cap 복합 + 수렴 기준 + escape hatch (ADR 0013):
   - **depth cap**: max 3 chain (Phase N → N+1 → N+2 → N+3). 그 너머 BLOCK + 다음 세션 wake-up 시 surface.
-  - **token cap**: 본 chain 누적 200k token. 단일 ralph run + sub-claude 검증 + AUTO-FIX 합산. 측정은 conversation token 카운터.
+  - **token cap**: 본 chain 누적 200k token. 단일 ralph run + 외부 시각 검증 + AUTO-FIX 합산. 측정은 conversation token 카운터.
   - **wall-clock cap**: 6h. 첫 ralph launch 시점부터 측정.
   - **수렴 기준**: "동일 finding 2회 연속 + 신규 0건" → CONVERGE PASS, push + tag 진행.
-  - **escape hatch**: cap 초과 또는 sub-claude finding이 spec semantics 변경 요구 시 → BLOCK + changelog/research에 finding 기록만 + 다음 세션 wake-up 시 사용자 surface (자율 chain 중단). ralph 자율 주행 + 도중 wake-up 0 stance (memory `feedback_release_phase_chain.md`) 정합.
+  - **escape hatch**: cap 초과 또는 외부 시각 finding이 spec semantics 변경 요구 시 → BLOCK + changelog/research에 finding 기록만 + 다음 세션 wake-up 시 사용자 surface (자율 chain 중단). ralph 자율 주행 + 도중 wake-up 0 stance와 정합.
   - **cap 변경**: ADR 0013 갱신 동반. 측정 누적 trace file 자동 생성은 yagni — cap 도달 시점에 사람 surface 시 사후 분석 가능.

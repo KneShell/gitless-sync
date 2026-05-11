@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-05-10
-- **Related**: `docs/specs/spec-hash-and-normalize.md` § Phase 7 — 큰 파일 처리, `docs/specs/spec-error-contracts.md` § Per-file Pitfall Reasons, `docs/specs/spec-output-schema.md` § v1.2 신규, `docs/research/phase7-vague.md`
+- **Related**: `docs/specs/spec-hash-and-normalize.md` § Phase 7 — 큰 파일 처리, `docs/specs/spec-error-contracts.md` § Per-file Pitfall Reasons, `docs/specs/spec-output-schema.md` § v1.2 신규
 
 ## Context
 
@@ -21,13 +21,13 @@ reason enum 분리: `file_too_large` (100MB API 한도) + `memory_exceeded` (50M
 | `file_too_large` | 100 MB | GitHub Blobs API hard limit (fact check). 100 MB 초과 파일은 도구 비교 불가 — remote 자체 fetch 불가능. |
 | `memory_exceeded` | 50 MB | raw + base64 + SHA-1 buffer 3중 메모리 사용 → 50 MB raw → 약 200 MB 메모리 worst case. 1 GB RAM 머신 안전 cap. |
 
-50 MB 임계는 추정값 — Phase 8+ 측정 trigger 발생 시 조정 가능.
+50 MB 임계는 추정값 — 측정 trigger 발생 시 조정 가능.
 
 ### 검출 시점
 
 - local: `fs::metadata().len()` pre-flight (file read 자체 회피).
 - remote: Trees response size field pre-flight (fetch_blob 호출 자체 회피).
-- post-flight 검증은 yagni — Trees response는 size field 항상 포함이라 pre-flight로 99% cover (memory `feedback_quality_vs_complexity.md` 정합).
+- post-flight 검증은 yagni — Trees response는 size field 항상 포함이라 pre-flight로 99% cover.
 
 ### Cascade 우선순위
 
@@ -46,5 +46,4 @@ LFS pointer > size check (Phase 5 spec 정합). 100MB 미만 LFS pointer text는
 - `docs/specs/spec-hash-and-normalize.md` § Phase 7 — 큰 파일 처리
 - `docs/specs/spec-error-contracts.md` § Per-file Pitfall Reasons
 - `docs/specs/spec-output-schema.md` § v1.2 신규
-- `docs/research/phase7-vague.md`
 - [source: https://docs.github.com/en/rest/git/blobs] (2026-05-10 fact check)
