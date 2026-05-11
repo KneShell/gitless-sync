@@ -40,8 +40,8 @@
 
 ### C. ralph 워크스페이스 정리 (Task #30 일부)
 
-- [ ] K: `docs/ralph/implementation-plan.md` skeleton화. 보존 영역: Status (진입/Tasks/Completed line만 비움) + Notes for Build Mode + Constraints. Phase entry (Phase 5/6/7/8 Completed Phases) 전체 제거. 다음 phase 진입 시 비어있는 Phase entry에 새 task 추가.
-- [ ] L: `docs/ralph/prompt-plan.md` 처리 결정. 옵션: (a) 유지 + heading에 'Optional — 사용자가 LLM과 직접 plan 작업 시 skip' 한 줄 추가, (b) `git rm`. plan 모드 폐지가 vague 결정이므로 (b) 우선. 다만 vault reference (task Q)에 plan 모드 history는 한 단락 보존.
+- [x] K: `docs/ralph/implementation-plan.md` skeleton화. § Status 비움 + § Completed Phases (Phase 5/6/7/8 entries) 통째 제거 + § Active Phase 통째 제거 + § Notes for Build Mode + § Constraints 보존 (박제 expiration 한 줄 제거). 다음 phase 진입 시 § Status에 진행 정보 + § Tasks 추가.
+- [x] L: `docs/ralph/prompt-plan.md` `git rm` (vague 결정: plan 모드 폐지). plan 모드 history는 vault reference task Q에서 한 단락 보존 예정.
 
 ### D. Rust 템플릿 vault export (Task #29)
 
