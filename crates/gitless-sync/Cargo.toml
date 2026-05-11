@@ -20,7 +20,7 @@ walkdir = "2"
 ignore = "0.4"
 thiserror = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
-toml = "0.8"
+toml = "1.1"
 base64 = "0.22"
 rayon = "1"
 similar = "3"
