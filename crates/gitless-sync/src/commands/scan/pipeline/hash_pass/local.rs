@@ -9,6 +9,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 
 use super::types::PreState;
+use crate::commands::scan::compare::FailedReason;
 use crate::commands::scan::hash_local::try_hash_local;
 use crate::commands::scan::walker::LocalFile;
 use crate::shared::gitattributes::GitAttributes;
@@ -56,7 +57,7 @@ pub(super) fn build_local_state(args: LocalArmInputs<'_>) -> PreState {
             PreState::Failed {
                 remote_sha,
                 local_mtime,
-                failed_reason: None,
+                failed_reason: Some(FailedReason::HashIo),
                 is_binary: false,
                 size_bytes: None,
             }
@@ -89,10 +90,11 @@ mod tests {
     }
 
     #[test]
-    fn build_local_state_marks_unreadable_local_as_failed_without_reason() {
+    fn build_local_state_marks_unreadable_local_as_failed_with_hash_io_reason() {
         // hash io error path — `try_hash_local` returns Err, the `eprintln!`
-        // branch fires, and PreState::Failed lands with `failed_reason: None`
-        // (v1.0 backward-compat: hash IO errors don't get an enum reason).
+        // branch fires, and PreState::Failed lands with
+        // `failed_reason: Some(FailedReason::HashIo)` (v1.6 explicit emit;
+        // v1.5까지는 `None` sentinel이었으나 Finding 2로 명시화).
         let dir = TempDir::new().unwrap();
         let bogus = LocalFile {
             relative_path: "ghost.md".to_string(),
@@ -117,7 +119,7 @@ mod tests {
                 ..
             } => {
                 assert_eq!(remote_sha.as_deref(), Some("remote-sha"));
-                assert!(failed_reason.is_none());
+                assert_eq!(failed_reason, Some(FailedReason::HashIo));
             }
             PreState::Hashed { .. } => panic!("expected PreState::Failed, got Hashed"),
         }

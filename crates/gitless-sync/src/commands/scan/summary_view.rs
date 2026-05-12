@@ -1,9 +1,12 @@
 //! `--summary-only` mode `files[]` projection.
 //!
 //! `FilesView::SummaryFailed` carries minimal failed-entry rows
-//! (path + presence + `failed_reason`) per `spec-output-schema.md` § v1.5.
-//! `failed_reason == None` (`hash_io` signal) collapses the row to
-//! `path + presence` two fields via `#[serde(skip_serializing_if)]`.
+//! (path + presence + `failed_reason`) per `spec-output-schema.md` § v1.6.
+//! Phase 10 Finding 2 명시화: caller(`pipeline::hash_pass::local`)가 `hash_io`
+//! signal을 explicit `FailedReason::HashIo`로 emit하므로 본 view의 모든
+//! Failed entry는 항상 3 field shape로 wire 직렬화 (v1.5의 `path + presence`
+//! 2 field special case 제거). `failed_reason: Option<FailedReason>` 시그니처
+//! 자체는 유지 — defensive Option None 대응은 wire skip으로 자연 통과.
 
 use serde::Serialize;
 
@@ -204,22 +207,9 @@ mod tests {
         assert_eq!(obj["failed_reason"], "lfs_pointer");
     }
 
-    #[test]
-    fn summary_failed_entry_wire_omits_hash_io_failed_reason() {
-        // failed_reason == None ⇒ hash_io signal per spec line 342.
-        // wire emits only `path` + `presence` (key absent).
-        let entry = SummaryFailedEntry {
-            path: "x".into(),
-            presence: Presence::Both,
-            failed_reason: None,
-        };
-        let value = serde_json::to_value(&entry).unwrap();
-        let obj = value.as_object().unwrap();
-        assert_eq!(obj.len(), 2);
-        assert!(obj.contains_key("path"));
-        assert!(obj.contains_key("presence"));
-        assert!(!obj.contains_key("failed_reason"));
-    }
+    // Phase 10 Finding 2: v1.5의 `failed_reason == None ⇒ hash_io signal →
+    // 2 field wire` invariant test는 production이 더 이상 None을 박지 않으므로
+    // 제거. wire 3 field 시나리오는 task K 신규 unit test로 cover (v1.6 정합).
 
     #[test]
     fn files_view_untagged_full_serializes_as_array() {
@@ -231,10 +221,12 @@ mod tests {
 
     #[test]
     fn files_view_untagged_summary_failed_serializes_as_array() {
+        // Fixture reason은 array shape 검증과 무관 — v1.6 정합 위해 explicit
+        // `HashIo` variant 박음 (production은 Failed entry에 항상 reason emit).
         let view = FilesView::SummaryFailed(vec![SummaryFailedEntry {
             path: "x".into(),
             presence: Presence::Both,
-            failed_reason: None,
+            failed_reason: Some(FailedReason::HashIo),
         }]);
         let value = serde_json::to_value(&view).unwrap();
         let arr = value.as_array().expect("array");

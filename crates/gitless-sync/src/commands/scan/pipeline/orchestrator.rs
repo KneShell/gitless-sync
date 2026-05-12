@@ -182,11 +182,11 @@ mod tests {
     }
 
     #[test]
-    fn assemble_entries_marks_unreadable_local_as_failed_without_reason_end_to_end() {
+    fn assemble_entries_marks_unreadable_local_as_failed_with_hash_io_reason_end_to_end() {
         // hash_io error path — orchestrator must propagate
         // PreState::Failed from hash_pass (where eprintln! fires) into a
-        // FileEntry with `failed_reason: None`. Validates the v1.0
-        // backward-compat surface: hash IO errors don't get an enum reason.
+        // FileEntry with `failed_reason: Some(FailedReason::HashIo)`. Phase 10
+        // Finding 2 lands the explicit emit (v1.5까지 `None` sentinel).
         let dir = TempDir::new().unwrap();
         let bogus = LocalFile {
             relative_path: "ghost.md".to_string(),
@@ -218,7 +218,7 @@ mod tests {
         assert_eq!(summary.failed, 1);
         let entry = &entries[0];
         assert_eq!(entry.status, Status::Failed);
-        assert!(entry.failed_reason.is_none());
+        assert_eq!(entry.failed_reason, Some(FailedReason::HashIo));
         assert!(entry.lfs_pointer.is_none());
         assert_eq!(entry.remote_sha.as_deref(), Some("remote-sha"));
     }

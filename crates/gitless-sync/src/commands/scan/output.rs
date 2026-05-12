@@ -133,13 +133,14 @@ mod tests {
         assert_eq!(parse(&empty_report())["schema_version"], "1.6");
     }
 
-    /// Acceptance #2: `failed_reason` enum 11 값 cover (10 variant + `None`
-    /// special case `hash_io`). `compare.rs::tests` round-trip과 직교 — 본
-    /// test는 `ScanReport` 안 entry 직렬화 시 wire `snake_case` 일관성 박음.
+    /// Acceptance #2: `failed_reason` 12 케이스 cover (11 variant + `None` Failed
+    /// 외 entry omit). v1.6 Finding 2 — `HashIo`도 명시 wire 박힘 (v1.5까지 `None`
+    /// sentinel). `ScanReport` 안 entry 직렬화 시 wire `snake_case` 일관성 박음.
     #[test]
     fn failed_reason_eleven_schema_values_serialize_within_scan_report() {
-        let cases: [(Option<FailedReason>, Option<&str>); 11] = [
+        let cases: [(Option<FailedReason>, Option<&str>); 12] = [
             (None, None),
+            (Some(FailedReason::HashIo), Some("hash_io")),
             (Some(FailedReason::CaseCollision), Some("case_collision")),
             (Some(FailedReason::Submodule), Some("submodule")),
             (Some(FailedReason::Symlink), Some("symlink")),

@@ -66,7 +66,7 @@ mod tests {
     use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 
     use super::*;
-    use crate::commands::scan::compare::Presence;
+    use crate::commands::scan::compare::{FailedReason, Presence};
     use crate::commands::scan::pipeline::hash_pass::{PreEntry, PreState};
     use crate::commands::scan::test_helpers::mtime;
     use crate::shared::gh::{GhResponse, MockGhClient};
@@ -99,6 +99,9 @@ mod tests {
     }
 
     fn failed_pre(path: &str, presence: Presence) -> PreEntry {
+        // Reason은 본 test 시나리오 검증과 무관한 placeholder — v1.6 정합 위해
+        // explicit `HashIo` variant로 명시 (v1.5 시점 `None` sentinel을 의도
+        // 했던 fixture).
         PreEntry {
             path: path.to_string(),
             mode: "100644".to_string(),
@@ -106,7 +109,7 @@ mod tests {
             state: PreState::Failed {
                 remote_sha: Some("rs".to_string()),
                 local_mtime: Some(mtime(1_700_000_000)),
-                failed_reason: None,
+                failed_reason: Some(FailedReason::HashIo),
                 is_binary: false,
                 size_bytes: None,
             },
