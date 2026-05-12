@@ -4,7 +4,7 @@
 
 - Phase 10 진입 (2026-05-12)
 - Tasks: 17 (Phase 10)
-- Completed: 1 / 17
+- Completed: 2 / 17
 
 ## Notes for Build Mode
 
@@ -36,7 +36,7 @@ v0.5.0 release 직후 clean-context audit (2026-05-12, 메모리 차단 fresh co
 #### Phase 10.1 — spec/CHANGELOG 사전 확정 (5 task, doc-only)
 
 - [x] **A**: spec-output-schema.md § v1.4 → v1.5 변경 § 본문에 Finding 1 면제 근거 한 줄 추가 — "v1.4 caller `files == null` / key 부재 분기는 v1.4 시점 도입된 신규 가정이라 SemVer 보호 대상 아님". `minor bump` 라벨 유지 + 면제 근거 명문화 둘 다. Files: docs/specs/spec-output-schema.md.
-- [ ] **B** (deps: A): spec-output-schema.md § v1.5 → v1.6 변경 § 신규 — Finding 2 본진. (i) hash_io entry explicit emit (`failed_reason: "hash_io"`) 도입, (ii) wire shape change 동반, (iii) v1.5 caller 가 v1.6 응답 파싱 시 `failed_reason` 필드 absent 가정한 분기는 깨질 수 있음 backward-compat 표 명시, (iv) migration: "missing-key sentinel 금지, `failed_reason == "hash_io"` 명시 분기" lock, **(v) Finding 1 면제 logic 일반화 — v1.5 → v1.6 caller `failed_reason` field absent 가정 분기는 v1.5 시점 도입된 신규 가정이라 SemVer 보호 대상 아님. task A 의 v1.4→v1.5 면제 근거와 동일 패턴 mirror — 매 schema bump 마다 신규 가정 caller 분기는 보호 대상 아님 공통 면제 표 한 줄 추가**. Phase 9 task C 패턴 mirror. Files: docs/specs/spec-output-schema.md.
+- [x] **B** (deps: A): spec-output-schema.md § v1.5 → v1.6 변경 § 신규 — Finding 2 본진. (i) hash_io entry explicit emit (`failed_reason: "hash_io"`) 도입, (ii) wire shape change 동반, (iii) v1.5 caller 가 v1.6 응답 파싱 시 `failed_reason` 필드 absent 가정한 분기는 깨질 수 있음 backward-compat 표 명시, (iv) migration: "missing-key sentinel 금지, `failed_reason == "hash_io"` 명시 분기" lock, **(v) Finding 1 면제 logic 일반화 — v1.5 → v1.6 caller `failed_reason` field absent 가정 분기는 v1.5 시점 도입된 신규 가정이라 SemVer 보호 대상 아님. task A 의 v1.4→v1.5 면제 근거와 동일 패턴 mirror — 매 schema bump 마다 신규 가정 caller 분기는 보호 대상 아님 공통 면제 표 한 줄 추가**. Phase 9 task C 패턴 mirror. Files: docs/specs/spec-output-schema.md.
 - [ ] **C** (deps: B): spec-output-schema.md § `--summary-only` 출력 또는 § v1.5 → v1.6 변경 § 안에 Finding 3 강조 한 줄 추가 — "summary-only `files[]` entry는 일반 mode entry와 shape 발산 (status/sha/size/mode/diff_meaningful detail field omit). caller 는 응답 shape 추론 금지, 자신의 `--summary-only` argument 기준 mode 분기". doc-only. Files: docs/specs/spec-output-schema.md.
 - [ ] **D** (deps: C): spec-output-schema.md § v1.6 신규 Acceptance Criteria — 5 시나리오 `[AUTO]`: (1) `report.schema_version == "1.6"`, (2) summary-only + failed (hash_io) → `files[]` entry는 `path` + `presence` + `failed_reason: "hash_io"` 세 field (이전 v1.5 의 `path + presence` 2 field 에서 변경), (3) summary-only + failed (그 외 reason: encoding / lfs_pointer / submodule 등) → 동일 3 field 유지, (4) v1.5 caller가 v1.6 JSON 파싱 시 hash_io entry 정상 deserialize (failed_reason field 가 등장), (5) status omit 정책 유지 (Finding 3 강조 정합, summary-only files[] entry 정의상 failed). Files: docs/specs/spec-output-schema.md.
 - [ ] **E** (deps: D): spec-error-contracts.md FailedReason 정의 갱신 + CHANGELOG.md `[Unreleased]` v0.6.0 prep entry — spec: FailedReason enum 정의에서 `None` 특수 케이스 (`hash_io` signal) 제거 + 명시 `HashIo` variant 추가 + serde rename `"hash_io"` 정합. CHANGELOG: Added (Finding 1 SemVer 면제 근거 + Finding 2 hash_io explicit emit + Finding 3 minimal entry shape 발산 강조), Changed (schema v1.5 → v1.6, FailedReason `None` 특수 케이스 → `HashIo` variant). Files: docs/specs/spec-error-contracts.md + CHANGELOG.md.

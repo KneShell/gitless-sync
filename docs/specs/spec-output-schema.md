@@ -1,4 +1,4 @@
-# Spec: Output JSON Schema v1.5
+# Spec: Output JSON Schema v1.6
 
 ## 목적
 `scan` 명령어가 stdout으로 출력하는 결과 JSON의 안정적 스키마. AI 호출자가 파싱·소비할 수 있도록 버전 보장.
@@ -12,23 +12,25 @@
 > **v0.4.2 갱신 (2026-05-11)**: schema_version 1.3 → **1.4** (minor bump). `Identical` 정의 정확화 — sha-differ + `normalize_equal == Some(true)` (cosmetic drift, F1 케이스) 도 `Identical` 분류. 기존 caller 코드는 그대로 작동 — Identical 카운트가 더 정확해지고 LocalOnlyChanged/RemoteOnlyChanged 카운트는 cosmetic drift만큼 감소. backward compat 보장 (additive 의미 정확화). issue #1 regression. 결정 trail은 `docs/adr/0015-cosmetic-identical-classification.md`.
 >
 > **v0.5.0 갱신 (2026-05-12)**: schema_version 1.4 → **1.5** (minor bump). `--summary-only` 모드 출력 contract 확장 — failed status entry 한정 `files[]`에 minimal entry (path + presence + failed_reason) emit. failed 0건이면 v1.4 baseline 유지 (`files` 필드 omit). 그 외 status entry (identical / local_only_changed / remote_only_changed / drift)는 summary-only에서 emit 안 함. post-v0.4.2 vault dogfood feedback F3 motivation (한 호출로 어떤 파일이 실패했는지 확인) 직접 해소. 신규 field/enum 0이지만 caller-visible behavior change이므로 minor. 결정 trail은 git history (`git log --grep="Phase 9"`) + `CHANGELOG.md` § [0.5.0].
+>
+> **v0.6.0 갱신 (2026-05-12)**: schema_version 1.5 → **1.6** (minor bump). `failed_reason == hash_io` entry 의 wire 형식 정합화 — v1.5 까지 `failed_reason` 필드를 omit (`Option::None` 특수 케이스 sentinel) 하던 hash_io entry 가 v1.6 부터 다른 reason entry 와 동일하게 `failed_reason: "hash_io"` 명시 emit. summary-only 모드 minimal entry shape 가 `path + presence + failed_reason` 3 field 로 일관 (v1.5 의 hash_io 2 field special case 제거). 전체 mode 에서도 hash_io entry wire 형식 변경 (sentinel omit → explicit emit). 신규 field 0 / 신규 enum 0 — `hash_io` 는 v1.2 부터 정의돼 있었으나 wire 형식만 변경. post-v0.5.0 clean-context audit Finding 2 motivation (`Option::None` sentinel 가 분기 모호 + caller 가 missing-key 분기를 신호 sentinel 로 오해 위험) 직접 해소. caller-visible wire shape change 이므로 minor. 결정 trail은 git history (`git log --grep="Phase 10"`) + `CHANGELOG.md` § [0.6.0].
 
 ## 현재 상태
 - `crates/gitless-sync/src/commands/scan/output.rs::{ScanReport, Summary}` 구조체 + serde 직렬화 완료 (v1.0).
 - `crates/gitless-sync/src/commands/scan/compare.rs::{FileEntry, Status, FailedReason, LfsPointer}` 정의됨 (v1.1 신규 필드 mode/failed_reason/lfs_pointer 포함, v1.2 신규 size_bytes 포함).
-- `SCHEMA_VERSION = "1.4"` 상수 정의 — Phase 8에서 `"1.3"` bump, v0.4.2에서 `"1.4"` bump (cosmetic Identical fix). Phase 9 task J에서 `"1.5"` bump 예정 (summary-only failed visibility 확장, 코드 변경은 task J~L scope).
+- `SCHEMA_VERSION = "1.5"` 상수 정의 — Phase 8에서 `"1.3"` bump, v0.4.2에서 `"1.4"` bump (cosmetic Identical fix), v0.5.0/Phase 9 task J에서 `"1.5"` bump (summary-only failed visibility 확장). Phase 10 task F에서 `"1.6"` bump 예정 (hash_io explicit emit, 코드 변경은 task F~L scope).
 - `serialize(report, pretty)` 함수 구현 완료.
 - `FileEntry`에 `diff_meaningful` + `presence` field는 Phase 8 task F~I에서 신규 추가 예정.
 
 ## 작업 범위
 
-### 스키마 v1.5 (전체)
+### 스키마 v1.6 (전체)
 
-> 아래 sample은 `--summary-only` 미지정 시 전체 mode 출력. v1.5는 전체 mode wire shape 변경 0 — 이전 v1.4와 byte-identical (`schema_version` 값만 다름). summary-only mode shape는 § `--summary-only` 출력 참조.
+> 아래 sample은 `--summary-only` 미지정 시 전체 mode 출력. v1.6 는 전체 mode 에서 hash_io entry 의 wire 형식 변경 — v1.5 까지 omit 되던 `failed_reason: "hash_io"` 필드가 명시 emit (entry shape 일관화). 그 외 reason entry 및 비-Failed entry 는 v1.5 와 byte-identical (`schema_version` 값만 다름). summary-only mode shape 는 § `--summary-only` 출력 참조.
 
 ```json
 {
-  "schema_version": "1.5",
+  "schema_version": "1.6",
   "scanned_at": "2026-05-10T10:30:00Z",
   "repo": "owner/name",
   "branch": "main",
@@ -215,8 +217,72 @@ backward-compat:
 
 **SemVer 면제 근거** — 위 backward-compat 표에 정리된 v1.4 caller `files == null` 또는 `"files"` key 부재로 summary-only mode 판단하는 분기는 v1.4 시점 도입된 신규 가정이라 SemVer 보호 대상 아님. v1.5 의 minor 라벨은 wire-shape 기준 정합 (신규 field 0 + enum 0, summary-only mode 한정 contract 확장).
 
+### v1.5 → v1.6 변경 (minor)
+
+post-v0.5.0 clean-context audit Finding 2 motivation 해소 — `failed_reason == hash_io` entry 의 wire 형식 정합화. 결정 trail은 git history (`git log --grep="Phase 10"`) + `CHANGELOG.md` § [0.6.0].
+
+변경 범위 (전체 mode + `--summary-only` mode 양쪽 적용):
+
+- 기존 (v1.5까지) — `failed_reason == hash_io` entry 는 `failed_reason` 필드 자체를 omit (`Option::None` 특수 케이스 sentinel). caller 는 key 부재로 hash_io 의미 판단. summary-only mode 의 minimal entry shape 가 `path` + `presence` 두 field 로 격하 (다른 reason entry 의 3 field 와 발산).
+- v1.6 — `failed_reason == hash_io` entry 도 다른 reason entry 와 동일하게 `failed_reason: "hash_io"` 명시 emit. summary-only mode 의 minimal entry shape 가 `path` + `presence` + `failed_reason` 3 field 로 일관 (v1.5 의 2 field special case 제거). 전체 mode 에서도 hash_io entry 가 `failed_reason: "hash_io"` 필드 포함하여 emit — v1.5 의 omit 동작 제거.
+- 그 외 reason entry (`encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported` / `file_too_large` / `memory_exceeded`) 의 wire 형식 변경 0 — v1.5 와 byte-identical.
+- 비-Failed entry (`identical` / `local_only_changed` / `remote_only_changed` / `drift`) 의 wire 형식 변경 0 — v1.5 와 byte-identical.
+
+신규 field 0 / 신규 enum 0:
+- `failed_reason` 필드는 v1.2 부터 정의된 11 cover (`hash_io` / `encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported` / `file_too_large` / `memory_exceeded`) 그대로. `hash_io` 는 v1.2 부터 enum 으로 정의돼 있었으나 v1.5 까지 wire 에서 omit 되던 special case — v1.6 는 wire 형식만 변경, enum 값 추가/제거 0.
+- `presence` 필드는 v1.3 에서 도입된 enum 3 variant (`local_only` / `both` / `remote_only`) 그대로.
+
+내부 구현 정합 (informative — wire spec 영향 X):
+- `FailedReason` enum 정의에서 `Option::None == hash_io signal` 특수 케이스 제거 + 명시 `HashIo` variant 추가 + serde rename `"hash_io"` 정합. `Option<FailedReason>` 시그니처는 유지 (Failed 외 entry 는 여전히 None) — variant 만 변경. 자세한 enum 정의는 `docs/specs/spec-error-contracts.md` § FailedReason 정의.
+
+hash_io entry wire 예시 (v1.6, 전체 mode):
+
+```json
+{
+  "path": "broken/permission.md",
+  "status": "failed",
+  "presence": "both",
+  "failed_reason": "hash_io",
+  "mode": "100644"
+}
+```
+
+hash_io entry wire 예시 (v1.6, summary-only mode minimal entry):
+
+```json
+{
+  "path": "broken/permission.md",
+  "presence": "both",
+  "failed_reason": "hash_io"
+}
+```
+
+backward-compat:
+
+- 추가 필드 0 + 추가 enum 0 이라 v1.0~v1.5 호출자가 v1.6 wire JSON 파싱 시 enum 매칭은 영향 0 (`Option<String>` 또는 `Option<FailedReason>` 시그니처는 `hash_io` 값 정상 deserialize). 단 hash_io entry 의 wire 등장 자체는 v1.5 와 다름.
+- v1.5 까지 caller 코드가 hash_io entry 의 `failed_reason` 필드 omit 을 sentinel 로 가정한 분기가 있다면 v1.6 에서 깨질 수 있음 — hash_io entry 에서도 `failed_reason: "hash_io"` 필드가 등장한다.
+
+  | v1.5 caller 분기 | v1.6 동작 |
+  |---|---|
+  | `"failed_reason" in entry` → hash_io 외 reason 으로 가정 (key 존재 = explicit reason 의미) | hash_io entry 도 true (변경됨, `entry.failed_reason == "hash_io"` value 추가 등장) |
+  | `"failed_reason" not in entry` → hash_io 로 판단 (key 부재 sentinel) | hash_io entry 에서 false (변경됨, 명시 emit 되어 key 부재 가짜 sentinel 사라짐) |
+  | `entry.failed_reason == "hash_io"` 명시 분기 | 정상 동작 (v1.6 권장 패턴, v1.5 에서는 dead code 였음) |
+
+  caller migration: missing-key sentinel 금지, `failed_reason == "hash_io"` 명시 분기로 전환. v1.6 동작과 정합. enum 11 cover (`hash_io` / `encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported` / `file_too_large` / `memory_exceeded`) 전부 명시 match arm 으로 분기.
+
+**SemVer 면제 근거** — 위 backward-compat 표에 정리된 v1.5 caller 의 `failed_reason` 필드 부재 = hash_io sentinel 분기는 v1.5 시점 도입된 신규 가정이라 SemVer 보호 대상 아님 (`Option::None` 특수 케이스 omit 동작이 v1.5 까지 wire spec 이긴 했으나, sentinel 로서의 caller 코드 분기는 v1.5 의 minimal entry shape 본문과 함께 도입된 보조 가정). v1.6 의 minor 라벨은 wire-shape 기준 정합 (신규 field 0 + enum 0, hash_io entry 의 wire 형식 정합화 — sentinel omit → explicit emit).
+
+**공통 면제 표 (모든 schema bump 적용)** — task A 의 v1.4→v1.5 면제 근거와 동일 패턴 mirror. 매 schema bump 마다 caller 가 "신규 시점 도입된 가정"을 분기 sentinel 로 사용한 경우 SemVer 보호 대상 아님 — 공통 면제 logic 일반화. 본 표는 v1.4→v1.5, v1.5→v1.6 둘 다 적용:
+
+| schema bump | 신규 가정 분기 (sentinel) | 면제 근거 |
+|---|---|---|
+| v1.4 → v1.5 | `--summary-only` 응답의 `files` 필드 부재 → summary-only mode 판단 | v1.4 시점 도입된 가정 (caller 가 v1.4 baseline wire 동작 의존) |
+| v1.5 → v1.6 | summary-only `files[]` entry 의 `failed_reason` 필드 부재 → hash_io 판단 | v1.5 시점 도입된 가정 (caller 가 v1.5 minimal entry omit 동작 의존) |
+
+향후 bump 도 동일 logic 일반화 — caller 자신의 명시 enum value 분기 또는 wire 형식 stable signal 에 의존하는 분기는 영향 0 (면제 표 적용 대상 자체가 아니다).
+
 ### 안정성 보장
-- `schema_version`: 호환성 깨는 변경 시 major 증가. v0.1은 `"1.0"`, Phase 5는 `"1.1"`, Phase 7은 `"1.2"`, Phase 8은 `"1.3"`, v0.4.2는 `"1.4"`, v0.5.0은 `"1.5"` (모두 minor — 신규 field 추가 또는 `Identical` 분류 정확화 또는 `--summary-only` 출력 contract 확장, 기존 필드 변경 0).
+- `schema_version`: 호환성 깨는 변경 시 major 증가. v0.1은 `"1.0"`, Phase 5는 `"1.1"`, Phase 7은 `"1.2"`, Phase 8은 `"1.3"`, v0.4.2는 `"1.4"`, v0.5.0은 `"1.5"`, v0.6.0은 `"1.6"` (모두 minor — 신규 field 추가 또는 `Identical` 분류 정확화 또는 `--summary-only` 출력 contract 확장 또는 hash_io entry wire 형식 정합화, 기존 필드 변경 0).
 - `status` enum 동결: `identical` / `local_only_changed` / `remote_only_changed` / `drift` / `failed`. 추가는 minor 버전, 제거·이름 변경은 major. **Phase 5에서 새 status 미추가** — LFS/submodule/symlink는 모두 `failed` + `failed_reason` 분류.
 - `failed_reason` enum 동결 정책: 추가는 minor, 제거·이름 변경은 major. Phase 5에서 정의된 9 reason (`hash_io` / `encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported`) 모두 구현 (Phase 5.13 task AA, 2026-05-09 — `compare.rs::FailedReason` 8 variant + `None` special case `hash_io`). Phase 7에서 2 reason 추가 — `file_too_large` + `memory_exceeded` (총 11 reason, `compare.rs::FailedReason` 10 variant + `None` special case).
 - 시간 필드: 모두 ISO-8601 UTC (`Z` suffix). 로컬 타임존 출력 금지.
@@ -234,36 +300,41 @@ backward-compat:
 
 ### `--summary-only` 출력
 
-v1.5부터 동작 (v1.4와의 차이는 § v1.4 → v1.5 변경 참조):
+v1.6부터 동작 (v1.5와의 차이는 § v1.5 → v1.6 변경 참조):
 
 - 기본 — 전체 mode JSON에서 `files` 필드 자체를 omit (`null` 아니라 키 부재). `schema_version` / `scanned_at` / `repo` / `branch` / `local_root` / `summary` 등 다른 필드는 유지.
 - failed status entry 존재 시 (`summary.failed > 0`) — `files[]`에 failed entry 한정 minimal 형식 emit. entry 한 개는 `path` + `presence` + `failed_reason` 세 field만 (sha/size/mode/diff_meaningful/lfs_pointer/size_bytes 등 detail field 모두 omit). 그 외 status entry (identical / local_only_changed / remote_only_changed / drift)는 emit 안 함.
 - `--status` filter 동시 지정 시 — summary-only 정체성 우선, status filter 무시 (summary 카운트 + failed entry 명단 contract 유지). 즉 `--summary-only --status drift` 호출도 동일하게 failed entry만 emit.
-- `failed_reason == hash_io` (코드상 `Option::None` 특수 케이스) entry는 v1.1 contract 정합 — `failed_reason` 필드 omit, entry가 `path` + `presence` 두 field가 됨. key 부재로 `hash_io` 의미 표현.
+- `failed_reason == hash_io` entry 도 다른 reason entry 와 동일하게 `failed_reason: "hash_io"` 명시 emit — v1.6 부터 wire 형식 일관화 (v1.5 까지의 omit special case 제거). v1.5 의 2 field special case 와의 차이는 § v1.5 → v1.6 변경 § 참조.
 
-minimal entry shape 예시 (failed 1건 + `failed_reason == lfs_pointer` 케이스):
+minimal entry shape 예시 (failed 2건 + `failed_reason == lfs_pointer` + `failed_reason == hash_io` 케이스):
 
 ```json
 {
-  "schema_version": "1.5",
+  "schema_version": "1.6",
   "scanned_at": "2026-05-12T10:30:00Z",
   "repo": "owner/name",
   "branch": "main",
   "local_root": "/path/to/dir",
-  "summary": { "identical": 120, "local_only_changed": 3, "remote_only_changed": 0, "drift": 1, "failed": 1 },
+  "summary": { "identical": 120, "local_only_changed": 3, "remote_only_changed": 0, "drift": 1, "failed": 2 },
   "files": [
     {
       "path": "vendor/lib.zip",
       "presence": "both",
       "failed_reason": "lfs_pointer"
+    },
+    {
+      "path": "broken/permission.md",
+      "presence": "both",
+      "failed_reason": "hash_io"
     }
   ]
 }
 ```
 
-`status` 필드도 minimal entry에서 omit — summary-only `files[]` entry는 정의상 failed (`failed_reason` 필드 자체 또는 부재가 failed signal). 호출자 contract: "summary-only 응답의 `files[]` entry는 모두 failed로 해석".
+`status` 필드도 minimal entry에서 omit — summary-only `files[]` entry는 정의상 failed (v1.6 부터 `failed_reason` 필드는 hash_io 포함 모든 failed reason 에 대해 명시 emit, entry 등장 자체가 failed signal). 호출자 contract: "summary-only 응답의 `files[]` entry는 모두 failed로 해석".
 
-caller-visible behavior change 영향은 § v1.4 → v1.5 변경 § backward-compat 표 참조.
+caller-visible behavior change 영향은 § v1.4 → v1.5 변경 § + § v1.5 → v1.6 변경 § backward-compat 표 참조.
 
 ### `--status` 필터
 `--status drift,local_only_changed` 형식. 지정한 status에 해당하는 파일만 `files[]`에 포함. `summary` 카운트는 필터 무관 전체 집계.
