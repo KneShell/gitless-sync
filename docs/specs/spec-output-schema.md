@@ -332,6 +332,16 @@ ADR 0015 결정 trail (issue #1 regression). 코드 변경: `classify` 함수에
 - `[AUTO]` v1.0 / v1.1 / v1.2 / v1.3 호출자가 v1.4 JSON 파싱 시 status enum 그대로 + Identical 카운트가 더 정확해지고 LocalOnlyChanged/RemoteOnlyChanged 카운트는 cosmetic drift만큼 감소 (additive 의미 정확화, breaking change 아님).
 - `[AUTO]` `presence` enum 동결 정책: 추가는 minor, 제거·이름 변경은 major. `local_only` / `both` / `remote_only` 3 값으로 시작.
 
+### v1.5 신규 (v0.5.0)
+
+cli-ux-feedback.md § F3 결정 trail. 코드 변경은 Phase 9.3 (task J~O) scope — 본 § 는 spec authoritative.
+
+- `[AUTO]` `report.schema_version` == `"1.5"`.
+- `[AUTO]` `--summary-only` + `summary.failed == 0`: `files` 필드 omit (v1.4 baseline 동작 유지, key 부재 — `null` 아님).
+- `[AUTO]` `--summary-only` + `summary.failed == N` (N > 0): `files[]`에 N entry 포함, 모두 failed status entry — 그 외 status entry (`identical` / `local_only_changed` / `remote_only_changed` / `drift`) 는 emit 안 함.
+- `[AUTO]` `--summary-only` `files[]` entry는 `path` + `presence` + `failed_reason` 세 field만 emit. 그 외 detail field (`status` / `local_sha` / `remote_sha` / `local_mtime` / `remote_last_commit_at` / `is_binary` / `mode` / `diff_meaningful` / `lfs_pointer` / `size_bytes`) 모두 omit. `failed_reason` 가 `Option::None` 특수 케이스 (`hash_io` signal) 인 entry는 `failed_reason` 필드도 omit — entry가 `path` + `presence` 두 field 만 (key 부재로 `hash_io` 의미 표현, v1.1 contract 정합).
+- `[AUTO]` `--summary-only` + `--status <filter>` 동시 명시 시 summary-only 정체성 우선 → status filter 무시. `files[]` 는 failed entry 명단 그대로 emit (PRD 검증 시나리오 13 정합, summary-only 가 emit 하는 failed entry 는 status filter 무관 등장).
+
 ## diff sub-schema
 
 `diff --json` 출력 JSON의 authoritative 스키마. `spec-cli-interface.md` § diff --json 출력 형식의 참조 대상.
