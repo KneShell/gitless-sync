@@ -417,6 +417,16 @@ v0.5.0 (Phase 9.3) post-v0.4.2 vault dogfood F3 결정 trail. 본 § 는 spec au
 - `[AUTO]` `--summary-only` `files[]` entry는 `path` + `presence` + `failed_reason` 세 field만 emit. 그 외 detail field (`status` / `local_sha` / `remote_sha` / `local_mtime` / `remote_last_commit_at` / `is_binary` / `mode` / `diff_meaningful` / `lfs_pointer` / `size_bytes`) 모두 omit. `failed_reason` 가 `Option::None` 특수 케이스 (`hash_io` signal) 인 entry는 `failed_reason` 필드도 omit — entry가 `path` + `presence` 두 field 만 (key 부재로 `hash_io` 의미 표현, v1.1 contract 정합).
 - `[AUTO]` `--summary-only` + `--status <filter>` 동시 명시 시 summary-only 정체성 우선 → status filter 무시. `files[]` 는 failed entry 명단 그대로 emit (PRD 검증 시나리오 13 정합, summary-only 가 emit 하는 failed entry 는 status filter 무관 등장).
 
+### v1.6 신규 (v0.6.0)
+
+v0.6.0 (Phase 10) post-v0.5.0 clean-context audit Finding 2 결정 trail. 본 § 는 spec authoritative — 코드 변경은 git history + `CHANGELOG.md` § [0.6.0] 참조.
+
+- `[AUTO]` `report.schema_version` == `"1.6"`.
+- `[AUTO]` `--summary-only` + `summary.failed == N` (N > 0) + `failed_reason == hash_io` entry: `files[]` entry는 `path` + `presence` + `failed_reason: "hash_io"` 세 field emit. 이전 v1.5 의 `path + presence` 2 field special case (key 부재 sentinel) 제거 — hash_io 도 다른 reason 과 동일 3 field shape.
+- `[AUTO]` `--summary-only` + `summary.failed == N` (N > 0) + 그 외 reason entry (`encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported` / `file_too_large` / `memory_exceeded`): `files[]` entry는 `path` + `presence` + `failed_reason: "<reason>"` 세 field 유지 (v1.5 와 byte-identical).
+- `[AUTO]` v1.5 caller 가 v1.6 JSON 파싱 시 hash_io entry 정상 deserialize — `failed_reason` 필드 값 `"hash_io"` 명시 등장. v1.5 caller 의 `failed_reason: Option<String>` 시그니처는 `Some("hash_io")` 로 deserialize 정상 (enum 매칭 우회, `tests/scan_output_backward_compat.rs` V15 client × v1.6 sample 패턴).
+- `[AUTO]` `--summary-only` `files[]` minimal entry 는 `status` 필드 omit 정책 유지 (Finding 3 강조 정합 — summary-only `files[]` entry 정의상 failed signal, caller 분기는 자신의 `--summary-only` argument 기준). v1.6 wire 형식 변경은 `failed_reason` 필드 한정.
+
 ## diff sub-schema
 
 `diff --json` 출력 JSON의 authoritative 스키마. `spec-cli-interface.md` § diff --json 출력 형식의 참조 대상.
