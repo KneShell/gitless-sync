@@ -5,9 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.5.0] - 2026-05-12
 
-> Phase 9 (CLI UX Feedback Fix, vault 도그푸딩 F1/F2/F3 해소) prep. Phase 9.1 (spec/CHANGELOG 사전 확정) → 9.2 (F1+F2 clap surface) → 9.3 (F3 summary-only failed visibility) → 9.4 (release) → 9.5 (plan close). 본 entry는 prep — task Q에서 v0.5.0 release date promotion + dogfood/regression verify trail finalize. 상세 task별 결과는 git history (`git log --grep="Phase 9"`) + `docs/ralph/implementation-plan.md`.
+> Phase 9 (CLI UX Feedback Fix, vault 도그푸딩 F1/F2/F3 해소) 누적. F1 `scan` / `diff` 서브커맨드 `--help` description + F2 `init` wording 정밀화 + F3 `--summary-only` 모드 failed status entry minimal emit (path + presence + failed_reason 3 field). schema_version 1.4 → 1.5 (F3 한정 caller-visible behavior change). Phase 9.1 (spec/CHANGELOG 사전 확정) + Phase 9.2 (F1+F2 clap surface) + Phase 9.3 (F3 summary-only failed visibility) + Phase 9.4 (release) + Phase 9.5 (plan close). 결정 trail은 `docs/cli-ux-feedback.md` § F1 / F2 / F3 + `docs/specs/spec-output-schema.md` § v1.4 → v1.5 변경. 상세 task별 결과는 git history (`git log --grep="Phase 9"`) + `docs/ralph/implementation-plan.md`.
 
 ### Added
 
@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Phase 9.2 — `init` 서브커맨드 `about` wording 정밀화 (F2). 기존 `"Print a gitless-sync.toml template to stdout (you redirect to a file)"` → `"Emit gitless-sync.toml body from input args (stdout)"`. cli-ux-feedback.md § F2 "template printer" 인지부조화 해소. clap surface only.
 - Phase 9.3 — `--summary-only` 모드 failed status entry 한정 emit (F3). 기존 v1.4까지 summary-only 시 `files` 필드 자체를 omit했으나, `summary.failed > 0` 발생 시 minimal entry list (`path` + `presence` + `failed_reason` 세 field만, sha / size / mode / diff_meaningful / lfs_pointer / size_bytes 등 detail field 모두 omit) 포함. failed 0건 시 기존 동작 유지 (`files` 필드 omit). `--summary-only --status <filter>` 동시 명시 시 summary-only 정체성 우선, status filter 무시. AI 호출자가 한 호출로 "무엇이 실패했나" 명단 확인 가능 — Trees + 추가 scan 호출 2회 부담 해소.
 - Schema v1.4 → v1.5 minor bump — F3 한정 caller-visible behavior change. 전체 모드 (`--summary-only` 미지정 시) wire shape 변경 0 — v1.4와 byte-identical (`schema_version` 값만 다름). summary-only 응답에서 `files == null` 또는 key 부재를 가정한 caller v1.4 분기는 failed N건 케이스에서 깨질 수 있음 (migration guide는 `spec-output-schema.md` § v1.4 → v1.5 변경 § backward-compat 표 참조). v1.0 / v1.1 / v1.2 / v1.3 / v1.4 backward-compat lock test 갱신 (task M).
+- `commands/scan/summary_view.rs` helper 모듈 신규 — `strip_to_summary_failed` 함수 (`FileEntry` → `path` + `presence` + `failed_reason` 3 field minimal). build_report inline 분기 시 LOC 300 cap 위험 회피 + 단일 책임 helper 분리.
 
 ### Changed
 
@@ -28,7 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Verified
 
-- cli-ux-feedback.md § F1 / F2 / F3 Improvement 후보 3건 spec acceptance 정합 (task A / B / C / D). 코드 검증은 task F~O scope (clap derive 갱신 + unit/integration test + summary-only failed entry minimal shape) — task Q v0.5.0 finalize 시 unit + integration test pass + vault dogfood baseline regression 0 verify 추가.
+- 신규 / 갱신 test 시나리오 — `tests/cli_help_about.rs` 신규 (F1/F2 about description 한 줄 정합) + `commands/scan/output.rs::tests` + `commands/scan/status_filter.rs::tests` F3 4 시나리오 (summary-only + failed 0 → files omit / failed 1 → 3-field row / failed N + identical M → len == N / `--status drift` override 시 failed 등장) + `commands/scan/summary_view.rs::tests` helper strip contract (sha/size/mode/diff_meaningful/lfs_pointer/size_bytes 모두 None 확인) + `tests/scan_output_backward_compat.rs` v1.5 lock (`V15` client struct + `v1_5_sample_json` fixture + v1.0 ~ v1.4 client × v1.5 sample unknown field 0 보장) + `tests/scan_summary_only_failed.rs` F3 integration (long_path fixture, `--summary-only` 시 summary.failed > 0 + files[] entry 3 field 검증).
+- Hard gate full pipeline PASS — `cargo fmt --check` / `cargo clippy --workspace --all-targets -- -D warnings` / `cargo xtask check-line-limits` / `cargo xtask check-cycles` / `cargo machete` / `cargo test --workspace` / `cargo tarpaulin --engine llvm --workspace --out Stdout`.
+- 485 + 88 unit + integration test pass / 0 failed (gitless-sync workspace + xtask).
+- tarpaulin 88.98% (1324/1488 lines).
+- cli-ux-feedback.md § F1 / F2 / F3 Improvement 후보 3건 friction 모두 해소 (vault 측 도그푸딩 motivation 정합).
 
 ## [0.4.2] - 2026-05-11
 
