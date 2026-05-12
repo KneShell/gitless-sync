@@ -16,8 +16,8 @@
 //! V15 client struct 추가 + v1.5 summary-only sample fixture (failed=0 omit
 //! 경로 + failed=N minimal entry 경로) + wire invariant (failed=0 → `files`
 //! key 부재, failed=N → entry `path`/`presence`/`failed_reason` 3 key,
-//! `hash_io` signal → `failed_reason` omit으로 2 key). v1.5 전체 mode wire는
-//! v1.3 sample이 `SCHEMA_VERSION` "1.5"로 박혀 V10/V11/V12 backward-compat
+//! `hash_io` signal → `failed_reason` omit으로 2 key). v1.6 전체 mode wire는
+//! v1.3 sample이 `SCHEMA_VERSION` "1.6"으로 박혀 V10/V11/V12 backward-compat
 //! 자연 cover.
 
 use chrono::{DateTime, TimeZone, Utc};
@@ -362,7 +362,7 @@ fn raw_files(json: &str) -> Vec<serde_json::Value> {
 #[test]
 fn v1_0_client_parses_v1_3_envelope_fields() {
     let parsed = parse_v1_0(&v1_3_sample_json());
-    assert_eq!(parsed.schema_version, "1.5");
+    assert_eq!(parsed.schema_version, "1.6");
     assert_eq!(parsed.repo, "owner/name");
     assert_eq!(parsed.branch, "main");
     assert_eq!(parsed.local_root, "/tmp/root");
@@ -421,7 +421,7 @@ fn v1_0_client_parses_v1_3_new_entries_as_existing_status() {
 #[test]
 fn v1_1_client_parses_v1_3_envelope_and_lfs_entry() {
     let parsed = parse_v1_1(&v1_3_sample_json());
-    assert_eq!(parsed.schema_version, "1.5");
+    assert_eq!(parsed.schema_version, "1.6");
     let files = parsed.files.expect("files must be present");
     let lfs_failed = &files[1];
     assert_eq!(lfs_failed.path, "vendor/lib.zip");
@@ -461,7 +461,7 @@ fn v1_1_client_parses_v1_3_size_gate_enum_values_gracefully() {
 #[test]
 fn v1_2_client_parses_v1_3_envelope_and_v1_1_baseline_fields() {
     let parsed = parse_v1_2(&v1_3_sample_json());
-    assert_eq!(parsed.schema_version, "1.5");
+    assert_eq!(parsed.schema_version, "1.6");
     let files = parsed.files.expect("files must be present");
     assert_eq!(files.len(), 8);
     let lfs_failed = &files[1];
@@ -611,11 +611,11 @@ fn v1_3_json_emits_diff_meaningful_only_for_presence_both_hashed_entries() {
 }
 
 /// v1.5 신규 client + `--summary-only` + `failed=N` sample envelope 정합.
-/// `schema_version == "1.5"` + `files`는 `Some` (failed N 시 emit) + 3 entry.
+/// `schema_version == "1.6"` + `files`는 `Some` (failed N 시 emit) + 3 entry.
 #[test]
 fn v1_5_client_parses_summary_only_failed_sample_envelope() {
     let parsed = parse_v1_5(&v1_5_summary_only_failed_sample_json());
-    assert_eq!(parsed.schema_version, "1.5");
+    assert_eq!(parsed.schema_version, "1.6");
     let files = parsed.files.expect("files present when failed N");
     assert_eq!(files.len(), 3);
 }
@@ -647,7 +647,7 @@ fn v1_5_client_parses_summary_only_failed_entry_three_field_shape() {
 #[test]
 fn v1_5_client_parses_summary_only_zero_failed_envelope_with_files_none() {
     let parsed = parse_v1_5(&v1_5_summary_only_zero_failed_json());
-    assert_eq!(parsed.schema_version, "1.5");
+    assert_eq!(parsed.schema_version, "1.6");
     assert!(
         parsed.files.is_none(),
         "files must be absent when failed=0 (v1.4 baseline)"
@@ -667,7 +667,7 @@ fn v1_5_summary_only_zero_failed_wire_omits_files_key() {
         !obj.contains_key("files"),
         "files key must be absent when failed=0"
     );
-    assert_eq!(obj["schema_version"], "1.5");
+    assert_eq!(obj["schema_version"], "1.6");
     assert_eq!(obj["summary"]["failed"], 0);
     assert!(
         !json.contains("\"files\""),

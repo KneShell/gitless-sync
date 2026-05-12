@@ -4,7 +4,7 @@
 
 - Phase 10 진입 (2026-05-12)
 - Tasks: 17 (Phase 10)
-- Completed: 5 / 17
+- Completed: 6 / 17
 
 ## Notes for Build Mode
 
@@ -43,7 +43,7 @@ v0.5.0 release 직후 clean-context audit (2026-05-12, 메모리 차단 fresh co
 
 #### Phase 10.2 — Finding 2 impl (wire shape + schema bump) (5 task)
 
-- [~] **F** (deps: E): schema bump — `crates/gitless-sync/src/commands/scan/output.rs` `SCHEMA_VERSION` `"1.5"` → `"1.6"` constant 갱신. 기존 unit test `schema_version_field_serializes_as_1_5` → `_1_6` 함수명 + 본문 갱신. spec-output-schema.md task D `[AUTO]` 1번 정합. Phase 9 task J 패턴 mirror.
+- [x] **F** (deps: E): schema bump — `crates/gitless-sync/src/commands/scan/output.rs` `SCHEMA_VERSION` `"1.5"` → `"1.6"` constant 갱신. 기존 unit test `schema_version_field_serializes_as_1_5` → `_1_6` 함수명 + 본문 갱신. spec-output-schema.md task D `[AUTO]` 1번 정합. Phase 9 task J 패턴 mirror.
 - [ ] **G** (deps: F): FailedReason enum 변경 — `crates/gitless-sync/src/commands/scan/compare/types.rs` (또는 FailedReason 정의 위치): `None` 특수 케이스 의미를 enum variant `HashIo` 로 명시화. `#[derive(Serialize)]` + `#[serde(rename_all = "snake_case")]` 또는 `#[serde(rename = "hash_io")]` 명시. spec-error-contracts.md task E 정합.
 - [ ] **H** (deps: G): caller 전수 갱신 — `FailedReason::None` 사용처 전체 grep + 각 의미 재검토. plan audit 시점 (2026-05-12) 확인 사이트 10~11곳: `compare/types.rs:23` (enum 정의) + `output.rs:118,165` + `summary_view.rs:5,92,209,214,237` + `pipeline/normalize_pass.rs:109` + `pipeline/finalize/pre_entry.rs:134` + `pipeline/hash_pass/local.rs:59`. task G enum variant 제거 시 compile error 로 전수 강제 발견 (silent semantic invert risk 낮음) — 그러나 각 사용처 의미가 `None == hash_io signal` 가정인지 단순 `Option::None` 인지 분간 + variant 명시화 후 정합 검증. `Option<FailedReason>` 시그니처는 유지 (Failed 외 entry 는 여전히 None) — variant 만 변경. compile error 0 + cycle/cross-slice 0 + clippy warning 0 보장.
 - [ ] **I** (deps: H): summary-only minimal entry 갱신 — `commands/scan/summary_view.rs::project_files` / `strip_to_summary_failed` (또는 동등 helper): FailedReason::HashIo entry 도 다른 reason 과 동일 3 field emit (`path + presence + failed_reason: "hash_io"`). spec-output-schema.md task D `[AUTO]` 2번 정합. v1.5 의 `path + presence` 2 field special case 제거.

@@ -173,7 +173,7 @@ fn truncated_recursive_routes_through_fallback_and_aggregates_blobs_across_layer
 
     let json = run_to_json(&args_for(dir.path(), "o/r"), &mock);
 
-    assert_eq!(json["schema_version"], "1.5");
+    assert_eq!(json["schema_version"], "1.6");
     assert_eq!(json["summary"]["identical"], 4);
     assert_eq!(json["summary"]["local_only_changed"], 0);
     assert_eq!(json["summary"]["remote_only_changed"], 0);
