@@ -334,6 +334,8 @@ minimal entry shape 예시 (failed 2건 + `failed_reason == lfs_pointer` + `fail
 
 `status` 필드도 minimal entry에서 omit — summary-only `files[]` entry는 정의상 failed (v1.6 부터 `failed_reason` 필드는 hash_io 포함 모든 failed reason 에 대해 명시 emit, entry 등장 자체가 failed signal). 호출자 contract: "summary-only 응답의 `files[]` entry는 모두 failed로 해석".
 
+**Caller 분기 정책 (Finding 3 강조)** — summary-only `files[]` entry 는 일반 mode entry 와 shape 발산 (`status` / `sha` / `size` / `mode` / `diff_meaningful` 등 detail field omit). caller 는 응답 shape 추론 금지, 자신의 `--summary-only` argument 기준 mode 분기.
+
 caller-visible behavior change 영향은 § v1.4 → v1.5 변경 § + § v1.5 → v1.6 변경 § backward-compat 표 참조.
 
 ### `--status` 필터
