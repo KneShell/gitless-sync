@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+> Phase 10 (post-v0.5.0 verification finding 해소, Finding 1/2/3 해소) 진행 중. post-v0.5.0 clean-context audit (2026-05-12, 메모리 차단 fresh context) 결과 발견된 3 finding 해소 + v0.6.0 minor release 예정. Phase 10.1 (spec/CHANGELOG 사전 확정) + Phase 10.2 (Finding 2 impl wire shape + schema bump) + Phase 10.3 (test 갱신 + spec 마감) + Phase 10.4 (release) + Phase 10.5 (plan close). 결정 trail은 post-v0.5.0 clean-context audit finding + `docs/specs/spec-output-schema.md` § v1.5 → v1.6 변경. 상세 task별 결과는 git history (`git log --grep="Phase 10"`) + `docs/ralph/implementation-plan.md`.
+
+### Added
+
+- Phase 10.1 — Finding 1 SemVer 라벨 모순 해소 (`spec-output-schema.md` § v1.4 → v1.5 변경 § 본문에 면제 근거 한 줄 명문화, task A). v1.4 caller `files == null` / key 부재로 summary-only mode 판단하는 분기는 v1.4 시점 도입된 신규 가정이라 SemVer 보호 대상 아님 — 라벨 ("minor bump") 유지 + 면제 근거 명문화. doc-only.
+- Phase 10.1 — Finding 2 hash_io explicit emit 사전 spec 확정 (`spec-output-schema.md` § v1.5 → v1.6 변경 § 신규, task B). 이전 v1.5 까지: hash_io 는 `failed_reason` 필드 부재 (`null`) sentinel 로 의미 표현 (key 부재 = hash_io). v1.6 부터: hash_io 도 explicit `failed_reason: "hash_io"` wire emit. summary-only `files[]` entry 도 동일 3 field shape (path + presence + failed_reason) — 이전 v1.5 의 hash_io 2 field special case 제거. v1.5 caller `failed_reason` field absent 가정 분기는 v1.5 시점 도입된 신규 가정이라 SemVer 보호 대상 아님 (Finding 1 면제 logic 일반화).
+- Phase 10.1 — Finding 3 minimal entry shape 발산 강조 한 줄 (`spec-output-schema.md` § `--summary-only` 출력 본문, task C). summary-only `files[]` entry 는 일반 mode entry 와 shape 발산 — caller 는 응답 shape 추론 금지, 자신의 `--summary-only` argument 기준 mode 분기. doc-only.
+- Phase 10.1 — v1.6 신규 Acceptance Criteria 5 시나리오 (`spec-output-schema.md` § v1.6 신규, task D): (1) `schema_version == "1.6"`, (2) summary-only + hash_io → 3 field (이전 v1.5 의 2 field 에서 변경), (3) summary-only + 그 외 reason → 동일 3 field 유지, (4) v1.5 caller × v1.6 hash_io entry parse 정상, (5) status omit 정책 유지.
+- Schema v1.5 → v1.6 minor bump — Finding 2 wire shape change 동반. v1.0 / v1.1 / v1.2 / v1.3 / v1.4 / v1.5 backward-compat lock test 갱신 예정 (task J).
+
+### Changed
+
+- `schema_version` `"1.5"` → `"1.6"` (예정, task F).
+- `compare/types.rs::FailedReason` enum — v1.5 의 `None` special case (`hash_io` signal, key 부재로 의미 표현) 제거 + 명시 `HashIo` variant 추가 + serde rename `"hash_io"` (예정, task G).
+- release: v0.5.0 → **v0.6.0** minor (Finding 2 wire shape change + schema bump 동반). v0.5.1 patch 회피 — schema 버전이 호출자 contract 일급 signal이라 SemVer minor가 정직 (Phase 9 v0.4.2 → v0.5.0 동일 정책).
+
+### Spec
+
+- `spec-output-schema.md` § v1.4 → v1.5 변경 § 본문 — Finding 1 면제 근거 한 줄 (task A).
+- `spec-output-schema.md` § v1.5 → v1.6 변경 § 신규 — Finding 2 본진 (wire shape change + backward-compat 표 + migration lock + Finding 1 면제 logic 일반화) (task B).
+- `spec-output-schema.md` § `--summary-only` 출력 § 본문 — Finding 3 강조 한 줄 (task C).
+- `spec-output-schema.md` § v1.6 신규 Acceptance Criteria 5 시나리오 (task D).
+- `spec-error-contracts.md` § Per-file Pitfall Reasons hash_io row + `failed_reason` 부재 정합 — v1.5 의 `None` special case → v1.6 의 `HashIo` variant 명시 (task E, 본 entry 동반).
+
+### Verified
+
+(task O 마감 시점 finalize — v0.6.0 release tag commit 동반 채움)
+
 ## [0.5.0] - 2026-05-12
 
 > Phase 9 (CLI UX Feedback Fix, vault 도그푸딩 F1/F2/F3 해소) 누적. F1 `scan` / `diff` 서브커맨드 `--help` description + F2 `init` wording 정밀화 + F3 `--summary-only` 모드 failed status entry minimal emit (path + presence + failed_reason 3 field). schema_version 1.4 → 1.5 (F3 한정 caller-visible behavior change). Phase 9.1 (spec/CHANGELOG 사전 확정) + Phase 9.2 (F1+F2 clap surface) + Phase 9.3 (F3 summary-only failed visibility) + Phase 9.4 (release) + Phase 9.5 (plan close). 결정 trail은 post-v0.4.2 vault dogfood feedback (Phase 9 source, 본문은 Phase 10 진입 직전 삭제) + `docs/specs/spec-output-schema.md` § v1.4 → v1.5 변경. 상세 task별 결과는 git history (`git log --grep="Phase 9"`) + `docs/ralph/implementation-plan.md`.

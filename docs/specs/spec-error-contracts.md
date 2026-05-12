@@ -151,7 +151,7 @@ GraphQL 응답 형식 (errors 동반 케이스):
 
 | reason | 상황 | 처리 정책 | 구현 |
 |---|---|---|---|
-| `hash_io` | 로컬 파일 read / 권한 실패 | v0.1 기존 동작 | `compare.rs::FailedReason` enum에 미정의 (None special case). `pipeline/hash_pass::build_one_pre_entry` — `failed_reason: None` 적용. v1.0 backward-compat |
+| `hash_io` | 로컬 파일 read / 권한 실패 | v0.1 기존 동작 (v1.6 부터 wire emit 명시) | v1.5 까지: `compare/types.rs::FailedReason` enum 미정의 (`None` special case, key 부재 sentinel). `pipeline/hash_pass::build_one_pre_entry` — `failed_reason: None` 적용. v1.0 backward-compat. v1.6 부터: `FailedReason::HashIo` variant 명시 (serde rename `"hash_io"`) + `failed_reason: Some(HashIo)` emit (Finding 2 결정 trail — `spec-output-schema.md` § v1.5 → v1.6 변경 참조). v1.0~v1.5 backward-compat lock test (`tests/scan_output_backward_compat.rs`) 유지 |
 | `encoding` | UTF-8 + 2차 detect 모두 실패 또는 UTF-16 BOM detect | spec-domain-pitfalls.md § Encoding | `compare.rs::FailedReason::Encoding` 정의됨 + `commands/scan/hash_local.rs::try_hash_local`가 raw read 1회 시점에 `try_decode_text` 결과 분기 (`Utf16Bom`/`Unknown` → `Some(Encoding)`) + `pipeline::build_one_pre_entry`가 PreState::Failed 격상. Phase 5.13 task AA |
 | `submodule` | Trees mode `160000` entry | spec-domain-pitfalls.md § Submodule | `compare.rs::FailedReason::Submodule` 정의됨 + `pipeline/short_circuit.rs::try_short_circuit_failed` 구현 |
 | `symlink` | Trees mode `120000` entry 또는 local symlink | spec-domain-pitfalls.md § Symlink | `compare.rs::FailedReason::Symlink` 정의됨 + `pipeline/short_circuit.rs::try_short_circuit_failed` 구현 |
@@ -163,7 +163,7 @@ GraphQL 응답 형식 (errors 동반 케이스):
 | `file_too_large` | local 또는 remote file size 100 MB (GitHub Blobs API hard limit) 초과 | spec-hash-and-normalize.md § Phase 7 — 큰 파일 처리 | Phase 7 신규. `compare.rs::FailedReason::FileTooLarge` + `size_bytes` field. local: `try_hash_local` size pre-flight (`fs::metadata().len()`). remote: Trees response size field pre-flight + fetch_blob 응답 size post-flight. |
 | `memory_exceeded` | local 또는 remote file size 50 MB (tool 메모리 안전 임계) 초과 | spec-hash-and-normalize.md § Phase 7 — 큰 파일 처리 | Phase 7 신규. `compare.rs::FailedReason::MemoryExceeded` + `size_bytes` field. cascade에서 `file_too_large` 다음 (50 MB ≤ size < 100 MB 범위 적용). |
 
-`failed_reason` 부재(`null`) 시 v0.1 baseline `hash_io` 동작과 일관 — 호출자 backward-compat.
+v1.5 까지: `failed_reason` 부재(`null`) 시 v0.1 baseline `hash_io` 동작과 일관 — 호출자 backward-compat. v1.6 부터: hash_io 도 explicit `failed_reason: "hash_io"` emit (`HashIo` variant). `Status::Failed` entry 의 `failed_reason: null` 케이스는 더 이상 등장하지 않음 — 호출자 분기는 `failed_reason == "hash_io"` 명시 비교 (`spec-output-schema.md` § v1.5 → v1.6 변경 § migration 참조).
 
 ### 인증 실패 / Rate Limit / Trees Truncated 동작
 매핑 source는 위 § gh 종료 코드 + stderr → GitlessError 매핑 표. 기존 v0.1 ureq HTTP status 직접 관찰은 ADR 0002로 obsolete.
