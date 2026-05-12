@@ -4,7 +4,7 @@
 
 - Phase 9 진입 (2026-05-12)
 - Tasks: 19 (Phase 9)
-- Completed: 5 / 19
+- Completed: 6 / 19
 
 ## Notes for Build Mode
 
@@ -44,7 +44,7 @@
 
 #### Phase 9.2 — F1 + F2 (clap surface) (4 task)
 
-- [~] **F** (deps: E): F1 — `crates/gitless-sync/src/main.rs` `Commands::Scan` variant에 `#[command(about = "Compare local directory against remote repo, emit 4-state classification JSON")]` derive 추가. cli-ux-feedback.md § F1 "기대" 본문 wording 채택. 한 줄 description, 종지부 없음 (clap 관행). spec-cli-interface.md task A acceptance 정합.
+- [x] **F** (deps: E): F1 — `crates/gitless-sync/src/main.rs` `Commands::Scan` variant에 `#[command(about = "Compare local directory against remote repo, emit 4-state classification JSON")]` derive 추가. cli-ux-feedback.md § F1 "기대" 본문 wording 채택. 한 줄 description, 종지부 없음 (clap 관행). spec-cli-interface.md task A acceptance 정합.
 - [ ] **G** (deps: F): F1 — `Commands::Diff` variant에 `#[command(about = "Show unified diff (or JSON) of a single file vs remote")]` derive 추가. 동일 출처 wording.
 - [ ] **H** (deps: G): F2 — `Commands::Init` variant 기존 `about = "Print a gitless-sync.toml template to stdout (you redirect to a file)"` → 정밀화. **최종 채택 wording** (Open Decisions § F2): `about = "Emit gitless-sync.toml body from input args (stdout)"`. cli-ux-feedback.md § F2 첫 번째 후보 (짧고 명확). `after_help` (Example) 그대로 보존. task B spec 본문과 byte-identical 정합 검증 (acceptance 위반 시 task `[!]` BLOCKED).
 - [ ] **I** (deps: H): integration test — `tests/cli_help_about.rs` 신규 (또는 기존 integration suite 안). `cargo run -- --help` stdout 캡처 + `"Scan"` / `"Diff"` / `"Init"` 각 description 정확 문자열 noncontain → contain 전이 (regression evidence). Phase 8 task X 패턴 (clap parse error / valid 후보 검증) mirror. acceptance: spec-cli-interface.md task A/B `[AUTO]` acceptance 매핑.

@@ -50,6 +50,9 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    #[command(
+        about = "Compare local directory against remote repo, emit 4-state classification JSON"
+    )]
     Scan {
         /// Branch to read from the repo.
         #[arg(long, default_value = "main")]
