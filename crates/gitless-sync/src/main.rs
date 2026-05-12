@@ -66,6 +66,7 @@ enum Commands {
         #[arg(long, value_enum, value_delimiter = ',')]
         status: Vec<StatusFilter>,
     },
+    #[command(about = "Show unified diff (or JSON) of a single file vs remote")]
     Diff {
         /// Branch to read from the repo.
         #[arg(long, default_value = "main")]
