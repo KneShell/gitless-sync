@@ -111,6 +111,7 @@ CLI > env > `gitless-sync.toml` > 도구 내장 기본값. 자세한 건 `spec-c
 
 ## Acceptance Criteria
 - `[AUTO]` `cargo run -- --help`가 위 모든 플래그를 보여준다.
+- `[AUTO]` `cargo run -- --help` stdout에 `scan` / `diff` 서브커맨드 description 한 줄 이상 노출 (cli-ux-feedback.md § F1).
 - `[AUTO]` `cargo run -- scan --help`가 `--summary-only`, `--status`를 추가로 보여준다.
 - `[AUTO]` `cargo run -- diff --help`가 `<path>` positional 인자를 보여준다.
 - `[AUTO]` `cargo run -- init --help`가 `--repo`, `--branch`, `--ignore`를 보여준다 + `after_help` / `long_about`에 redirect 예시 한 줄 노출.
