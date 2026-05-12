@@ -80,7 +80,7 @@ enum Commands {
         json: bool,
     },
     #[command(
-        about = "Print a gitless-sync.toml template to stdout (you redirect to a file)",
+        about = "Emit gitless-sync.toml body from input args (stdout)",
         after_help = "Example:\n  gitless-sync init --repo owner/name --branch main > gitless-sync.toml"
     )]
     Init {
