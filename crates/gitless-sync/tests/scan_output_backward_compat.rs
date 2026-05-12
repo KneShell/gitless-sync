@@ -19,6 +19,20 @@
 //! `hash_io` signal → `failed_reason` omit으로 2 key). v1.6 전체 mode wire는
 //! v1.3 sample이 `SCHEMA_VERSION` "1.6"으로 박혀 V10/V11/V12 backward-compat
 //! 자연 cover.
+//!
+//! J-task (Phase 10, 2026-05-12) 갱신 — v1.5 → v1.6 wire shape change lock.
+//! V16 client struct 신규 + `v1_6_summary_only_failed_sample` fixture
+//! (`hash_io` entry `failed_reason: "hash_io"` 명시 emit 형태) + 4 forward-
+//! compat invariant: (a) V15 client × v1.6 sample → `hash_io` entry의
+//! `failed_reason` 값이 `Some("hash_io")` 로 정상 deserialize (V15 `Option<String>`
+//! 시그니처가 enum 매칭 우회), (b) V16 client × v1.6 sample → `FailedReason::HashIo`
+//! variant strict match, (c) wire-shape lock — summary-only `hash_io` entry는
+//! 3 key (`path`/`presence`/`failed_reason`), v1.5의 2 key special case 제거,
+//! (d) V10/V11/V12 envelope × v1.6 full mode는 기존 `v1_3_sample_json` (이미
+//! `SCHEMA_VERSION` "1.6" 박힘) 통해 자연 cover — 별도 V10~V12 × summary-only
+//! lock 미박음 (summary-only entry shape (`status` 부재)와 V10~V12 entry
+//! struct (`status` require) 사이 architectural 불일치, v1.4 이전 caller는
+//! summary-only mode 자체 미인지 → forward-compat 비대상).
 
 use chrono::{DateTime, TimeZone, Utc};
 use gitless_sync::commands::scan::compare::{
@@ -111,6 +125,24 @@ struct V15FailedEntry {
     path: String,
     presence: String,
     failed_reason: Option<String>,
+}
+
+/// v1.6 신규 호출자 모방 — `FailedReason` enum 직접 인지 (V15의 `Option<String>`
+/// 시그니처와 차이). `failed_reason: Option<FailedReason>` 박힘 → wire의
+/// `"hash_io"` 값이 [`FailedReason::HashIo`] variant로 strict match. v1.6
+/// production caller 패턴 정합 (summary-only `files[]` 의 `failed_reason`
+/// 필드를 enum으로 직접 분기).
+#[derive(Debug, Deserialize)]
+struct V16ScanReport {
+    schema_version: String,
+    files: Option<Vec<V16FailedEntry>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct V16FailedEntry {
+    path: String,
+    presence: Presence,
+    failed_reason: Option<FailedReason>,
 }
 
 fn ts(secs: i64) -> DateTime<Utc> {
@@ -336,6 +368,46 @@ fn v1_5_summary_only_zero_failed_json() -> String {
     serialize(&v1_5_summary_only_zero_failed_report(), false).expect("serialize must succeed")
 }
 
+/// v1.6 `--summary-only` + `failed > 0` sample — `hash_io` entry가
+/// `failed_reason: Some(FailedReason::HashIo)` 명시 박힘 (v1.5의 `None` sentinel
+/// 제거, wire에 `"failed_reason": "hash_io"` 등장). 두 entry — `long_path`
+/// (`presence=local_only`, 비교용) + `hash_io` (`presence=both`). production
+/// pipeline (`pipeline::hash_pass::local` task H/I)이 emit하는 wire shape와
+/// byte-identical. `spec-output-schema.md` § v1.5 → v1.6 변경 정합.
+fn v1_6_summary_only_failed_sample_report() -> ScanReport {
+    let entries = vec![
+        SummaryFailedEntry {
+            path: "ext/very-long-path-segment-causing-overflow.md".into(),
+            presence: Presence::LocalOnly,
+            failed_reason: Some(FailedReason::LongPath),
+        },
+        SummaryFailedEntry {
+            path: "io/broken.md".into(),
+            presence: Presence::Both,
+            failed_reason: Some(FailedReason::HashIo),
+        },
+    ];
+    ScanReport {
+        schema_version: SCHEMA_VERSION.to_string(),
+        scanned_at: ts(1_700_000_500),
+        repo: "owner/name".into(),
+        branch: "main".into(),
+        local_root: "/tmp/root".into(),
+        summary: Summary {
+            identical: 3,
+            local_only_changed: 0,
+            remote_only_changed: 0,
+            drift: 0,
+            failed: 2,
+        },
+        files: Some(FilesView::SummaryFailed(entries)),
+    }
+}
+
+fn v1_6_summary_only_failed_sample_json() -> String {
+    serialize(&v1_6_summary_only_failed_sample_report(), false).expect("serialize must succeed")
+}
+
 fn parse_v1_0(json: &str) -> V10ScanReport {
     serde_json::from_str(json).expect("v1.0 client must parse v1.3 JSON")
 }
@@ -350,6 +422,10 @@ fn parse_v1_2(json: &str) -> V12ScanReport {
 
 fn parse_v1_5(json: &str) -> V15ScanReport {
     serde_json::from_str(json).expect("v1.5 client must parse summary-only JSON")
+}
+
+fn parse_v1_6(json: &str) -> V16ScanReport {
+    serde_json::from_str(json).expect("v1.6 client must parse summary-only JSON")
 }
 
 fn raw_files(json: &str) -> Vec<serde_json::Value> {
@@ -737,6 +813,130 @@ fn v1_5_summary_only_failed_wire_omits_all_detail_fields_across_entries() {
             assert!(
                 !obj.contains_key(stripped),
                 "files[{i}] detail key {stripped} must be omitted in summary-only mode"
+            );
+        }
+    }
+}
+
+/// J-task acceptance (iv) — v1.5 caller가 v1.6 wire JSON 파싱 시 `hash_io`
+/// entry의 `failed_reason` 값을 `Some("hash_io")` 로 정상 deserialize. V15
+/// client struct의 `failed_reason: Option<String>` 시그니처가 enum 매칭을 우회
+/// (string passthrough) → v1.6 wire shape change (key 부재 sentinel 제거 + 명시
+/// emit)에도 V15 client 분기 무손상. caller migration 의무: v1.5 `hash_io`
+/// missing-key sentinel 분기 코드는 v1.6에서 dead path가 되므로 `Some("hash_io")`
+/// 명시 분기로 전환 — 본 lock은 enum 매칭 우회 path 자체가 깨지지 않음을 박음.
+#[test]
+fn v1_5_client_parses_v1_6_hash_io_entry_with_some_hash_io() {
+    let parsed = parse_v1_5(&v1_6_summary_only_failed_sample_json());
+    assert_eq!(parsed.schema_version, "1.6");
+    let files = parsed.files.expect("files present when failed N");
+    assert_eq!(files.len(), 2);
+
+    // [0] long_path entry — V15 baseline 동작 (Some 변형).
+    assert_eq!(
+        files[0].path,
+        "ext/very-long-path-segment-causing-overflow.md"
+    );
+    assert_eq!(files[0].presence, "local_only");
+    assert_eq!(files[0].failed_reason.as_deref(), Some("long_path"));
+
+    // [1] hash_io entry — v1.6 핵심 invariant. V15 `Option<String>` 시그니처가
+    // wire `"hash_io"` 값을 enum 매칭 없이 string 그대로 deserialize.
+    assert_eq!(files[1].path, "io/broken.md");
+    assert_eq!(files[1].presence, "both");
+    assert_eq!(files[1].failed_reason.as_deref(), Some("hash_io"));
+}
+
+/// J-task acceptance — V16 신규 client × v1.6 sample envelope 정합. v1.6
+/// production caller의 strict `FailedReason` enum 매칭 path 정상.
+#[test]
+fn v1_6_client_parses_v1_6_summary_only_failed_envelope() {
+    let parsed = parse_v1_6(&v1_6_summary_only_failed_sample_json());
+    assert_eq!(parsed.schema_version, "1.6");
+    let files = parsed.files.expect("files present when failed N");
+    assert_eq!(files.len(), 2);
+}
+
+/// J-task acceptance — V16 client가 `FailedReason::HashIo` variant로 strict
+/// enum match. V15의 `Option<String>` passthrough와 차별점 — v1.6 production
+/// caller는 enum 분기로 직접 `hash_io` case 분리 가능.
+#[test]
+fn v1_6_client_parses_hash_io_entry_with_strict_failed_reason_enum() {
+    let parsed = parse_v1_6(&v1_6_summary_only_failed_sample_json());
+    let files = parsed.files.expect("files present when failed N");
+
+    // [0] long_path entry — enum strict match.
+    assert_eq!(
+        files[0].path,
+        "ext/very-long-path-segment-causing-overflow.md"
+    );
+    assert_eq!(files[0].presence, Presence::LocalOnly);
+    assert_eq!(files[0].failed_reason, Some(FailedReason::LongPath));
+
+    // [1] hash_io entry — v1.6 explicit `HashIo` variant. v1.5 의 None
+    // sentinel 제거가 본 test에서 확인됨 (Some(HashIo) 등장).
+    assert_eq!(files[1].path, "io/broken.md");
+    assert_eq!(files[1].presence, Presence::Both);
+    assert_eq!(files[1].failed_reason, Some(FailedReason::HashIo));
+}
+
+/// J-task acceptance — v1.6 wire-shape lock. summary-only `hash_io` entry가
+/// 3 key (`path` + `presence` + `failed_reason: "hash_io"`) 박힘. v1.5의
+/// 2 key special case (`failed_reason` key 부재) 제거 — `failed_reason` 명시
+/// 등장 invariant. 다른 reason entry (`long_path`)와 동일 3 key shape.
+#[test]
+fn v1_6_summary_only_failed_wire_emits_three_key_shape_for_hash_io_and_other_reasons() {
+    let files = raw_files(&v1_6_summary_only_failed_sample_json());
+    assert_eq!(files.len(), 2);
+
+    // [0] long_path entry — 3 key.
+    let long_path = files[0].as_object().expect("entry object");
+    assert_eq!(long_path.len(), 3, "long_path entry must emit 3 keys");
+    assert_eq!(
+        long_path["path"],
+        "ext/very-long-path-segment-causing-overflow.md"
+    );
+    assert_eq!(long_path["presence"], "local_only");
+    assert_eq!(long_path["failed_reason"], "long_path");
+
+    // [1] hash_io entry — v1.6 핵심: 2 key → 3 key 전환.
+    let hash_io = files[1].as_object().expect("entry object");
+    assert_eq!(
+        hash_io.len(),
+        3,
+        "hash_io entry must emit 3 keys in v1.6 (v1.5 special case removed)"
+    );
+    assert_eq!(hash_io["path"], "io/broken.md");
+    assert_eq!(hash_io["presence"], "both");
+    assert_eq!(
+        hash_io["failed_reason"], "hash_io",
+        "hash_io entry must carry explicit failed_reason value in v1.6"
+    );
+}
+
+/// J-task acceptance — v1.6 wire에서도 summary-only minimal entry의 detail
+/// field omit 정책 유지. `v1_5_summary_only_failed_wire_omits_all_detail_fields_across_entries`
+/// 와 직교 — v1.5의 omit invariant가 v1.6 wire shape change에도 보존.
+#[test]
+fn v1_6_summary_only_failed_wire_omits_all_detail_fields_across_entries() {
+    let files = raw_files(&v1_6_summary_only_failed_sample_json());
+    for (i, entry) in files.iter().enumerate() {
+        let obj = entry.as_object().expect("entry object");
+        for stripped in [
+            "status",
+            "local_sha",
+            "remote_sha",
+            "local_mtime",
+            "remote_last_commit_at",
+            "is_binary",
+            "mode",
+            "diff_meaningful",
+            "lfs_pointer",
+            "size_bytes",
+        ] {
+            assert!(
+                !obj.contains_key(stripped),
+                "files[{i}] detail key {stripped} must be omitted in summary-only mode (v1.6)"
             );
         }
     }
