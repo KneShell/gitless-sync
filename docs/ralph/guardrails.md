@@ -79,3 +79,13 @@
   - **수렴 기준**: "동일 finding 2회 연속 + 신규 0건" → CONVERGE PASS, push + tag 진행.
   - **escape hatch**: cap 초과 또는 외부 시각 finding이 spec semantics 변경 요구 시 → BLOCK + changelog/research에 finding 기록만 + 다음 세션 wake-up 시 사용자 surface (자율 chain 중단). ralph 자율 주행 + 도중 wake-up 0 stance와 정합.
   - **cap 변경**: ADR 0013 갱신 동반. 측정 누적 trace file 자동 생성은 yagni — cap 도달 시점에 사람 surface 시 사후 분석 가능.
+
+## G-020: release commit/tag 직전 Cargo.toml workspace.package version bump 누락
+- **문제**: schema bump + release tag task (Phase 9 task R / Phase 10 task P 등) 진행 시 `crates/gitless-sync/Cargo.toml::package.version` bump 를 task 본문에 명시 안 하면 ralph 가 누락. release tag 이후 main HEAD 의 Cargo.toml version 은 이전 release 시점 그대로. **사례 2건 누적** (2026-05-12 / 13): v0.5.0 (Phase 9 task R) + v0.6.0 (Phase 10 task P) 모두 Cargo.toml `0.4.2` 그대로 → 사용자 수동 catch-up commit `db40612` (`0.4.2 → 0.6.0` 한 번에 bump). v0.5.0/v0.6.0 annotated tag 안 Cargo.toml 은 immutable (force-push 회피) → 해당 tag checkout 시 mismatch 영구 잔존.
+- **해결**: release tag task 본문에 다음 step 명시 필수:
+  1. `crates/gitless-sync/Cargo.toml` `version` 필드 bump (이전 release → 신규 release).
+  2. `cargo check --workspace` 1회로 `Cargo.lock` 자동 동기화.
+  3. release tag 작성 직전 commit 에 합류 (tag target 시점 Cargo.toml = 신규 버전 정합 보장).
+  4. tag push 완료 후 `git show v0.M.0 -- crates/gitless-sync/Cargo.toml` 으로 tag target 안 Cargo.toml version 사후 검증.
+
+  본 룰은 plan entry 의 release tag task 본문에 매번 박지 않아도 ralph 가 `prompt-build.md § 0b` 으로 본 guardrails.md fully read 하여 catch-up.
