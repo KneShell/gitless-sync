@@ -1,4 +1,4 @@
-# Spec: Output JSON Schema v1.4
+# Spec: Output JSON Schema v1.5
 
 ## 목적
 `scan` 명령어가 stdout으로 출력하는 결과 JSON의 안정적 스키마. AI 호출자가 파싱·소비할 수 있도록 버전 보장.
@@ -10,20 +10,25 @@
 > **Phase 8 갱신 (2026-05-10)**: schema_version 1.2 → **1.3** (minor bump). 신규 field `diff_meaningful: Option<bool>` (F1 — scan/diff 비교 기준 불일치 해소) + `presence: "local_only" | "both" | "remote_only"` (F2 — `local_only_changed` 의미 모호 해소). 4-state status (`identical` / `local_only_changed` / `remote_only_changed` / `drift` / `failed`) 그대로 유지 — backward compat 보장. 결정 trail은 `docs/adr/0014-scan-diff-metadata-contract.md`.
 >
 > **v0.4.2 갱신 (2026-05-11)**: schema_version 1.3 → **1.4** (minor bump). `Identical` 정의 정확화 — sha-differ + `normalize_equal == Some(true)` (cosmetic drift, F1 케이스) 도 `Identical` 분류. 기존 caller 코드는 그대로 작동 — Identical 카운트가 더 정확해지고 LocalOnlyChanged/RemoteOnlyChanged 카운트는 cosmetic drift만큼 감소. backward compat 보장 (additive 의미 정확화). issue #1 regression. 결정 trail은 `docs/adr/0015-cosmetic-identical-classification.md`.
+>
+> **v0.5.0 갱신 (2026-05-12)**: schema_version 1.4 → **1.5** (minor bump). `--summary-only` 모드 출력 contract 확장 — failed status entry 한정 `files[]`에 minimal entry (path + presence + failed_reason) emit. failed 0건이면 v1.4 baseline 유지 (`files` 필드 omit). 그 외 status entry (identical / local_only_changed / remote_only_changed / drift)는 summary-only에서 emit 안 함. cli-ux-feedback.md § F3 motivation (한 호출로 어떤 파일이 실패했는지 확인) 직접 해소. 신규 field/enum 0이지만 caller-visible behavior change이므로 minor. 결정 trail은 `docs/cli-ux-feedback.md` § F3 + `docs/ralph/implementation-plan.md` Phase 9.
 
 ## 현재 상태
 - `crates/gitless-sync/src/commands/scan/output.rs::{ScanReport, Summary}` 구조체 + serde 직렬화 완료 (v1.0).
 - `crates/gitless-sync/src/commands/scan/compare.rs::{FileEntry, Status, FailedReason, LfsPointer}` 정의됨 (v1.1 신규 필드 mode/failed_reason/lfs_pointer 포함, v1.2 신규 size_bytes 포함).
-- `SCHEMA_VERSION = "1.4"` 상수 정의 — Phase 8에서 `"1.3"` bump, v0.4.2에서 `"1.4"` bump (cosmetic Identical fix).
+- `SCHEMA_VERSION = "1.4"` 상수 정의 — Phase 8에서 `"1.3"` bump, v0.4.2에서 `"1.4"` bump (cosmetic Identical fix). Phase 9 task J에서 `"1.5"` bump 예정 (summary-only failed visibility 확장, 코드 변경은 task J~L scope).
 - `serialize(report, pretty)` 함수 구현 완료.
 - `FileEntry`에 `diff_meaningful` + `presence` field는 Phase 8 task F~I에서 신규 추가 예정.
 
 ## 작업 범위
 
-### 스키마 v1.4 (전체)
+### 스키마 v1.5 (전체)
+
+> 아래 sample은 `--summary-only` 미지정 시 전체 mode 출력. v1.5는 전체 mode wire shape 변경 0 — 이전 v1.4와 byte-identical (`schema_version` 값만 다름). summary-only mode shape는 § `--summary-only` 출력 참조.
+
 ```json
 {
-  "schema_version": "1.4",
+  "schema_version": "1.5",
   "scanned_at": "2026-05-10T10:30:00Z",
   "repo": "owner/name",
   "branch": "main",
@@ -175,8 +180,41 @@ LLM-as-caller usability eval (2026-05-10) 7 friction 중 P0 2건 (F1 + F2) 해�
 - F2 status 4→6 split (`local_only_added` / `local_only_modified` 등) — breaking change + 호출자 분기 늘어남 + status semantics(액션 분류)와 presence(존재성)를 한 enum에 묶어 직교성 깨짐.
 - F1 diff stderr hint — 호출 2회 필요. scan 1회로 모든 정보 받게 함이 caller-decides 본성에 더 정합.
 
+### v1.4 → v1.5 변경 (minor)
+
+cli-ux-feedback.md § F3 motivation 해소 — `--summary-only` 모드 출력 contract 확장. 결정 trail은 `docs/cli-ux-feedback.md` § F3 + `docs/ralph/implementation-plan.md` Phase 9.
+
+변경 범위 (`--summary-only` 모드 한정):
+
+- 기존 (v1.4까지) — `files` 필드 자체를 결과 JSON에서 omit. 호출자가 어떤 파일이 failed인지 확인하려면 `--status failed`로 재호출 필요.
+- v1.5 — failed status entry 한정 `files[]`에 minimal entry emit. entry 한 개는 `path` + `presence` + `failed_reason` 세 field만 (`sha` / `size` / `mode` / `diff_meaningful` / `lfs_pointer` / `size_bytes` 등 detail field는 모두 omit). summary-only 정체성 = "카운트 + 무엇이 실패했나 명단"으로 유지. `failed_reason == hash_io` (코드상 `Option::None` 특수 케이스) 인 entry는 v1.1 contract 정합 — `failed_reason` 필드가 omit되어 entry가 `path` + `presence` 두 field가 됨 (key 부재로 `hash_io` 의미 표현).
+- failed 0건이면 `files` 필드 omit — v1.4 baseline 동작 유지.
+- 그 외 status entry (`identical` / `local_only_changed` / `remote_only_changed` / `drift`)는 summary-only에서 emit 안 함 — v1.4 동작 유지.
+
+신규 field 0 / 신규 enum 0:
+- `failed_reason` 필드는 v1.2까지 정의된 11 cover (`hash_io` / `encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported` / `file_too_large` / `memory_exceeded`, 코드 10 variant + None 특수 케이스) 그대로 유지. Phase 9에서 enum 추가/제거 0.
+- `presence` 필드는 v1.3에서 도입된 enum 3 variant (`local_only` / `both` / `remote_only`) 그대로.
+
+전체 모드 (`--summary-only` 미지정 시) 동작 변경 0 — v1.4와 byte-identical (`schema_version` 값만 `"1.4"` → `"1.5"`).
+
+`--status` filter 상호작용:
+- v1.4 baseline — `--summary-only` 와 `--status` 동시 명시 시 summary-only 정체성 우선, status filter 무시 (PRD 검증 시나리오 13).
+- v1.5 동일 — summary-only 가 emit하는 failed entry는 `--status` filter 무관 등장 (filter override).
+
+backward-compat:
+- 추가 필드 0 + 추가 enum 0이라 v1.0~v1.3 호출자가 v1.5 전체 모드 JSON 파싱 시 영향 0.
+- v1.4까지 caller 코드가 `--summary-only` 응답에서 `files == null` 또는 `"files"` key 부재를 가정한 분기가 있다면 v1.5에서 깨질 수 있음 — failed 발생 케이스에서 `files: [...]` 배열이 등장한다.
+
+  | v1.4 caller 분기 | v1.5 동작 |
+  |---|---|
+  | `"files" in resp` → 전체 mode로 판단 | failed 0건이면 false (v1.4 동일), failed N건이면 true (변경됨) |
+  | `resp.files == null` → summary-only mode 확정 | failed 0건이면 true (v1.4 동일), failed N건이면 false (변경됨, 배열 등장) |
+  | summary-only mode 판단에 caller 자신의 `--summary-only` argument 기준 | 영향 0 (caller alignment) |
+
+  caller migration: summary-only mode 판단에 응답의 `files` 부재 단서를 쓰지 않고 caller 자신의 `--summary-only` argument로 분기 — v1.5 동작과 정합.
+
 ### 안정성 보장
-- `schema_version`: 호환성 깨는 변경 시 major 증가. v0.1은 `"1.0"`, Phase 5는 `"1.1"`, Phase 7은 `"1.2"`, Phase 8은 `"1.3"`, v0.4.2는 `"1.4"` (모두 minor — 신규 field 추가 또는 `Identical` 분류 정확화, 기존 필드 변경 0).
+- `schema_version`: 호환성 깨는 변경 시 major 증가. v0.1은 `"1.0"`, Phase 5는 `"1.1"`, Phase 7은 `"1.2"`, Phase 8은 `"1.3"`, v0.4.2는 `"1.4"`, v0.5.0은 `"1.5"` (모두 minor — 신규 field 추가 또는 `Identical` 분류 정확화 또는 `--summary-only` 출력 contract 확장, 기존 필드 변경 0).
 - `status` enum 동결: `identical` / `local_only_changed` / `remote_only_changed` / `drift` / `failed`. 추가는 minor 버전, 제거·이름 변경은 major. **Phase 5에서 새 status 미추가** — LFS/submodule/symlink는 모두 `failed` + `failed_reason` 분류.
 - `failed_reason` enum 동결 정책: 추가는 minor, 제거·이름 변경은 major. Phase 5에서 정의된 9 reason (`hash_io` / `encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported`) 모두 구현 (Phase 5.13 task AA, 2026-05-09 — `compare.rs::FailedReason` 8 variant + `None` special case `hash_io`). Phase 7에서 2 reason 추가 — `file_too_large` + `memory_exceeded` (총 11 reason, `compare.rs::FailedReason` 10 variant + `None` special case).
 - 시간 필드: 모두 ISO-8601 UTC (`Z` suffix). 로컬 타임존 출력 금지.
@@ -193,7 +231,37 @@ LLM-as-caller usability eval (2026-05-10) 7 friction 중 P0 2건 (F1 + F2) 해�
   - 호출자는 `is_binary == true` + `failed_reason == "encoding"` 조합을 "raw bytes에 NUL 포함된 비-UTF-8 텍스트" 신호로 해석 가능. 그 외 Failed entry의 `is_binary == false`는 정보 부재의 default — true 의미를 추론하면 안 됨.
 
 ### `--summary-only` 출력
-위 JSON에서 `files` 필드 자체를 제거 (`null`이 아니라 omit). 다른 필드는 유지.
+
+v1.5부터 동작 (v1.4와의 차이는 § v1.4 → v1.5 변경 참조):
+
+- 기본 — 전체 mode JSON에서 `files` 필드 자체를 omit (`null` 아니라 키 부재). `schema_version` / `scanned_at` / `repo` / `branch` / `local_root` / `summary` 등 다른 필드는 유지.
+- failed status entry 존재 시 (`summary.failed > 0`) — `files[]`에 failed entry 한정 minimal 형식 emit. entry 한 개는 `path` + `presence` + `failed_reason` 세 field만 (sha/size/mode/diff_meaningful/lfs_pointer/size_bytes 등 detail field 모두 omit). 그 외 status entry (identical / local_only_changed / remote_only_changed / drift)는 emit 안 함.
+- `--status` filter 동시 지정 시 — summary-only 정체성 우선, status filter 무시 (summary 카운트 + failed entry 명단 contract 유지). 즉 `--summary-only --status drift` 호출도 동일하게 failed entry만 emit.
+- `failed_reason == hash_io` (코드상 `Option::None` 특수 케이스) entry는 v1.1 contract 정합 — `failed_reason` 필드 omit, entry가 `path` + `presence` 두 field가 됨. key 부재로 `hash_io` 의미 표현.
+
+minimal entry shape 예시 (failed 1건 + `failed_reason == lfs_pointer` 케이스):
+
+```json
+{
+  "schema_version": "1.5",
+  "scanned_at": "2026-05-12T10:30:00Z",
+  "repo": "owner/name",
+  "branch": "main",
+  "local_root": "/path/to/dir",
+  "summary": { "identical": 120, "local_only_changed": 3, "remote_only_changed": 0, "drift": 1, "failed": 1 },
+  "files": [
+    {
+      "path": "vendor/lib.zip",
+      "presence": "both",
+      "failed_reason": "lfs_pointer"
+    }
+  ]
+}
+```
+
+`status` 필드도 minimal entry에서 omit — summary-only `files[]` entry는 정의상 failed (`failed_reason` 필드 자체 또는 부재가 failed signal). 호출자 contract: "summary-only 응답의 `files[]` entry는 모두 failed로 해석".
+
+caller-visible behavior change 영향은 § v1.4 → v1.5 변경 § backward-compat 표 참조.
 
 ### `--status` 필터
 `--status drift,local_only_changed` 형식. 지정한 status에 해당하는 파일만 `files[]`에 포함. `summary` 카운트는 필터 무관 전체 집계.
