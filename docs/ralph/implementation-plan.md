@@ -63,7 +63,7 @@ v0.5.0 release 직후 clean-context audit (2026-05-12, 메모리 차단 fresh co
 
 #### Phase 10.5 — plan close (1 task)
 
-- [ ] **Q** (deps: P): 본 plan Phase 10 task 모두 [x] mark + § 갱신 — Active Phase 비움. Completed Phases § 에 Phase 10 한 줄 요약 추가 (기존 Phase 1~9 압축 history 합류). 자세한 task별 결과는 git history (`git log --grep="Phase 10"`) + commit message + CHANGELOG.md v0.6.0 entry 로 cover.
+- [~] **Q** (deps: P): 본 plan Phase 10 task 모두 [x] mark + § 갱신 — Active Phase 비움. Completed Phases § 에 Phase 10 한 줄 요약 추가 (기존 Phase 1~9 압축 history 합류). 자세한 task별 결과는 git history (`git log --grep="Phase 10"`) + commit message + CHANGELOG.md v0.6.0 entry 로 cover.
 
 ## Completed Phases
 
