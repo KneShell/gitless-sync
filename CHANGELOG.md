@@ -5,35 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] - 2026-05-12
 
-> Phase 10 (post-v0.5.0 verification finding 해소, Finding 1/2/3 해소) 진행 중. post-v0.5.0 clean-context audit (2026-05-12, 메모리 차단 fresh context) 결과 발견된 3 finding 해소 + v0.6.0 minor release 예정. Phase 10.1 (spec/CHANGELOG 사전 확정) + Phase 10.2 (Finding 2 impl wire shape + schema bump) + Phase 10.3 (test 갱신 + spec 마감) + Phase 10.4 (release) + Phase 10.5 (plan close). 결정 trail은 post-v0.5.0 clean-context audit finding + `docs/specs/spec-output-schema.md` § v1.5 → v1.6 변경. 상세 task별 결과는 git history (`git log --grep="Phase 10"`) + `docs/ralph/implementation-plan.md`.
+> Phase 10 (post-v0.5.0 verification finding 해소, Finding 1/2/3 해소) 누적. post-v0.5.0 clean-context audit (2026-05-12, 메모리 차단 fresh context) 결과 발견된 3 finding 해소 + v0.6.0 minor release. Phase 10.1 (spec/CHANGELOG 사전 확정) + Phase 10.2 (Finding 2 impl wire shape + schema bump) + Phase 10.3 (test 갱신 + spec 마감) + Phase 10.4 (release) + Phase 10.5 (plan close). 결정 trail은 post-v0.5.0 clean-context audit finding + `docs/specs/spec-output-schema.md` § v1.5 → v1.6 변경. 상세 task별 결과는 git history (`git log --grep="Phase 10"`) + `docs/ralph/implementation-plan.md`.
 
 ### Added
 
 - Phase 10.1 — Finding 1 SemVer 라벨 모순 해소 (`spec-output-schema.md` § v1.4 → v1.5 변경 § 본문에 면제 근거 한 줄 명문화, task A). v1.4 caller `files == null` / key 부재로 summary-only mode 판단하는 분기는 v1.4 시점 도입된 신규 가정이라 SemVer 보호 대상 아님 — 라벨 ("minor bump") 유지 + 면제 근거 명문화. doc-only.
-- Phase 10.1 — Finding 2 hash_io explicit emit 사전 spec 확정 (`spec-output-schema.md` § v1.5 → v1.6 변경 § 신규, task B). 이전 v1.5 까지: hash_io 는 `failed_reason` 필드 부재 (`null`) sentinel 로 의미 표현 (key 부재 = hash_io). v1.6 부터: hash_io 도 explicit `failed_reason: "hash_io"` wire emit. summary-only `files[]` entry 도 동일 3 field shape (path + presence + failed_reason) — 이전 v1.5 의 hash_io 2 field special case 제거. v1.5 caller `failed_reason` field absent 가정 분기는 v1.5 시점 도입된 신규 가정이라 SemVer 보호 대상 아님 (Finding 1 면제 logic 일반화).
+- Phase 10.1 — Finding 2 hash_io explicit emit 사전 spec 확정 (`spec-output-schema.md` § v1.5 → v1.6 변경 § 신규, task B). 이전 v1.5 까지: hash_io 는 `failed_reason` 필드 부재 (`null`) sentinel 로 의미 표현 (key 부재 = hash_io). v1.6 부터: hash_io 도 explicit `failed_reason: "hash_io"` wire emit. summary-only `files[]` entry 도 동일 3 field shape (path + presence + failed_reason) — 이전 v1.5 의 hash_io 2 field special case 제거. v1.5 caller `failed_reason` field absent 가정 분기는 v1.5 시점 도입된 신규 가정이라 SemVer 보호 대상 아님 (Finding 1 면제 logic 일반화 — 공통 면제 표 spec § v1.5 → v1.6 변경 § 본문).
 - Phase 10.1 — Finding 3 minimal entry shape 발산 강조 한 줄 (`spec-output-schema.md` § `--summary-only` 출력 본문, task C). summary-only `files[]` entry 는 일반 mode entry 와 shape 발산 — caller 는 응답 shape 추론 금지, 자신의 `--summary-only` argument 기준 mode 분기. doc-only.
 - Phase 10.1 — v1.6 신규 Acceptance Criteria 5 시나리오 (`spec-output-schema.md` § v1.6 신규, task D): (1) `schema_version == "1.6"`, (2) summary-only + hash_io → 3 field (이전 v1.5 의 2 field 에서 변경), (3) summary-only + 그 외 reason → 동일 3 field 유지, (4) v1.5 caller × v1.6 hash_io entry parse 정상, (5) status omit 정책 유지.
-- Schema v1.5 → v1.6 minor bump — Finding 2 wire shape change 동반. v1.0 / v1.1 / v1.2 / v1.3 / v1.4 / v1.5 backward-compat lock test 갱신 예정 (task J).
+- Phase 10.2 — Finding 2 impl 본진 (task F~J 5종). `commands/scan/output.rs::SCHEMA_VERSION` `"1.5"` → `"1.6"` (task F) + `compare/types.rs::FailedReason` enum 변경 (task G, `None` 특수 케이스 제거 + 명시 `HashIo` variant 추가 + serde rename `"hash_io"`) + caller 전수 갱신 (task H, 10~11 호출처 의미 검토 후 `FailedReason::HashIo` 변환, `Option<FailedReason>` 시그니처 유지 — Failed 외 entry 는 여전히 None) + `commands/scan/summary_view.rs::strip_to_summary_failed` 갱신 (task I, hash_io entry 도 다른 reason 과 동일 3 field emit, v1.5 의 2 field special case 제거) + v1.6 backward-compat lock (task J, `tests/scan_output_backward_compat.rs` `V16` client struct 신규 + `v1_6_sample_json` fixture + V10/V11/V12/V15 client × v1.6 sample 4 client lock + V15 client × v1.6 hash_io entry `Some("hash_io")` deserialize 정상 검증).
+- Phase 10.4 — README `### scan` `--summary-only` 섹션 wording 정밀화 (task N). `failed_reason` 필드가 v1.6 부터 hash_io 포함 모든 failed reason 에 대해 명시 emit 명시 + JSON 예시 본문 hash_io 케이스 3 field shape 정확. doc-only.
+- Schema v1.5 → v1.6 minor bump — Finding 2 wire shape change 동반. v1.0 / v1.1 / v1.2 / v1.3 / v1.4 / v1.5 backward-compat lock test 갱신 (task J).
 
 ### Changed
 
-- `schema_version` `"1.5"` → `"1.6"` (예정, task F).
-- `compare/types.rs::FailedReason` enum — v1.5 의 `None` special case (`hash_io` signal, key 부재로 의미 표현) 제거 + 명시 `HashIo` variant 추가 + serde rename `"hash_io"` (예정, task G).
+- `schema_version` `"1.5"` → `"1.6"`.
+- `compare/types.rs::FailedReason` enum — v1.5 의 `None` special case (`hash_io` signal, key 부재로 의미 표현) 제거 + 명시 `HashIo` variant 추가 + serde rename `"hash_io"`. `Option<FailedReason>` 시그니처는 유지 (Failed 외 entry 는 여전히 None).
 - release: v0.5.0 → **v0.6.0** minor (Finding 2 wire shape change + schema bump 동반). v0.5.1 patch 회피 — schema 버전이 호출자 contract 일급 signal이라 SemVer minor가 정직 (Phase 9 v0.4.2 → v0.5.0 동일 정책).
 
 ### Spec
 
 - `spec-output-schema.md` § v1.4 → v1.5 변경 § 본문 — Finding 1 면제 근거 한 줄 (task A).
-- `spec-output-schema.md` § v1.5 → v1.6 변경 § 신규 — Finding 2 본진 (wire shape change + backward-compat 표 + migration lock + Finding 1 면제 logic 일반화) (task B).
+- `spec-output-schema.md` § v1.5 → v1.6 변경 § 신규 — Finding 2 본진 (wire shape change + backward-compat 표 + migration lock + 공통 면제 표 — task A 의 v1.4→v1.5 면제 근거와 동일 패턴 mirror 일반화) (task B).
 - `spec-output-schema.md` § `--summary-only` 출력 § 본문 — Finding 3 강조 한 줄 (task C).
 - `spec-output-schema.md` § v1.6 신규 Acceptance Criteria 5 시나리오 (task D).
-- `spec-error-contracts.md` § Per-file Pitfall Reasons hash_io row + `failed_reason` 부재 정합 — v1.5 의 `None` special case → v1.6 의 `HashIo` variant 명시 (task E, 본 entry 동반).
+- `spec-error-contracts.md` § Per-file Pitfall Reasons hash_io row + `failed_reason` 부재 정합 — v1.5 의 `None` special case → v1.6 의 `HashIo` variant 명시 (task E).
+- `spec-output-schema.md` + `spec-error-contracts.md` + `spec-classification.md` § 마감 점검 정합 (task M) — task K~L 결과 vs spec 본문 cross-check + § minimal entry shape 발산 강조 위치 정합 + acceptance 시나리오 wording 정확 + `spec-error-contracts.md` FailedReason enum 11 cover 갱신 + `spec-classification.md` § Failed status § FailedReason 인용 dead reference 0 검증.
 
 ### Verified
 
-(task O 마감 시점 finalize — v0.6.0 release tag commit 동반 채움)
+- 신규 / 갱신 test 시나리오 — `commands/scan/output.rs::tests` (task F, `schema_version_field_serializes_as_1_6` 갱신) + `compare/types.rs::tests` (task G, `failed_reason_hash_io_serializes_snake_case`) + `commands/scan/summary_view.rs::tests` (task I + K, hash_io entry strip 3 field shape + encoding entry rich payload 3 field shape projection lock) + `tests/scan_output_backward_compat.rs` v1.6 lock (task J, `V16` client struct + `v1_6_sample_json` fixture + V10/V11/V12/V15 × v1.6 sample 4 client lock + V15 × hash_io entry `Some("hash_io")` deserialize 정상 검증) + `tests/scan_summary_only_hash_io.rs` 신규 (task L, 104 LOC, 권한 0 file fixture 시뮬레이션 + `--summary-only` JSON parse + `files[]` entry `failed_reason: "hash_io"` 명시 검증).
+- Hard gate full pipeline PASS — `cargo fmt --check` / `cargo clippy --workspace --all-targets -- -D warnings` / `cargo xtask check-line-limits` / `cargo xtask check-cycles` / `cargo machete` / `cargo test --workspace` / `cargo tarpaulin --engine llvm --workspace --out Stdout`.
+- 492 + 88 unit + integration test pass / 0 failed (gitless-sync workspace + xtask).
+- tarpaulin 88.99% (1325/1489 lines).
+- post-v0.5.0 clean-context audit (2026-05-12, 메모리 차단 fresh context) Finding 1/2/3 모두 해소.
 
 ## [0.5.0] - 2026-05-12
 
