@@ -213,6 +213,8 @@ backward-compat:
 
   caller migration: summary-only mode 판단에 응답의 `files` 부재 단서를 쓰지 않고 caller 자신의 `--summary-only` argument로 분기 — v1.5 동작과 정합.
 
+**SemVer 면제 근거** — 위 backward-compat 표에 정리된 v1.4 caller `files == null` 또는 `"files"` key 부재로 summary-only mode 판단하는 분기는 v1.4 시점 도입된 신규 가정이라 SemVer 보호 대상 아님. v1.5 의 minor 라벨은 wire-shape 기준 정합 (신규 field 0 + enum 0, summary-only mode 한정 contract 확장).
+
 ### 안정성 보장
 - `schema_version`: 호환성 깨는 변경 시 major 증가. v0.1은 `"1.0"`, Phase 5는 `"1.1"`, Phase 7은 `"1.2"`, Phase 8은 `"1.3"`, v0.4.2는 `"1.4"`, v0.5.0은 `"1.5"` (모두 minor — 신규 field 추가 또는 `Identical` 분류 정확화 또는 `--summary-only` 출력 contract 확장, 기존 필드 변경 0).
 - `status` enum 동결: `identical` / `local_only_changed` / `remote_only_changed` / `drift` / `failed`. 추가는 minor 버전, 제거·이름 변경은 major. **Phase 5에서 새 status 미추가** — LFS/submodule/symlink는 모두 `failed` + `failed_reason` 분류.
