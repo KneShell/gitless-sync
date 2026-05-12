@@ -131,6 +131,64 @@ mod tests {
         assert_eq!(rows[1].failed_reason, None);
     }
 
+    /// Task L acceptance: a fully-populated [`FileEntry`] passed through
+    /// [`project_files`] yields a row carrying `path` / `presence` /
+    /// `failed_reason` only — rich fields (`sha` / `mtime` / `size` / `mode` /
+    /// `diff_meaningful` / `lfs_pointer`) drop at both the type and wire level.
+    #[test]
+    fn project_strips_full_failed_entry_to_three_field_minimal_row() {
+        use super::super::compare::LfsPointer;
+        use chrono::{TimeZone, Utc};
+
+        let rich = FileEntry {
+            path: "vendor/lib.zip".into(),
+            status: Status::Failed,
+            presence: Presence::Both,
+            local_sha: Some("abc123".into()),
+            remote_sha: Some("def456".into()),
+            local_mtime: Some(Utc.timestamp_opt(1, 0).unwrap()),
+            remote_last_commit_at: Some(Utc.timestamp_opt(2, 0).unwrap()),
+            is_binary: true,
+            mode: "100755".into(),
+            diff_meaningful: Some(true),
+            failed_reason: Some(FailedReason::LfsPointer),
+            lfs_pointer: Some(LfsPointer {
+                oid: "sha256:abc".into(),
+                size: 9999,
+            }),
+            size_bytes: Some(12345),
+        };
+        let view = project_files(true, vec![rich], 1).expect("Some SummaryFailed");
+        let FilesView::SummaryFailed(rows) = view else {
+            panic!("expected SummaryFailed");
+        };
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].path, "vendor/lib.zip");
+        assert_eq!(rows[0].presence, Presence::Both);
+        assert_eq!(rows[0].failed_reason, Some(FailedReason::LfsPointer));
+
+        let value = serde_json::to_value(&rows[0]).unwrap();
+        let obj = value.as_object().unwrap();
+        assert_eq!(obj.len(), 3);
+        for stripped in [
+            "status",
+            "local_sha",
+            "remote_sha",
+            "local_mtime",
+            "remote_last_commit_at",
+            "is_binary",
+            "mode",
+            "diff_meaningful",
+            "lfs_pointer",
+            "size_bytes",
+        ] {
+            assert!(
+                !obj.contains_key(stripped),
+                "key {stripped} must be stripped"
+            );
+        }
+    }
+
     #[test]
     fn summary_failed_entry_wire_emits_three_fields() {
         let entry = SummaryFailedEntry {
