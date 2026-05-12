@@ -11,13 +11,21 @@
 //! 위치가 architecturally 정합 (lib output module 외부에서 시뮬레이션).
 //! L-task (2026-05-10) 갱신 — V12 client struct 추가 + v1.3 entry (presence
 //! != both, `diff_meaningful` Some/None) sample 확장 + v1.3 wire 신규 invariant.
+//!
+//! M-task (2026-05-12) 갱신 — v1.5 summary-only 출력 contract 확장 lock.
+//! V15 client struct 추가 + v1.5 summary-only sample fixture (failed=0 omit
+//! 경로 + failed=N minimal entry 경로) + wire invariant (failed=0 → `files`
+//! key 부재, failed=N → entry `path`/`presence`/`failed_reason` 3 key,
+//! `hash_io` signal → `failed_reason` omit으로 2 key). v1.5 전체 mode wire는
+//! v1.3 sample이 `SCHEMA_VERSION` "1.5"로 박혀 V10/V11/V12 backward-compat
+//! 자연 cover.
 
 use chrono::{DateTime, TimeZone, Utc};
 use gitless_sync::commands::scan::compare::{
     FailedReason, FileEntry, LfsPointer, Presence, Status,
 };
 use gitless_sync::commands::scan::output::{SCHEMA_VERSION, ScanReport, Summary, serialize};
-use gitless_sync::commands::scan::summary_view::FilesView;
+use gitless_sync::commands::scan::summary_view::{FilesView, SummaryFailedEntry};
 use serde::Deserialize;
 
 /// v1.0 baseline 호출자 모방 — Phase 5/7/8 신규 필드 모름.
@@ -85,6 +93,24 @@ struct V12FileEntry {
     failed_reason: Option<String>,
     lfs_pointer: Option<LfsPointer>,
     size_bytes: Option<u64>,
+}
+
+/// v1.5 신규 호출자 모방 — `--summary-only` 모드 minimal entry shape
+/// (`path` + `presence` + `failed_reason` 3 field, `hash_io` signal 시
+/// `failed_reason` 부재로 2 field) 인지. `presence`는 `Option<String>` 아닌
+/// `String` — summary-only entry는 항상 emit. `failed_reason`은
+/// `Option<String>` — `Option::None` (`hash_io` signal) 시 omit 정합.
+#[derive(Debug, Deserialize)]
+struct V15ScanReport {
+    schema_version: String,
+    files: Option<Vec<V15FailedEntry>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct V15FailedEntry {
+    path: String,
+    presence: String,
+    failed_reason: Option<String>,
 }
 
 fn ts(secs: i64) -> DateTime<Utc> {
@@ -239,6 +265,77 @@ fn v1_3_sample_json() -> String {
     serialize(&v1_3_sample_report(), false).expect("serialize must succeed")
 }
 
+/// v1.5 `--summary-only` + `failed > 0` sample — `FilesView::SummaryFailed`로
+/// 직접 구성 (`project_files` 결합 회피로 projection 단의 회귀가 본 lock test
+/// 까지 끌고 오는 결합 차단). 세 entry — `lfs_pointer` (`presence=both`,
+/// `failed_reason=Some`) / `symlink` (`presence=local_only`,
+/// `failed_reason=Some`) / `hash_io` (`presence=both`, `failed_reason=None`
+/// — `failed_reason` 필드 omit signal). `spec-output-schema.md` § v1.5
+/// `--summary-only` 출력 예시 정합.
+fn v1_5_summary_only_failed_sample_report() -> ScanReport {
+    let entries = vec![
+        SummaryFailedEntry {
+            path: "vendor/lib.zip".into(),
+            presence: Presence::Both,
+            failed_reason: Some(FailedReason::LfsPointer),
+        },
+        SummaryFailedEntry {
+            path: "ext/orphan-symlink".into(),
+            presence: Presence::LocalOnly,
+            failed_reason: Some(FailedReason::Symlink),
+        },
+        SummaryFailedEntry {
+            path: "io/broken.md".into(),
+            presence: Presence::Both,
+            failed_reason: None,
+        },
+    ];
+    ScanReport {
+        schema_version: SCHEMA_VERSION.to_string(),
+        scanned_at: ts(1_700_000_500),
+        repo: "owner/name".into(),
+        branch: "main".into(),
+        local_root: "/tmp/root".into(),
+        summary: Summary {
+            identical: 5,
+            local_only_changed: 0,
+            remote_only_changed: 0,
+            drift: 0,
+            failed: 3,
+        },
+        files: Some(FilesView::SummaryFailed(entries)),
+    }
+}
+
+/// v1.5 `--summary-only` + `failed == 0` sample — `files == None` 박힘
+/// (`#[serde(skip_serializing_if = "Option::is_none")]`로 wire JSON에서 `files`
+/// key 자체 부재). v1.4 baseline 동작 유지 lock.
+fn v1_5_summary_only_zero_failed_report() -> ScanReport {
+    ScanReport {
+        schema_version: SCHEMA_VERSION.to_string(),
+        scanned_at: ts(1_700_000_500),
+        repo: "owner/name".into(),
+        branch: "main".into(),
+        local_root: "/tmp/root".into(),
+        summary: Summary {
+            identical: 5,
+            local_only_changed: 0,
+            remote_only_changed: 0,
+            drift: 0,
+            failed: 0,
+        },
+        files: None,
+    }
+}
+
+fn v1_5_summary_only_failed_sample_json() -> String {
+    serialize(&v1_5_summary_only_failed_sample_report(), false).expect("serialize must succeed")
+}
+
+fn v1_5_summary_only_zero_failed_json() -> String {
+    serialize(&v1_5_summary_only_zero_failed_report(), false).expect("serialize must succeed")
+}
+
 fn parse_v1_0(json: &str) -> V10ScanReport {
     serde_json::from_str(json).expect("v1.0 client must parse v1.3 JSON")
 }
@@ -249,6 +346,10 @@ fn parse_v1_1(json: &str) -> V11ScanReport {
 
 fn parse_v1_2(json: &str) -> V12ScanReport {
     serde_json::from_str(json).expect("v1.2 client must parse v1.3 JSON")
+}
+
+fn parse_v1_5(json: &str) -> V15ScanReport {
+    serde_json::from_str(json).expect("v1.5 client must parse summary-only JSON")
 }
 
 fn raw_files(json: &str) -> Vec<serde_json::Value> {
@@ -507,4 +608,136 @@ fn v1_3_json_emits_diff_meaningful_only_for_presence_both_hashed_entries() {
             .unwrap()
             .contains_key("diff_meaningful")
     );
+}
+
+/// v1.5 신규 client + `--summary-only` + `failed=N` sample envelope 정합.
+/// `schema_version == "1.5"` + `files`는 `Some` (failed N 시 emit) + 3 entry.
+#[test]
+fn v1_5_client_parses_summary_only_failed_sample_envelope() {
+    let parsed = parse_v1_5(&v1_5_summary_only_failed_sample_json());
+    assert_eq!(parsed.schema_version, "1.5");
+    let files = parsed.files.expect("files present when failed N");
+    assert_eq!(files.len(), 3);
+}
+
+/// v1.5 신규 client가 minimal entry 3 field shape 그대로 read.
+/// `path` + `presence` (`Both` / `LocalOnly` 두 케이스) + `failed_reason`
+/// (`Some` 두 변형 + `None` `hash_io` 한 변형).
+#[test]
+fn v1_5_client_parses_summary_only_failed_entry_three_field_shape() {
+    let parsed = parse_v1_5(&v1_5_summary_only_failed_sample_json());
+    let files = parsed.files.expect("files present when failed N");
+    // [0] lfs_pointer + presence=both
+    assert_eq!(files[0].path, "vendor/lib.zip");
+    assert_eq!(files[0].presence, "both");
+    assert_eq!(files[0].failed_reason.as_deref(), Some("lfs_pointer"));
+    // [1] symlink + presence=local_only
+    assert_eq!(files[1].path, "ext/orphan-symlink");
+    assert_eq!(files[1].presence, "local_only");
+    assert_eq!(files[1].failed_reason.as_deref(), Some("symlink"));
+    // [2] hash_io signal — failed_reason omit → None
+    assert_eq!(files[2].path, "io/broken.md");
+    assert_eq!(files[2].presence, "both");
+    assert!(files[2].failed_reason.is_none());
+}
+
+/// v1.5 신규 client + `--summary-only` + `failed=0` sample envelope.
+/// `files` 필드 자체가 wire JSON에서 부재 (`Option<Vec<...>>` 가 `None` 으로
+/// 파싱). v1.4 baseline 동작 유지 lock.
+#[test]
+fn v1_5_client_parses_summary_only_zero_failed_envelope_with_files_none() {
+    let parsed = parse_v1_5(&v1_5_summary_only_zero_failed_json());
+    assert_eq!(parsed.schema_version, "1.5");
+    assert!(
+        parsed.files.is_none(),
+        "files must be absent when failed=0 (v1.4 baseline)"
+    );
+}
+
+/// v1.5 wire — `--summary-only` + `failed=0` 시 raw JSON에서 `files` key 자체
+/// 부재 (`null` 아님 — `#[serde(skip_serializing_if = "Option::is_none")]`
+/// 박힘). PRD 검증 시나리오 13 (summary-only 출력에 문자열 `"files"` 미포함)
+/// 정합 + spec-output-schema.md § v1.5 § "failed 0건이면 `files` 필드 omit" lock.
+#[test]
+fn v1_5_summary_only_zero_failed_wire_omits_files_key() {
+    let json = v1_5_summary_only_zero_failed_json();
+    let raw: serde_json::Value = serde_json::from_str(&json).expect("raw JSON must parse");
+    let obj = raw.as_object().expect("raw object");
+    assert!(
+        !obj.contains_key("files"),
+        "files key must be absent when failed=0"
+    );
+    assert_eq!(obj["schema_version"], "1.5");
+    assert_eq!(obj["summary"]["failed"], 0);
+    assert!(
+        !json.contains("\"files\""),
+        "PRD scenario 13: summary-only output must not contain literal \"files\" substring"
+    );
+}
+
+/// v1.5 wire — `--summary-only` + `failed=N` 시 minimal entry shape lock.
+/// 일반 entry (`failed_reason == Some`): 3 key
+/// (`path`/`presence`/`failed_reason`). `hash_io` variant
+/// (`failed_reason == None`): 2 key (`path`/`presence`) — key 부재로
+/// `hash_io` 의미 표현. detail field (`status` / `sha` / `mtime` / `size` /
+/// `mode` / `diff_meaningful` / `lfs_pointer` / `size_bytes`) 모두 omit.
+#[test]
+fn v1_5_summary_only_failed_wire_emits_three_key_shape_with_hash_io_two_key_variant() {
+    let files = raw_files(&v1_5_summary_only_failed_sample_json());
+    assert_eq!(files.len(), 3);
+
+    // [0] lfs_pointer + presence=both — 3 key
+    let lfs = files[0].as_object().expect("entry object");
+    assert_eq!(lfs.len(), 3, "lfs_pointer entry must emit 3 keys");
+    assert_eq!(lfs["path"], "vendor/lib.zip");
+    assert_eq!(lfs["presence"], "both");
+    assert_eq!(lfs["failed_reason"], "lfs_pointer");
+
+    // [1] symlink + presence=local_only — 3 key
+    let symlink = files[1].as_object().expect("entry object");
+    assert_eq!(symlink.len(), 3, "symlink entry must emit 3 keys");
+    assert_eq!(symlink["path"], "ext/orphan-symlink");
+    assert_eq!(symlink["presence"], "local_only");
+    assert_eq!(symlink["failed_reason"], "symlink");
+
+    // [2] hash_io signal — 2 key (failed_reason 부재)
+    let hash_io = files[2].as_object().expect("entry object");
+    assert_eq!(hash_io.len(), 2, "hash_io entry must emit 2 keys");
+    assert_eq!(hash_io["path"], "io/broken.md");
+    assert_eq!(hash_io["presence"], "both");
+    assert!(
+        !hash_io.contains_key("failed_reason"),
+        "hash_io signal: failed_reason key must be absent"
+    );
+}
+
+/// v1.5 wire — `--summary-only` + `failed=N` minimal entry는 detail field
+/// (`status` / `local_sha` / `remote_sha` / `local_mtime` /
+/// `remote_last_commit_at` / `is_binary` / `mode` / `diff_meaningful` /
+/// `lfs_pointer` / `size_bytes`)를 모두 wire JSON에서 omit.
+/// `v1_5_summary_only_failed_wire_emits_three_key_shape_with_hash_io_two_key_variant`
+/// 의 entry shape 검증과 직교하는 omit invariant lock.
+#[test]
+fn v1_5_summary_only_failed_wire_omits_all_detail_fields_across_entries() {
+    let files = raw_files(&v1_5_summary_only_failed_sample_json());
+    for (i, entry) in files.iter().enumerate() {
+        let obj = entry.as_object().expect("entry object");
+        for stripped in [
+            "status",
+            "local_sha",
+            "remote_sha",
+            "local_mtime",
+            "remote_last_commit_at",
+            "is_binary",
+            "mode",
+            "diff_meaningful",
+            "lfs_pointer",
+            "size_bytes",
+        ] {
+            assert!(
+                !obj.contains_key(stripped),
+                "files[{i}] detail key {stripped} must be omitted in summary-only mode"
+            );
+        }
+    }
 }
