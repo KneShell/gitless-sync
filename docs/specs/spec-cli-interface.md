@@ -79,6 +79,10 @@ authoritative sub-schema 정의는 `spec-output-schema.md` § diff sub-schema (t
 - `--ignore <pattern>` — 옵셔널 반복. 명시된 패턴 모두 TOML 배열로 emit. 미명시 시 결과 TOML에 `ignore` 줄 없음.
 - 외부 호출 0 — repo 존재 검증·인증 검사 0. 잘못된 repo가 명시되어도 다음 `scan` 실행 시 자연스럽게 surface (gh CLI 에러 → `GitlessError::Http`).
 
+#### --help description
+
+- `[AUTO]` `cargo run -- init --help` stdout 첫 description 줄(clap `about`)은 정확히 `Emit gitless-sync.toml body from input args (stdout)` — cli-ux-feedback.md § F2 최종 채택 wording. `crates/gitless-sync/src/main.rs` `Commands::Init` clap derive `#[command(about = "...")]` 값과 byte-identical 정합 (task H 본진, 위반 시 `[!]` BLOCKED).
+
 #### stdout 출력 형식
 - 출력은 `spec-config.md` § 스키마와 동일한 TOML 본문. emit 순서: `repo` → `branch` → `ignore` (직렬화 안정성).
 - 옵셔널 필드는 `Some` / non-empty 시에만 emit.
