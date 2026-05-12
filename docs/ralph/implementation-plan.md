@@ -4,7 +4,7 @@
 
 - Phase 10 진입 (2026-05-12)
 - Tasks: 17 (Phase 10)
-- Completed: 13 / 17
+- Completed: 14 / 17
 
 ## Notes for Build Mode
 
@@ -57,7 +57,7 @@ v0.5.0 release 직후 clean-context audit (2026-05-12, 메모리 차단 fresh co
 
 #### Phase 10.4 — release (3 task)
 
-- [~] **N** (deps: M): README.md 갱신 (scope 명시) — (i) `### scan` 섹션 `--summary-only` 동작 정밀화 — hash_io entry 도 `failed_reason: "hash_io"` 명시 포함, v1.5 의 2 field special case 제거 (1 줄), (ii) `### scan` JSON 예시 본문에 summary-only failed entry 3 field shape 정확 (hash_io 케이스 포함, 가능하면), (iii) v0.5.0 README 본문에 cli-ux-feedback.md reference 있다면 정리 (Phase 9 진입 직전 정리 범위 외 잔존 가능성 — grep `cli-ux-feedback` 검사). 직접 영향 1~3줄. doc-only.
+- [x] **N** (deps: M): README.md 갱신 (scope 명시) — (i) `### scan` 섹션 `--summary-only` 동작 정밀화 — hash_io entry 도 `failed_reason: "hash_io"` 명시 포함, v1.5 의 2 field special case 제거 (1 줄), (ii) `### scan` JSON 예시 본문에 summary-only failed entry 3 field shape 정확 (hash_io 케이스 포함, 가능하면), (iii) v0.5.0 README 본문에 cli-ux-feedback.md reference 있다면 정리 (Phase 9 진입 직전 정리 범위 외 잔존 가능성 — grep `cli-ux-feedback` 검사). 직접 영향 1~3줄. doc-only.
 - [ ] **O** (deps: N): CHANGELOG.md v0.6.0 entry finalize — Added (Finding 1 SemVer 면제 근거 + Finding 2 hash_io explicit emit + Finding 3 minimal entry shape 발산 강조), Changed (schema v1.5 → v1.6, FailedReason `None` 특수 케이스 → `HashIo` variant), Spec (spec-output-schema.md § v1.6 변경 + § v1.6 신규 Acceptance Criteria + spec-error-contracts.md FailedReason 갱신), Verified (unit + integration test pass + clean-context audit Finding 1/2/3 해소). v0.5.0 entry 패턴 mirror.
 - [ ] **P** (deps: O): v0.6.0 release tag — `git tag v0.6.0 -m "..." && git push origin main && git push origin v0.6.0`. clean-context audit (post-v0.5.0) 외부 시각 source + plan audit chain 사전 진행 — release 전 별도 audit 추가 안 함. v0.5.0 tag 스타일 mirror (annotated tag + main/tag push). **주의**: Phase 9 task R 에서 ralph 가 `git push origin main` 빠뜨린 패턴 발견 — 본 task P 는 tag push + main push 두 단계 명시적 수행 (`git push origin main` 먼저 + `git tag v0.6.0 -m "..."` + `git push origin v0.6.0` 순서).
 

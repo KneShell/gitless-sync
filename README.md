@@ -64,7 +64,7 @@ Branch defaults to `main`. Override with `--branch <name>`.
 Common flags:
 
 ```sh
-# summary counts only; if failed > 0, also emits minimal {path, presence, failed_reason} entries (LLM context budget)
+# summary counts only; if failed > 0, also emits minimal {path, presence, failed_reason} entries — failed_reason always present incl. hash_io (LLM context budget)
 gitless-sync scan --repo owner/name --local . --summary-only
 
 # only files that drifted
