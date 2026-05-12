@@ -235,6 +235,32 @@ mod tests {
         assert_eq!(obj["failed_reason"], "hash_io");
     }
 
+    /// Task K acceptance #2: a non-lfs_pointer non-hash_io Failed entry
+    /// (encoding — uniquely carries `is_binary: true` rich payload from
+    /// `try_hash_local`'s NUL probe per Phase 5.13.1 EE) still projects to
+    /// the 3-field minimal row. Pairs with Task I (`hash_io` 3-field lock) +
+    /// the upstream `lfs_pointer` 3-field lock (sibling test above) — shape
+    /// uniformity across all 11 reasons confirmed at projection layer.
+    #[test]
+    fn project_strips_encoding_failed_entry_with_rich_payload_to_three_field_row() {
+        let base = failed_entry("u16.txt", Presence::Both, Some(FailedReason::Encoding));
+        let rich = FileEntry {
+            local_sha: Some("abc".into()),
+            is_binary: true,
+            ..base
+        };
+        let FilesView::SummaryFailed(rows) = project_files(true, vec![rich], 1).unwrap() else {
+            panic!("expected SummaryFailed");
+        };
+        assert_eq!(rows.len(), 1);
+        let value = serde_json::to_value(&rows[0]).unwrap();
+        let obj = value.as_object().unwrap();
+        assert_eq!(obj.len(), 3);
+        assert_eq!(obj["failed_reason"], "encoding");
+        assert!(!obj.contains_key("is_binary"));
+        assert!(!obj.contains_key("local_sha"));
+    }
+
     #[test]
     fn files_view_untagged_full_serializes_as_array() {
         let view = FilesView::Full(vec![identical_entry("a.md")]);
