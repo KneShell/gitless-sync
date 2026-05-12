@@ -278,8 +278,9 @@ backward-compat:
 |---|---|---|
 | v1.4 → v1.5 | `--summary-only` 응답의 `files` 필드 부재 → summary-only mode 판단 | v1.4 시점 도입된 가정 (caller 가 v1.4 baseline wire 동작 의존) |
 | v1.5 → v1.6 | summary-only `files[]` entry 의 `failed_reason` 필드 부재 → hash_io 판단 | v1.5 시점 도입된 가정 (caller 가 v1.5 minimal entry omit 동작 의존) |
+| v1.N → v1.(N+1) (forward-applicable) | 매 schema minor bump 직전 도입된 신규 wire 가정 (omit / sentinel / byte-shape 등) 을 caller 가 분기 sentinel 로 채택한 경우 | 다음 minor bump 시점에 자동 면제 — 신규 도입 시점부터 다음 bump 까지 caller migration window 1 bump 보장 |
 
-향후 bump 도 동일 logic 일반화 — caller 자신의 명시 enum value 분기 또는 wire 형식 stable signal 에 의존하는 분기는 영향 0 (면제 표 적용 대상 자체가 아니다).
+향후 bump 도 동일 logic 일반화 — caller 자신의 명시 enum value 분기 (e.g., 명시 enum match arm, 명시 field value check) 또는 wire 형식 stable signal (e.g., `schema_version` 자체 분기) 에 의존하는 분기는 영향 0 — 면제 표 적용 대상 자체가 아니다 (매 bump 마다 정상 동작 보장).
 
 ### 안정성 보장
 - `schema_version`: 호환성 깨는 변경 시 major 증가. v0.1은 `"1.0"`, Phase 5는 `"1.1"`, Phase 7은 `"1.2"`, Phase 8은 `"1.3"`, v0.4.2는 `"1.4"`, v0.5.0은 `"1.5"`, v0.6.0은 `"1.6"` (모두 minor — 신규 field 추가 또는 `Identical` 분류 정확화 또는 `--summary-only` 출력 contract 확장 또는 hash_io entry wire 형식 정합화, 기존 필드 변경 0).
