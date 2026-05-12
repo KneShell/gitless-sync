@@ -72,6 +72,7 @@ mod tests {
     use super::*;
     use crate::commands::scan::build_report;
     use crate::commands::scan::compare::Status;
+    use crate::commands::scan::summary_view::FilesView;
     use crate::commands::scan::test_helpers::{
         COMMITS_BODY, args_for, stub_blob, stub_commits, stub_tree,
     };
@@ -108,7 +109,9 @@ mod tests {
         assert_eq!(failed, 0);
         assert_eq!(report.summary.identical, 1);
         assert_eq!(report.summary.drift, 0);
-        let entries = report.files.unwrap();
+        let FilesView::Full(entries) = report.files.unwrap() else {
+            panic!("expected Full view");
+        };
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].status, Status::Identical);
         assert_eq!(entries[0].local_sha.as_deref(), Some(local_sha.as_str()));
@@ -132,7 +135,9 @@ mod tests {
         let args = args_for(dir.path(), Some("o/r"));
         let (report, _) = build_report(&args, &mock).unwrap();
         assert_eq!(report.summary.local_only_changed, 1);
-        let entries = report.files.unwrap();
+        let FilesView::Full(entries) = report.files.unwrap() else {
+            panic!("expected Full view");
+        };
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].status, Status::LocalOnlyChanged);
         assert!(entries[0].remote_sha.is_none());
@@ -149,7 +154,9 @@ mod tests {
         let args = args_for(dir.path(), Some("o/r"));
         let (report, _) = build_report(&args, &mock).unwrap();
         assert_eq!(report.summary.remote_only_changed, 1);
-        let entries = report.files.unwrap();
+        let FilesView::Full(entries) = report.files.unwrap() else {
+            panic!("expected Full view");
+        };
         assert_eq!(entries[0].status, Status::RemoteOnlyChanged);
         assert!(entries[0].local_sha.is_none());
         assert!(entries[0].remote_last_commit_at.is_none());
@@ -169,7 +176,9 @@ mod tests {
 
         let args = args_for(dir.path(), Some("o/r"));
         let (report, _) = build_report(&args, &mock).unwrap();
-        let entries = report.files.unwrap();
+        let FilesView::Full(entries) = report.files.unwrap() else {
+            panic!("expected Full view");
+        };
         assert_eq!(entries.len(), 1);
         assert!(matches!(
             entries[0].status,
@@ -204,7 +213,9 @@ mod tests {
         let (report, failed) = build_report(&args, &mock).unwrap();
         assert_eq!(failed, 0);
 
-        let entries = report.files.unwrap();
+        let FilesView::Full(entries) = report.files.unwrap() else {
+            panic!("expected Full view");
+        };
         assert_eq!(entries.len(), 3);
         let paths: Vec<&str> = entries.iter().map(|e| e.path.as_str()).collect();
         assert_eq!(paths, vec!["a.md", "b.md", "c.md"]);

@@ -14,6 +14,7 @@ use tempfile::TempDir;
 
 use super::args::StatusFilter;
 use super::compare::Status;
+use super::summary_view::FilesView;
 use crate::commands::scan::build_report;
 use crate::commands::scan::output;
 use crate::commands::scan::test_helpers::{args_for, stub_tree};
@@ -61,7 +62,9 @@ fn build_report_status_filter_keeps_only_matching_entries() {
     assert_eq!(report.summary.identical, 1);
     assert_eq!(report.summary.local_only_changed, 1);
 
-    let entries = report.files.unwrap();
+    let FilesView::Full(entries) = report.files.unwrap() else {
+        panic!("expected Full view");
+    };
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].status, Status::LocalOnlyChanged);
     assert_eq!(entries[0].path, "local_only.md");
@@ -87,7 +90,9 @@ fn build_report_status_filter_supports_multiple_values() {
     ]);
     let (report, _) = build_report(&args, &mock).unwrap();
 
-    let entries = report.files.unwrap();
+    let FilesView::Full(entries) = report.files.unwrap() else {
+        panic!("expected Full view");
+    };
     assert_eq!(entries.len(), 2);
     for e in &entries {
         assert!(matches!(

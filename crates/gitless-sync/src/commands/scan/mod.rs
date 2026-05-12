@@ -13,6 +13,7 @@ pub mod long_path;
 pub mod nfd_collision;
 pub mod output;
 pub mod pipeline;
+pub mod summary_view;
 pub mod walker;
 
 #[cfg(test)]
@@ -119,11 +120,7 @@ pub fn build_report<C: GhClient + Sync>(
         entries.retain(|e| filter.iter().any(|&f| args::to_status(f) == e.status));
     }
 
-    let files = if args.summary_only {
-        None
-    } else {
-        Some(entries)
-    };
+    let files = summary_view::project_files(args.summary_only, entries, failed_count);
 
     let report = ScanReport {
         schema_version: SCHEMA_VERSION.to_string(),

@@ -17,6 +17,7 @@ use gitless_sync::commands::scan::compare::{
     FailedReason, FileEntry, LfsPointer, Presence, Status,
 };
 use gitless_sync::commands::scan::output::{SCHEMA_VERSION, ScanReport, Summary, serialize};
+use gitless_sync::commands::scan::summary_view::FilesView;
 use serde::Deserialize;
 
 /// v1.0 baseline 호출자 모방 — Phase 5/7/8 신규 필드 모름.
@@ -230,7 +231,7 @@ fn v1_3_sample_report() -> ScanReport {
             drift: 2,
             failed: 3,
         },
-        files: Some(entries),
+        files: Some(FilesView::Full(entries)),
     }
 }
 

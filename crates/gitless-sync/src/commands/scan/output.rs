@@ -1,7 +1,8 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
-use super::compare::{FileEntry, Status};
+use super::compare::Status;
+use super::summary_view::FilesView;
 
 pub const SCHEMA_VERSION: &str = "1.5";
 
@@ -35,7 +36,7 @@ pub struct ScanReport {
     pub local_root: String,
     pub summary: Summary,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub files: Option<Vec<FileEntry>>,
+    pub files: Option<FilesView>,
 }
 
 /// Serialize a [`ScanReport`] into the stdout JSON shape (`spec-output-schema.md`).
@@ -52,10 +53,8 @@ pub fn serialize(report: &ScanReport, pretty: bool) -> Result<String, serde_json
     }
 }
 
-// v1.0/v1.1 client struct 모방 backward-compat 회귀 가드는
-// `tests/scan_output_backward_compat.rs` integration test에서 다룸 (P task).
-// 본 unit module은 ScanReport JSON wire-format 직접 invariant 검증 — P와
-// 직교 layer.
+// Backward-compat 회귀 가드 (v1.0/v1.1 client struct 모방) → integration test
+// `tests/scan_output_backward_compat.rs` (P task). 본 unit module은 직교 layer.
 
 #[cfg(test)]
 mod tests {
@@ -81,7 +80,7 @@ mod tests {
 
     fn report_with(files: Vec<FileEntry>) -> ScanReport {
         ScanReport {
-            files: Some(files),
+            files: Some(FilesView::Full(files)),
             ..empty_report()
         }
     }
