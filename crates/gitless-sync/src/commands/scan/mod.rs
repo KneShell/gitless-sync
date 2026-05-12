@@ -116,7 +116,10 @@ pub fn build_report<C: GhClient + Sync>(
     let (mut entries, summary, failed_count) =
         assemble_entries(&local_files, &remote_files, &ctx, args.keep_bom, &gitattr)?;
 
-    if let Some(filter) = &args.status {
+    // Spec v1.5 #5: summary-only skips status filter (failed-only emit ownership).
+    if !args.summary_only
+        && let Some(filter) = &args.status
+    {
         entries.retain(|e| filter.iter().any(|&f| args::to_status(f) == e.status));
     }
 
