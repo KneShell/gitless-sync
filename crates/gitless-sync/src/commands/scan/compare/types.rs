@@ -20,11 +20,14 @@ pub enum Presence {
 }
 
 /// Reason a path was promoted to [`Status::Failed`]. Maps to schema
-/// `failed_reason`; `None` = `hash_io` (v1.0 compat — don't set explicitly).
-/// 11 schema reasons = 10 variants + `None`. See `spec-output-schema.md`.
+/// `failed_reason`. v1.5까지 caller는 `None`을 `hash_io` sentinel로 emit
+/// 했으나 v1.6부터 explicit [`FailedReason::HashIo`] variant로 변경 —
+/// `Status::Failed` entry는 항상 `Some(_)`. `None`은 Failed 외 entry용.
+/// See `spec-output-schema.md` § v1.5 → v1.6 변경.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum FailedReason {
+    HashIo,
     CaseCollision,
     Submodule,
     Symlink,
@@ -81,6 +84,11 @@ mod tests {
         assert_eq!(json, format!("\"{expected}\""));
         let parsed: FailedReason = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed, variant);
+    }
+
+    #[test]
+    fn failed_reason_hash_io_serializes_snake_case() {
+        assert_failed_reason_round_trip(FailedReason::HashIo, "hash_io");
     }
 
     #[test]
@@ -156,7 +164,8 @@ mod tests {
 
     #[test]
     fn failed_reason_none_is_skipped_in_serialized_entry() {
-        // v1.0 backward-compat: `hash_io` 동작은 None 박음, JSON에 key 자체 미노출.
+        // v1.6: `None`은 Failed 외 entry용. wire는 `skip_serializing_if` 그대로
+        // 통과 — `hash_io` sentinel 의미는 v1.6에서 제거 (`HashIo` variant explicit).
         let json = serde_json::to_value(sample_entry(None)).unwrap();
         let obj = json.as_object().unwrap();
         assert!(!obj.contains_key("failed_reason"));
