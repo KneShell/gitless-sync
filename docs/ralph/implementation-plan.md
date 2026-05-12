@@ -61,7 +61,7 @@
 #### Phase 9.4 — release (3 task)
 
 - [x] **P** (deps: O): README.md 갱신 — `### scan` 섹션에 `--summary-only` 동작 정밀화 (failed 0건 → `files` omit, failed N건 → minimal entry list `{path, presence, failed_reason}`). `### diff` 섹션 영향 0. F1/F2 `--help` 출력 예시는 README 본문에 snippet 0건이라 (sub-agent audit 2026-05-12 확인) 갱신 대상 없음. doc-only.
-- [ ] **Q** (deps: P): CHANGELOG.md v0.5.0 entry finalize — Added (F1/F2 about wording + F3 summary-only failed visibility), Changed (schema v1.4 → v1.5), Spec (cli-ux-feedback.md F1/F2/F3 acceptance 정합), Verified (unit + integration test pass + cli-ux-feedback.md 3 friction 해소). v0.4.2 entry 패턴 mirror.
+- [~] **Q** (deps: P): CHANGELOG.md v0.5.0 entry finalize — Added (F1/F2 about wording + F3 summary-only failed visibility), Changed (schema v1.4 → v1.5), Spec (cli-ux-feedback.md F1/F2/F3 acceptance 정합), Verified (unit + integration test pass + cli-ux-feedback.md 3 friction 해소). v0.4.2 entry 패턴 mirror.
 - [ ] **R** (deps: Q): v0.5.0 release tag — `git tag v0.5.0 -m "..." && git push origin main && git push origin v0.5.0`. cli-ux-feedback.md 자체가 외부 시각 source + Phase 9 entry 작성 직후 clean-context audit (사용자 명시) 둘 다 사전 진행 — release 전 별도 audit 추가 안 함. v0.4.2 tag 스타일 mirror (annotated tag + main/tag push).
 
 #### Phase 9.5 — plan close (1 task)
