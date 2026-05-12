@@ -81,7 +81,7 @@ authoritative sub-schema 정의는 `spec-output-schema.md` § diff sub-schema (t
 
 #### --help description
 
-- `[AUTO]` `cargo run -- init --help` stdout 첫 description 줄(clap `about`)은 정확히 `Emit gitless-sync.toml body from input args (stdout)` — cli-ux-feedback.md § F2 최종 채택 wording. `crates/gitless-sync/src/main.rs` `Commands::Init` clap derive `#[command(about = "...")]` 값과 byte-identical 정합 (task H 본진, 위반 시 `[!]` BLOCKED).
+- `[AUTO]` `cargo run -- init --help` stdout 첫 description 줄(clap `about`)은 정확히 `Emit gitless-sync.toml body from input args (stdout)` — v0.5.0 (Phase 9.2) post-v0.4.2 vault dogfood F2 채택 wording. `crates/gitless-sync/src/main.rs` `Commands::Init` clap derive `#[command(about = "...")]` 값과 byte-identical 정합.
 
 #### stdout 출력 형식
 - 출력은 `spec-config.md` § 스키마와 동일한 TOML 본문. emit 순서: `repo` → `branch` → `ignore` (직렬화 안정성).
@@ -115,7 +115,7 @@ CLI > env > `gitless-sync.toml` > 도구 내장 기본값. 자세한 건 `spec-c
 
 ## Acceptance Criteria
 - `[AUTO]` `cargo run -- --help`가 위 모든 플래그를 보여준다.
-- `[AUTO]` `cargo run -- --help` stdout에 `scan` / `diff` 서브커맨드 description 한 줄 이상 노출 (cli-ux-feedback.md § F1).
+- `[AUTO]` `cargo run -- --help` stdout에 `scan` / `diff` 서브커맨드 description 한 줄 이상 노출 (v0.5.0 Phase 9.2 / post-v0.4.2 vault dogfood F1).
 - `[AUTO]` `cargo run -- scan --help`가 `--summary-only`, `--status`를 추가로 보여준다.
 - `[AUTO]` `cargo run -- diff --help`가 `<path>` positional 인자를 보여준다.
 - `[AUTO]` `cargo run -- init --help`가 `--repo`, `--branch`, `--ignore`를 보여준다 + `after_help` / `long_about`에 redirect 예시 한 줄 노출.

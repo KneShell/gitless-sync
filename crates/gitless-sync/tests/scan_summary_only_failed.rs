@@ -2,7 +2,7 @@
 
 //! Task O — F3 integration test: `--summary-only` mode failed visibility.
 //!
-//! cli-ux-feedback.md § F3 motivation — 한 호출로 "어떤 파일이 실패했는지"
+//! post-v0.4.2 vault dogfood feedback F3 motivation — 한 호출로 "어떤 파일이 실패했는지"
 //! 식별 가능. v1.5 spec § `--summary-only` 출력 → failed entry 한정 minimal
 //! shape (`path` + `presence` + `failed_reason` 3 field) emit. real-world
 //! domain trap (`long_path`) fixture + end-to-end `build_report` + serialize

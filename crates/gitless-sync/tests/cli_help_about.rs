@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-//! Regression coverage for cli-ux-feedback.md F1 (scan/diff `about`
-//! description) and F2 (init `about` wording precision). Verifies the
+//! Regression coverage for post-v0.4.2 vault dogfood feedback F1 (scan/diff
+//! `about` description) and F2 (init `about` wording precision). Verifies the
 //! substrings asserted in spec-cli-interface.md § Acceptance Criteria
 //! actually surface in the rendered `--help` output.
 

@@ -11,7 +11,7 @@
 >
 > **v0.4.2 갱신 (2026-05-11)**: schema_version 1.3 → **1.4** (minor bump). `Identical` 정의 정확화 — sha-differ + `normalize_equal == Some(true)` (cosmetic drift, F1 케이스) 도 `Identical` 분류. 기존 caller 코드는 그대로 작동 — Identical 카운트가 더 정확해지고 LocalOnlyChanged/RemoteOnlyChanged 카운트는 cosmetic drift만큼 감소. backward compat 보장 (additive 의미 정확화). issue #1 regression. 결정 trail은 `docs/adr/0015-cosmetic-identical-classification.md`.
 >
-> **v0.5.0 갱신 (2026-05-12)**: schema_version 1.4 → **1.5** (minor bump). `--summary-only` 모드 출력 contract 확장 — failed status entry 한정 `files[]`에 minimal entry (path + presence + failed_reason) emit. failed 0건이면 v1.4 baseline 유지 (`files` 필드 omit). 그 외 status entry (identical / local_only_changed / remote_only_changed / drift)는 summary-only에서 emit 안 함. cli-ux-feedback.md § F3 motivation (한 호출로 어떤 파일이 실패했는지 확인) 직접 해소. 신규 field/enum 0이지만 caller-visible behavior change이므로 minor. 결정 trail은 `docs/cli-ux-feedback.md` § F3 + `docs/ralph/implementation-plan.md` Phase 9.
+> **v0.5.0 갱신 (2026-05-12)**: schema_version 1.4 → **1.5** (minor bump). `--summary-only` 모드 출력 contract 확장 — failed status entry 한정 `files[]`에 minimal entry (path + presence + failed_reason) emit. failed 0건이면 v1.4 baseline 유지 (`files` 필드 omit). 그 외 status entry (identical / local_only_changed / remote_only_changed / drift)는 summary-only에서 emit 안 함. post-v0.4.2 vault dogfood feedback F3 motivation (한 호출로 어떤 파일이 실패했는지 확인) 직접 해소. 신규 field/enum 0이지만 caller-visible behavior change이므로 minor. 결정 trail은 git history (`git log --grep="Phase 9"`) + `CHANGELOG.md` § [0.5.0].
 
 ## 현재 상태
 - `crates/gitless-sync/src/commands/scan/output.rs::{ScanReport, Summary}` 구조체 + serde 직렬화 완료 (v1.0).
@@ -182,7 +182,7 @@ LLM-as-caller usability eval (2026-05-10) 7 friction 중 P0 2건 (F1 + F2) 해�
 
 ### v1.4 → v1.5 변경 (minor)
 
-cli-ux-feedback.md § F3 motivation 해소 — `--summary-only` 모드 출력 contract 확장. 결정 trail은 `docs/cli-ux-feedback.md` § F3 + `docs/ralph/implementation-plan.md` Phase 9.
+`--summary-only` 모드 출력 contract 확장 (v0.5.0 = post-v0.4.2 vault dogfood feedback F3 motivation 해소). 결정 trail은 git history (`git log --grep="Phase 9"`) + `CHANGELOG.md` § [0.5.0].
 
 변경 범위 (`--summary-only` 모드 한정):
 
@@ -334,7 +334,7 @@ ADR 0015 결정 trail (issue #1 regression). 코드 변경: `classify` 함수에
 
 ### v1.5 신규 (v0.5.0)
 
-cli-ux-feedback.md § F3 결정 trail. 코드 변경은 Phase 9.3 (task J~O) scope — 본 § 는 spec authoritative.
+v0.5.0 (Phase 9.3) post-v0.4.2 vault dogfood F3 결정 trail. 본 § 는 spec authoritative — 코드 변경은 git history + `CHANGELOG.md` § [0.5.0] 참조.
 
 - `[AUTO]` `report.schema_version` == `"1.5"`.
 - `[AUTO]` `--summary-only` + `summary.failed == 0`: `files` 필드 omit (v1.4 baseline 동작 유지, key 부재 — `null` 아님).

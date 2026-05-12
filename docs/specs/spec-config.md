@@ -40,10 +40,6 @@ ignore = ["dist/", "*.tmp"]
 
 근거: read-only 도구 본성 — `.git/` 폴더 자체를 안 읽는다 (gitless 환경). working tree만 보는 게 정합. 미지원 위치에 정의된 attribute는 Phase 5 화이트리스트(text/binary/eol=lf|crlf) 외라 자동 무시 + `failed_reason: "gitattributes_unsupported"` 마크 가능 (spec-domain-pitfalls.md § `.gitattributes` 화이트리스트).
 
-### Cache (Phase 4) — 제거됨 (ADR 0008, 2026-05-07)
-
-Phase 4 P4에서 도입했던 mtime 기반 SHA cache는 P6c 측정에서 speedup ≈ 1.0x (noise floor 안쪽)로 § Phase 4 사전 결정 §15 임계값 < 1.5x 제거 영역에 떨어졌다. ADR 0008로 본 도구는 cache를 보유하지 않는다. cache 위치/형식/lifecycle 정의도 함께 obsolete.
-
 ## Acceptance Criteria
 - `[AUTO]` `config::load(Some(path_to_toml))`가 정상 TOML 파일을 파싱한다.
 - `[AUTO]` `config::load(None)` 또는 파일 없는 경로 → `Config::default()` 반환 (필드 모두 None / 빈 Vec).
