@@ -4,7 +4,7 @@
 
 - Phase 10 진입 (2026-05-12)
 - Tasks: 17 (Phase 10)
-- Completed: 11 / 17
+- Completed: 12 / 17
 
 ## Notes for Build Mode
 
@@ -52,7 +52,7 @@ v0.5.0 release 직후 clean-context audit (2026-05-12, 메모리 차단 fresh co
 #### Phase 10.3 — test 갱신 + spec 마감 (3 task)
 
 - [x] **K** (deps: J): unit test v1.6 시나리오 (`commands/scan/output.rs::tests` 또는 `summary_view.rs::tests`): (1) summary-only + failed (hash_io) → entry 3 field `path + presence + failed_reason: "hash_io"` (v1.5 의 2 field 에서 변경), (2) summary-only + failed (encoding + lfs_pointer + 다른 reason) → 동일 3 field 유지, (3) FailedReason::HashIo serde rename `"hash_io"` 정합, (4) `commands/scan/status_filter.rs` 기존 test 영향 (hash_io 처리 위치 분리 — summary-only filter override 시 hash_io 정상 등장 시나리오 추가).
-- [~] **L** (deps: K): integration test 갱신 — `tests/scan_summary_only_failed.rs` (Phase 9 task O 결과 fixture, long_path 함정) 본문에 hash_io 발생 fixture 추가 (file IO 실패 시뮬레이션: e.g., 권한 0 file, EOF 트리거, 또는 mock IO error). 또는 신규 `tests/scan_summary_only_hash_io.rs` 분리. `--summary-only` 호출 + JSON parse + `files[]` entry 에 `failed_reason: "hash_io"` 명시 검증.
+- [x] **L** (deps: K): integration test 갱신 — `tests/scan_summary_only_failed.rs` (Phase 9 task O 결과 fixture, long_path 함정) 본문에 hash_io 발생 fixture 추가 (file IO 실패 시뮬레이션: e.g., 권한 0 file, EOF 트리거, 또는 mock IO error). 또는 신규 `tests/scan_summary_only_hash_io.rs` 분리. `--summary-only` 호출 + JSON parse + `files[]` entry 에 `failed_reason: "hash_io"` 명시 검증.
 - [ ] **M** (deps: L): spec § 마감 점검 (scope 명시) — (i) spec-output-schema.md § v1.5 → v1.6 변경 § 본문 vs task K~L 결과 정합 (hash_io entry 3-field shape, `failed_reason: "hash_io"` serde rename, backward-compat 표 v1.0~v1.5 정확), (ii) § minimal entry shape 발산 강조 줄 위치 (§ `--summary-only` 출력 본문 안 또는 § v1.5 → v1.6 변경 § 안 — task C 결과와 정합), (iii) `[AUTO]` acceptance 시나리오 5건 (task D) wording 정확 + 시나리오 4번 (v1.5 caller × v1.6 hash_io entry parse) 본문 명시, (iv) spec-error-contracts.md FailedReason enum 11 cover 정확 (HashIo variant 추가 후 enum value list + 의미 표 갱신), (v) spec-classification.md § Failed status § FailedReason 인용 부분 dead reference 0. doc-only 검증.
 
 #### Phase 10.4 — release (3 task)
