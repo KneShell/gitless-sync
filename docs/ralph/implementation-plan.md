@@ -66,7 +66,7 @@
 
 #### Phase 9.5 — plan close (1 task)
 
-- [ ] **S** (deps: R): 본 plan Phase 9 task 모두 [x] mark + § 갱신 (Active → Completed Phases). 이동 시 1~2 sentence 요약만 retain (자세한 task별 결과는 git history `git log --grep="Phase 9"` + commit message + CHANGELOG.md v0.5.0 entry로 cover, Phase 5/6/7/8 패턴 mirror).
+- [~] **S** (deps: R): 본 plan Phase 9 task 모두 [x] mark + § 갱신 (Active → Completed Phases). 이동 시 1~2 sentence 요약만 retain (자세한 task별 결과는 git history `git log --grep="Phase 9"` + commit message + CHANGELOG.md v0.5.0 entry로 cover, Phase 5/6/7/8 패턴 mirror).
 
 ## Completed Phases
 
