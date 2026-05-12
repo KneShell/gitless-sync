@@ -207,9 +207,33 @@ mod tests {
         assert_eq!(obj["failed_reason"], "lfs_pointer");
     }
 
-    // Phase 10 Finding 2: v1.5의 `failed_reason == None ⇒ hash_io signal →
-    // 2 field wire` invariant test는 production이 더 이상 None을 박지 않으므로
-    // 제거. wire 3 field 시나리오는 task K 신규 unit test로 cover (v1.6 정합).
+    /// Task I acceptance: a `HashIo` Failed entry passed through
+    /// [`project_files`] yields a 3-field wire row carrying
+    /// `path + presence + failed_reason: "hash_io"`. Locks the v1.6
+    /// projection-layer invariant that Task H established at the production
+    /// emit site (`pipeline/hash_pass/local.rs`). Inverse of the v1.5 test
+    /// `summary_failed_entry_wire_omits_hash_io_failed_reason` Task H removed.
+    #[test]
+    fn project_emits_three_field_row_for_hash_io_entry() {
+        let entries = vec![failed_entry(
+            "ghost.md",
+            Presence::Both,
+            Some(FailedReason::HashIo),
+        )];
+        let view = project_files(true, entries, 1).expect("Some SummaryFailed");
+        let FilesView::SummaryFailed(rows) = view else {
+            panic!("expected SummaryFailed");
+        };
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].failed_reason, Some(FailedReason::HashIo));
+
+        let value = serde_json::to_value(&rows[0]).unwrap();
+        let obj = value.as_object().unwrap();
+        assert_eq!(obj.len(), 3);
+        assert_eq!(obj["path"], "ghost.md");
+        assert_eq!(obj["presence"], "both");
+        assert_eq!(obj["failed_reason"], "hash_io");
+    }
 
     #[test]
     fn files_view_untagged_full_serializes_as_array() {
