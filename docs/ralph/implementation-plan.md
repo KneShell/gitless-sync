@@ -75,7 +75,7 @@ Task 단위 분할 (1 task = 1 commit, prompt-build.md § 4 정합).
 
 #### T3 — `README.md` install 섹션 추가
 
-- [ ] **T3** README install 섹션 추가
+- [~] **T3** README install 섹션 추가
   - **Files**: `README.md`
   - **Type**: Docs (Rust 소스 아님). § 2 코드 룰 제외. § 3 validation 7단계 baseline 유지 자동 통과.
   - **추가 검증**: `cargo xtask check-readme-examples` 통과 (CI gate에 이미 존재).
