@@ -1,0 +1,153 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Skip GitHub Release creation; emit Actions artifacts only'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+env:
+  RUST_TOOLCHAIN: 1.95.0
+
+jobs:
+  version-check:
+    name: Version sanity (Cargo.toml vs tag)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Verify ref is a tag and Cargo.toml version matches
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
+            echo "::error::Release workflow must be triggered from a tag ref. Got: ${GITHUB_REF}"
+            echo "::error::For workflow_dispatch, run the workflow against a v* tag (Actions UI -> Run workflow -> select tag)."
+            exit 1
+          fi
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          CARGO_VERSION="$(grep -m1 '^version = ' crates/gitless-sync/Cargo.toml | sed -E 's/version = "(.*)"/\1/')"
+          if [[ "${TAG_VERSION}" != "${CARGO_VERSION}" ]]; then
+            echo "::error::Tag version (${TAG_VERSION}) does not match Cargo.toml version (${CARGO_VERSION})."
+            echo "::error::See docs/ralph/guardrails.md G-020 for the release Cargo.toml bump checklist."
+            exit 1
+          fi
+          echo "Version sanity OK: tag=v${TAG_VERSION} cargo=${CARGO_VERSION}"
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: version-check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            ext: zip
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            ext: tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            ext: tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
+      - name: Resolve dry_run flag
+        id: dry
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build, archive, checksum, upload to Release
+        uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: gitless-sync
+          target: ${{ matrix.target }}
+          archive: gitless-sync-$tag-$target
+          include: README.md,LICENSE-MIT,LICENSE-APACHE,CHANGELOG.md
+          checksum: sha256
+          dry-run: ${{ steps.dry.outputs.value }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: gitless-sync-*-${{ matrix.target }}.${{ matrix.ext }}
+
+      - name: Upload archive + per-asset .sha256 as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: assets-${{ matrix.target }}
+          path: |
+            gitless-sync-*-${{ matrix.target }}.${{ matrix.ext }}
+            gitless-sync-*-${{ matrix.target }}.${{ matrix.ext }}.sha256
+          if-no-files-found: error
+
+  aggregate:
+    name: Aggregate sha256sums.txt
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve dry_run flag
+        id: dry
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: assets-*
+          merge-multiple: true
+          path: ./assets
+
+      - name: Build sha256sums.txt from per-asset .sha256 files
+        shell: bash
+        run: |
+          cd assets
+          cat *.sha256 > sha256sums.txt
+          echo "Aggregate manifest:"
+          cat sha256sums.txt
+
+      - name: Upload sha256sums.txt as workflow artifact (dry-run path)
+        if: steps.dry.outputs.value == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sha256sums
+          path: assets/sha256sums.txt
+
+      - name: Attach sha256sums.txt to GitHub Release (live path)
+        if: steps.dry.outputs.value == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" assets/sha256sums.txt --clobber

@@ -4,7 +4,7 @@
 
 - Phase 11 진행 중 (2026-05-13~)
 - Tasks: 4 (Phase 11)
-- Completed: 1 / 4
+- Completed: 2 / 4
 
 ## Notes for Build Mode
 
@@ -54,7 +54,7 @@ Task 단위 분할 (1 task = 1 commit, prompt-build.md § 4 정합).
 
 #### T2 — `.github/workflows/release.yml` 신규 작성
 
-- [~] **T2** release workflow 신규 작성
+- [x] **T2** release workflow 신규 작성
   - **Files**: `.github/workflows/release.yml` (신규)
   - **Type**: Non-Rust, non-spec. prompt-build.md § 2 Rust 코드 룰 제외 (yml 파일). § 3 validation 7단계는 Rust 영역 무변경으로 baseline 유지 자동 통과.
   - **추가 검증**: yml syntax valid (actionlint 로컬 1회 또는 GitHub Actions parser 통과).
