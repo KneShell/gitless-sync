@@ -78,7 +78,7 @@ try {
             Start-Sleep -Seconds 30
         }
 
-        if (Select-String -Path $outputFile -Pattern "<promise>COMPLETE</promise>" -Quiet) {
+        if (Select-String -Path $outputFile -Pattern '^\s*<promise>COMPLETE</promise>\s*$' -Quiet) {
             Write-Host "[ralph] Completion signal received." -ForegroundColor Green
             $completedIterations = $i
             break
