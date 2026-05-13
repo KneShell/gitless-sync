@@ -116,14 +116,14 @@ verify 성공 = archive가 본 repo의 release workflow에서 산출된 binary�
 
 | Step | `dry_run=false` (default, tag push 포함) | `dry_run=true` (manual only) |
 |---|---|---|
-| Version 정합 (Cargo.toml ↔ tag) | 수행 | 수행 (tag 기반이므로 manual은 입력 tag 또는 ref) |
+| Version 정합 (Cargo.toml ↔ tag) | 수행 | tag ref면 수행, non-tag ref면 **warning + skip** (임의 ref 허용) |
 | Cross-compile build (3 target) | 수행 | 수행 |
 | Archive + checksum 생성 | 수행 | 수행 |
 | Attestation 발급 | 수행 | **수행** (attestation 자체 검증도 dry-run 대상) |
 | GitHub Release 생성 + asset attach | 수행 | **skip** |
 | Actions artifact upload (`actions/upload-artifact@v4`) | skip (Release attach이 1차 산출처) | **수행** (Release 미생성 시 archive 회수 경로) |
 
-핵심 원칙: dry-run은 "Release를 만들지 않는다"는 의미일 뿐, asset 생성·attestation·checksum 등 산출 파이프라인 자체는 동일 경로로 검증 — 그게 dry-run의 목적.
+핵심 원칙: dry-run은 "Release를 만들지 않는다"는 의미일 뿐, asset 생성·attestation·checksum 등 산출 파이프라인 자체는 동일 경로로 검증 — 그게 dry-run의 목적. ref 정책 또한 의도적 분기: `dry_run=true`는 임의 ref (브랜치 포함)에서 manual 트리거 가능 — 인프라 회귀 점검 목적이라 version 정합 강제는 부적합. `dry_run=false` (tag push 포함)만 tag ref + Cargo.toml version 정합을 fail-fast 강제 (G-020).
 
 ### Read-only 보장
 

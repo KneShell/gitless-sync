@@ -28,9 +28,17 @@ jobs:
       - name: Verify ref is a tag and Cargo.toml version matches
         shell: bash
         run: |
+          IS_DRY_RUN=false
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
+            IS_DRY_RUN=true
+          fi
           if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
+            if [[ "${IS_DRY_RUN}" == "true" ]]; then
+              echo "::warning::Dry-run on non-tag ref (${GITHUB_REF_NAME}). Version sanity skipped — dry_run=true permits arbitrary refs per spec § dry_run behavior."
+              exit 0
+            fi
             echo "::error::Release workflow must be triggered from a tag ref. Got: ${GITHUB_REF}"
-            echo "::error::For workflow_dispatch, run the workflow against a v* tag (Actions UI -> Run workflow -> select tag)."
+            echo "::error::For workflow_dispatch with dry_run=false, run the workflow against a v* tag (Actions UI -> Run workflow -> select tag)."
             exit 1
           fi
           TAG_VERSION="${GITHUB_REF_NAME#v}"
