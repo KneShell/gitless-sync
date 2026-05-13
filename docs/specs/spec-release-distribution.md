@@ -6,6 +6,8 @@
 
 본 spec은 release 배포 인프라(workflow + asset 정책 + 검증 흐름)만 정의한다. **실제 release tag 작업·release notes 작성·CHANGELOG 갱신은 별도 release phase 책임** (본 phase 비목표). 첫 dry-run 트리거도 본 phase 종료 후 별도 phase로 분리.
 
+**CHANGELOG / release notes 톤 가이드라인**: 사용자(배포 받는 측) 시점 변화만 — Added / Changed / Fixed / Removed bullet, 한두 줄. Phase 내 task별 detail · finding 사이클 · 설계 의도는 `docs/ralph/implementation-plan.md` 와 git log 영역. 즉 CHANGELOG는 "받는 사람이 알아야 할 결과", git log는 "어떻게 거기 도달했는지" — 둘이 같은 영역 침범 금지. 이전 v0.6.0 entry는 과도기 패턴이라 그대로 보존, v0.7.0부터 본 가이드라인 적용.
+
 ## 현재 상태
 
 - Release artifact 0건. 사용자는 소스 clone + `cargo build --release` 직접 실행이 유일한 설치 경로.

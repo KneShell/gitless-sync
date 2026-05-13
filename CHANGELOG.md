@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-05-13
+
+First binary distribution release. No source-code or behavior changes vs v0.6.0; release infrastructure only.
+
+### Added
+
+- Prebuilt portable binaries via GitHub Releases for Windows (`x86_64-pc-windows-msvc`), Linux (`x86_64-unknown-linux-musl`, static), and macOS (`aarch64-apple-darwin`).
+- SHA256 checksums (`sha256sums.txt` + per-asset `.sha256`) and SLSA build provenance attestation. Verify with `gh attestation verify <binary> --repo KneShell/gitless-sync`.
+- README "Install (prebuilt binary)" section.
+
+### Infrastructure
+
+- `.github/workflows/release.yml` — tag-push trigger + `workflow_dispatch` dry-run mode.
+- `docs/specs/spec-release-distribution.md` — distribution spec.
+
 ## [0.6.0] - 2026-05-12
 
 > Phase 10 (post-v0.5.0 verification finding 해소, Finding 1/2/3 해소) 누적. post-v0.5.0 clean-context audit (2026-05-12, 메모리 차단 fresh context) 결과 발견된 3 finding 해소 + v0.6.0 minor release. Phase 10.1 (spec/CHANGELOG 사전 확정) + Phase 10.2 (Finding 2 impl wire shape + schema bump) + Phase 10.3 (test 갱신 + spec 마감) + Phase 10.4 (release) + Phase 10.5 (plan close). 결정 trail은 post-v0.5.0 clean-context audit finding + `docs/specs/spec-output-schema.md` § v1.5 → v1.6 변경. 상세 task별 결과는 git history (`git log --grep="Phase 10"`) + `docs/ralph/implementation-plan.md`.
