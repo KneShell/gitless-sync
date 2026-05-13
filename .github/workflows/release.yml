@@ -65,23 +65,14 @@ jobs:
             echo "value=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create release object (skip on dry-run)
+      - name: Create release with auto-notes (skip on dry-run)
         if: steps.dry.outputs.value == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          REPO="${{ github.repository }}"
-          if gh release view "${GITHUB_REF_NAME}" --repo "$REPO" >/dev/null 2>&1; then
-            echo "::notice::Release ${GITHUB_REF_NAME} already exists; skipping create."
-            exit 0
-          fi
-          gh release create "${GITHUB_REF_NAME}" \
-            --repo "$REPO" \
-            --title "${GITHUB_REF_NAME}" \
-            --notes "Automated release. See commit history for changes; detailed release notes are owned by the separate release phase." \
-            --target "${GITHUB_SHA}"
-          echo "::notice::Created release ${GITHUB_REF_NAME}"
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          target_commitish: ${{ github.sha }}
 
   build:
     name: Build ${{ matrix.target }}
