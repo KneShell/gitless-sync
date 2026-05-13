@@ -113,7 +113,7 @@ jobs:
           name: assets-${{ matrix.target }}
           path: |
             gitless-sync-*-${{ matrix.target }}.${{ matrix.ext }}
-            gitless-sync-*-${{ matrix.target }}.${{ matrix.ext }}.sha256
+            gitless-sync-*-${{ matrix.target }}.sha256
           if-no-files-found: error
 
   aggregate:
