@@ -50,9 +50,40 @@ jobs:
           fi
           echo "Version sanity OK: tag=v${TAG_VERSION} cargo=${CARGO_VERSION}"
 
+  create-release:
+    name: Create empty GitHub Release (live only)
+    needs: version-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve dry_run flag
+        id: dry
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.dry_run }}" == "true" ]]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create release object (skip on dry-run)
+        if: steps.dry.outputs.value == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "::notice::Release ${GITHUB_REF_NAME} already exists; skipping create."
+            exit 0
+          fi
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --target "${GITHUB_SHA}"
+          echo "::notice::Created release ${GITHUB_REF_NAME}"
+
   build:
     name: Build ${{ matrix.target }}
-    needs: version-check
+    needs: [version-check, create-release]
     strategy:
       fail-fast: false
       matrix:
