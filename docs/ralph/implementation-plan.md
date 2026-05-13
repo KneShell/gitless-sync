@@ -28,7 +28,7 @@ Task 단위 분할 (1 task = 1 commit, prompt-build.md § 4 정합).
 
 #### T1 — `docs/specs/spec-release-distribution.md` 신규 작성
 
-- [ ] **T1** spec 신규 작성
+- [~] **T1** spec 신규 작성
   - **Files**: `docs/specs/spec-release-distribution.md` (신규)
   - **Type**: Spec-only (prompt-build.md § 2 코드 룰 적용 제외, G-012 spec-only 케이스로 tarpaulin baseline 유지 자동 통과)
   - **내용**:
