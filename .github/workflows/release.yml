@@ -77,7 +77,7 @@ jobs:
           fi
           gh release create "${GITHUB_REF_NAME}" \
             --title "${GITHUB_REF_NAME}" \
-            --generate-notes \
+            --notes "Automated release. See commit history for changes; detailed release notes are owned by the separate release phase." \
             --target "${GITHUB_SHA}"
           echo "::notice::Created release ${GITHUB_REF_NAME}"
 
