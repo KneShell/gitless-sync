@@ -22,6 +22,7 @@ Ralph Wiggum Technique으로 자율 개발 호환. 진행 자료: `docs/ralph/{p
 - src: `crates/gitless-sync/src/`
 - workspace root: `Cargo.toml`
 - toolchain 고정: `rust-toolchain.toml`
+- release distribution: GitHub Releases (`.github/workflows/release.yml`, spec: `docs/specs/spec-release-distribution.md`). 소스 빌드도 지원 (README "Build from source").
 
 ## Critical Rules
 
