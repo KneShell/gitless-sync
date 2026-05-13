@@ -31,7 +31,56 @@ Pick GitHub.com → HTTPS → "Login with a web browser" (or paste an existing P
 
 `rust-toolchain.toml` pins MSRV `1.95.0`. `rustup` will fetch it on first build.
 
-## Build
+## Install (prebuilt binary)
+
+Tag-pushed releases publish portable archives for three targets. Pick the asset that matches your platform, verify it, and put the binary on your `PATH`. Replace `v0.7.0` with the latest tag from the Releases page and `<owner>` with the repo owner in the URLs below.
+
+| Platform | Archive |
+|----------|---------|
+| Windows (x86_64) | `gitless-sync-v0.7.0-x86_64-pc-windows-msvc.zip` |
+| Linux (x86_64, musl static) | `gitless-sync-v0.7.0-x86_64-unknown-linux-musl.tar.gz` |
+| macOS (Apple Silicon) | `gitless-sync-v0.7.0-aarch64-apple-darwin.tar.gz` |
+
+Each archive ships the `gitless-sync` binary (`.exe` on Windows) plus `README.md`, `LICENSE-MIT`, `LICENSE-APACHE`, and `CHANGELOG.md`. Per-asset SHA-256 lives in `<archive>.sha256`; an aggregate `sha256sums.txt` covers every archive in the release.
+
+### Download
+
+```powershell
+# Windows PowerShell
+Invoke-WebRequest -Uri "https://github.com/<owner>/gitless-sync/releases/download/v0.7.0/gitless-sync-v0.7.0-x86_64-pc-windows-msvc.zip" -OutFile gitless-sync.zip
+Expand-Archive gitless-sync.zip -DestinationPath gitless-sync
+```
+
+```sh
+# Linux / macOS
+curl -L -o gitless-sync.tar.gz "https://github.com/<owner>/gitless-sync/releases/download/v0.7.0/gitless-sync-v0.7.0-x86_64-unknown-linux-musl.tar.gz"
+tar -xzf gitless-sync.tar.gz
+```
+
+### Verify SHA-256
+
+```powershell
+# Windows: hash the archive and compare against the matching .sha256 file shipped in the release.
+Get-FileHash -Algorithm SHA256 gitless-sync-v0.7.0-x86_64-pc-windows-msvc.zip
+```
+
+```sh
+# Linux / macOS: download the aggregate manifest and verify in one step.
+curl -L -O "https://github.com/<owner>/gitless-sync/releases/download/v0.7.0/sha256sums.txt"
+sha256sum -c sha256sums.txt --ignore-missing
+```
+
+### Verify attestation (SLSA build provenance)
+
+Every archive carries a GitHub-signed SLSA attestation that proves it was built by this repo's release workflow. Requires `gh >= 2.40.0` (already a prerequisite above).
+
+```sh
+gh attestation verify gitless-sync-v0.7.0-x86_64-pc-windows-msvc.zip --repo <owner>/gitless-sync
+```
+
+A `Verified` line means the archive came out of this repo's `Release` workflow on a tagged build.
+
+## Build from source
 
 ```sh
 cargo build --release
