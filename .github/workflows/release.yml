@@ -155,7 +155,7 @@ jobs:
             echo "value=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: assets-*
           merge-multiple: true
