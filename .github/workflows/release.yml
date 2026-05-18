@@ -132,7 +132,7 @@ jobs:
           subject-path: gitless-sync-*-${{ matrix.target }}.${{ matrix.ext }}
 
       - name: Upload archive + per-asset .sha256 as workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: assets-${{ matrix.target }}
           path: |
@@ -171,7 +171,7 @@ jobs:
 
       - name: Upload sha256sums.txt as workflow artifact (dry-run path)
         if: steps.dry.outputs.value == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sha256sums
           path: assets/sha256sums.txt
