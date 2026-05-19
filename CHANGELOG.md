@@ -7,13 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_(none)_
+
+## [0.8.0] - 2026-05-19
+
 ### Added
 
+- `scan` 출력에 신규 envelope 필드 `renames: [RenamePair]` (schema v1.6 → **v1.7** minor bump). 폴더 재배치/파일 이동 hint — `local_only_changed` + `remote_only_changed` 쌍 중 (a) raw sha 동일(`local_sha == remote_sha`) 또는 (b) normalize 후 동일(cross-path normalize-equal, issue #1 cosmetic identical 검사를 cross-path 로 mirror) 한 쌍을 도구가 후처리로 emit. caller(사람 또는 AI)가 hint 보고 `diff --remote-path <from> --remote-path <to>` 검증. `RenamePair` shape: `{from, to, sha, raw_equal: bool}` — `raw_equal == true` Case A(same-sha), `false` Case B(normalize-equal cross-path). 도구는 사실만, 매핑 방향/정합성 판단은 caller. 항상 emit (빈 배열도 key 존재) — `--summary-only` 한정 omit. Closes [#15](https://github.com/KneShell/gitless-sync/issues/15).
 - `diff --remote-path <RPATH>` — cross-path comparison for rename / move scenarios. The remote-side lookup key can now differ from the positional `<PATH>` (which still drives the local read). Unified diff headers show each side's key (`--- a/<remote>` / `+++ b/<local>`), and the "not found" error message lists both keys. Default behavior unchanged when the flag is omitted. Closes [#14](https://github.com/KneShell/gitless-sync/issues/14).
+- README `### scan` 섹션 — "Output schema — SHA fields are not authoritative" + "Rename / move hints (v0.8.0+)" 두 단락 신규. `local_sha`/`remote_sha`가 서로 다른 normalize 정책을 거친 hash이며 mismatch가 곧 "내용 차이"를 의미하지 않는다는 점 + `status`가 authoritative한 답이라는 점 명시. caller(특히 LLM)가 두 SHA 필드를 직접 비교하다 false alarm 만드는 진입점 함정 가드.
+- `scan --help` `long_about` — `status` 필드가 authoritative answer라는 점 + 단순 SHA 비교 금지 한 줄. README 미열람 caller도 동일 hint 받음.
 
 ### Changed
 
 - `render::both_sides` / `both_sides_json` — single `&str` key parameter replaced with a `DiffKey<'_>` value holding `local` + `remote` keys. Private `pub(super)` API; no caller-visible JSON shape change.
+- `schema_version` `"1.6"` → `"1.7"`.
+- `compare/types.rs` — 신규 `RenamePair` struct (4 field: `from`/`to`/`sha`/`raw_equal`). serde round-trip + `compare::*` re-export.
+
+### Infrastructure
+
+- 신규 모듈 `commands/scan/renames.rs` — `detect_renames` 함수 + Case A/B 알고리즘 + 7 unit test. Case B는 unmatched `remote_only_changed` 한정 `shared/github/blobs::fetch_blob` 재호출 + `shared/normalize::prepare_for_hash` 재사용. cap 256 short-circuit + stderr 진단 한 줄. `local_only_changed`/`remote_only_changed` 어느 한쪽 0 시 fetch 0회.
+- 외부 시각 검증 — plan 작성 단계에서 `clean-context` skill(메모리/CLAUDE.md 차단 fresh session) 1회 호출. 3 결함 반영: (i) `content_equal: true` 항상 true 노이즈 → `raw_equal: bool`로 의미 부여 (Case A/B 구분 신호), (ii) Case B fetch 비용 short-circuit/cap 부재 → cap 256 + 양 사이드 0 short-circuit 명시, (iii) PR #16 forward-slash 정책과 짝 맞추는 path 정규화 부재 → `from`/`to` forward-slash 정규화 + 회귀 테스트.
 
 ## [0.7.1] - 2026-05-13
 

@@ -13,6 +13,7 @@ pub mod long_path;
 pub mod nfd_collision;
 pub mod output;
 pub mod pipeline;
+pub mod renames;
 pub mod summary_view;
 pub mod walker;
 
@@ -36,14 +37,13 @@ use crate::shared::gitattributes::GitAttributes;
 use crate::shared::github;
 use crate::shared::ignore::IgnoreMatcher;
 
-/// Run the `scan` command and write the resulting JSON report to stdout.
-/// Production callers inject `RealGhClient`; tests inject `MockGhClient`.
+/// Run `scan` and write JSON to stdout. Inject `RealGhClient` (prod) or
+/// `MockGhClient` (tests).
 ///
 /// # Errors
-/// Returns any [`GitlessError`] raised by config / GitHub API / local IO.
-/// Returns [`GitlessError::PartialFailure`] when files failed to hash.
-/// JSON serialize failure maps to [`GitlessError::Config`] (unreachable for
-/// the current schema).
+/// `GitlessError` from config / GitHub API / local IO. `PartialFailure`
+/// when files fail to hash. `Config` for JSON serialize failure (unreachable
+/// for current schema).
 pub fn run_with_client<C: GhClient + Sync>(
     args: &ScanArgs,
     client: &C,
@@ -58,10 +58,8 @@ pub fn run_with_client<C: GhClient + Sync>(
     Ok(())
 }
 
-/// Run the full pipeline up to (but not including) stdout serialization.
-/// Returns `(ScanReport, failed_count)` — hash failures show up in the
-/// count, not as `Err`. Exposed publicly so integration tests can inspect
-/// the structured report directly.
+/// Run the pipeline up to (but not including) stdout serialize. Hash
+/// failures show in `failed_count`, not `Err`. Public for integration tests.
 ///
 /// # Errors
 /// Propagates config / IO / GitHub API errors.
@@ -116,6 +114,10 @@ pub fn build_report<C: GhClient + Sync>(
     let (mut entries, summary, failed_count) =
         assemble_entries(&local_files, &remote_files, &ctx, args.keep_bom, &gitattr)?;
 
+    // v1.7 § renames — direct from pre-filter entries (status filter is orthogonal).
+    let renames = (!args.summary_only)
+        .then(|| renames::detect_renames(&entries, &gitattr, args.keep_bom, client, &repo));
+
     // Spec v1.5 #5: summary-only skips status filter (failed-only emit ownership).
     if !args.summary_only
         && let Some(filter) = &args.status
@@ -133,6 +135,7 @@ pub fn build_report<C: GhClient + Sync>(
         local_root: args.local.clone(),
         summary,
         files,
+        renames,
     };
 
     Ok((report, failed_count))
@@ -258,11 +261,8 @@ mod tests {
         assert!(report.files.is_some());
     }
 
-    // --- run_with_client ---------------------------------------------------
-
     #[test]
     fn run_with_client_returns_partial_failure_exit_code_for_partial_failure_variant() {
-        // Concrete check: exit code mapping for the variant produced by run_with_client.
         let err = GitlessError::PartialFailure { failed_count: 2 };
         assert_eq!(err.exit_code(), 4);
     }

@@ -13,4 +13,4 @@ mod decisions;
 mod types;
 
 pub use decisions::{classify, compare};
-pub use types::{FailedReason, FileEntry, LfsPointer, Presence, Status};
+pub use types::{FailedReason, FileEntry, LfsPointer, Presence, RenamePair, Status};

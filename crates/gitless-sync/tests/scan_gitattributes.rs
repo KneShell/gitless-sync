@@ -299,7 +299,7 @@ fn multi_level_depth_winner_overrides_root_attribute() {
 fn gitattributes_aware_scan_reports_all_identical_with_v1_1_envelope() {
     let (_dir, json) = scan_with_attributes();
 
-    assert_eq!(json["schema_version"], "1.6");
+    assert_eq!(json["schema_version"], "1.7");
     assert_eq!(json["summary"]["identical"], 8);
     assert_eq!(json["summary"]["local_only_changed"], 0);
     assert_eq!(json["summary"]["remote_only_changed"], 0);
