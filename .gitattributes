@@ -1,0 +1,4 @@
+# Default: normalize all text files to LF in repo blobs.
+# Working tree gets LF on every platform — Rust, Cargo, VS Code,
+# and JetBrains all handle LF on Windows without issue.
+* text=auto eol=lf
