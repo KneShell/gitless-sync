@@ -50,6 +50,23 @@ pub struct LfsPointer {
     pub size: u64,
 }
 
+/// Cross-path rename / move hint emitted at the envelope level
+/// (`ScanReport.renames`) — see `spec-output-schema.md` § v1.7 변경.
+///
+/// Pairs a `local_only_changed` entry's path with a `remote_only_changed`
+/// entry's path when their normalized content hashes coincide. `raw_equal`
+/// distinguishes Case A (raw `local_sha == remote_sha` — the cheap
+/// hash-join arm) from Case B (raw differ, but post-`prepare_for_hash`
+/// hashes match — issue #1 cosmetic-identical检사를 cross-path 로 mirror).
+/// Caller decides direction + acts on the hint; the tool only emits facts.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RenamePair {
+    pub from: String,
+    pub to: String,
+    pub sha: String,
+    pub raw_equal: bool,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct FileEntry {
     pub path: String,

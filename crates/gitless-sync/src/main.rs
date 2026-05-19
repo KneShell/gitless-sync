@@ -51,7 +51,8 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     #[command(
-        about = "Compare local directory against remote repo, emit 4-state classification JSON"
+        about = "Compare local directory against remote repo, emit 4-state classification JSON",
+        long_about = "Compare local directory against remote repo, emit 4-state classification JSON.\n\nThe `status` field is the authoritative answer (identical / local_only_changed / remote_only_changed / drift / failed). Do not compare `local_sha` and `remote_sha` directly to infer content difference — they go through different normalize policies and a mismatch does NOT imply a real diff (see README \"Output Schema\")."
     )]
     Scan {
         /// Branch to read from the repo.

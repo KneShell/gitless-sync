@@ -290,6 +290,7 @@ fn v1_3_sample_report() -> ScanReport {
             failed: 3,
         },
         files: Some(FilesView::Full(entries)),
+        renames: Some(vec![]),
     }
 }
 
@@ -336,6 +337,7 @@ fn v1_5_summary_only_failed_sample_report() -> ScanReport {
             failed: 3,
         },
         files: Some(FilesView::SummaryFailed(entries)),
+        renames: None,
     }
 }
 
@@ -357,6 +359,7 @@ fn v1_5_summary_only_zero_failed_report() -> ScanReport {
             failed: 0,
         },
         files: None,
+        renames: None,
     }
 }
 
@@ -401,6 +404,7 @@ fn v1_6_summary_only_failed_sample_report() -> ScanReport {
             failed: 2,
         },
         files: Some(FilesView::SummaryFailed(entries)),
+        renames: None,
     }
 }
 
@@ -438,7 +442,7 @@ fn raw_files(json: &str) -> Vec<serde_json::Value> {
 #[test]
 fn v1_0_client_parses_v1_3_envelope_fields() {
     let parsed = parse_v1_0(&v1_3_sample_json());
-    assert_eq!(parsed.schema_version, "1.6");
+    assert_eq!(parsed.schema_version, "1.7");
     assert_eq!(parsed.repo, "owner/name");
     assert_eq!(parsed.branch, "main");
     assert_eq!(parsed.local_root, "/tmp/root");
@@ -497,7 +501,7 @@ fn v1_0_client_parses_v1_3_new_entries_as_existing_status() {
 #[test]
 fn v1_1_client_parses_v1_3_envelope_and_lfs_entry() {
     let parsed = parse_v1_1(&v1_3_sample_json());
-    assert_eq!(parsed.schema_version, "1.6");
+    assert_eq!(parsed.schema_version, "1.7");
     let files = parsed.files.expect("files must be present");
     let lfs_failed = &files[1];
     assert_eq!(lfs_failed.path, "vendor/lib.zip");
@@ -537,7 +541,7 @@ fn v1_1_client_parses_v1_3_size_gate_enum_values_gracefully() {
 #[test]
 fn v1_2_client_parses_v1_3_envelope_and_v1_1_baseline_fields() {
     let parsed = parse_v1_2(&v1_3_sample_json());
-    assert_eq!(parsed.schema_version, "1.6");
+    assert_eq!(parsed.schema_version, "1.7");
     let files = parsed.files.expect("files must be present");
     assert_eq!(files.len(), 8);
     let lfs_failed = &files[1];
@@ -691,7 +695,7 @@ fn v1_3_json_emits_diff_meaningful_only_for_presence_both_hashed_entries() {
 #[test]
 fn v1_5_client_parses_summary_only_failed_sample_envelope() {
     let parsed = parse_v1_5(&v1_5_summary_only_failed_sample_json());
-    assert_eq!(parsed.schema_version, "1.6");
+    assert_eq!(parsed.schema_version, "1.7");
     let files = parsed.files.expect("files present when failed N");
     assert_eq!(files.len(), 3);
 }
@@ -723,7 +727,7 @@ fn v1_5_client_parses_summary_only_failed_entry_three_field_shape() {
 #[test]
 fn v1_5_client_parses_summary_only_zero_failed_envelope_with_files_none() {
     let parsed = parse_v1_5(&v1_5_summary_only_zero_failed_json());
-    assert_eq!(parsed.schema_version, "1.6");
+    assert_eq!(parsed.schema_version, "1.7");
     assert!(
         parsed.files.is_none(),
         "files must be absent when failed=0 (v1.4 baseline)"
@@ -743,7 +747,7 @@ fn v1_5_summary_only_zero_failed_wire_omits_files_key() {
         !obj.contains_key("files"),
         "files key must be absent when failed=0"
     );
-    assert_eq!(obj["schema_version"], "1.6");
+    assert_eq!(obj["schema_version"], "1.7");
     assert_eq!(obj["summary"]["failed"], 0);
     assert!(
         !json.contains("\"files\""),
@@ -828,7 +832,7 @@ fn v1_5_summary_only_failed_wire_omits_all_detail_fields_across_entries() {
 #[test]
 fn v1_5_client_parses_v1_6_hash_io_entry_with_some_hash_io() {
     let parsed = parse_v1_5(&v1_6_summary_only_failed_sample_json());
-    assert_eq!(parsed.schema_version, "1.6");
+    assert_eq!(parsed.schema_version, "1.7");
     let files = parsed.files.expect("files present when failed N");
     assert_eq!(files.len(), 2);
 
@@ -852,7 +856,7 @@ fn v1_5_client_parses_v1_6_hash_io_entry_with_some_hash_io() {
 #[test]
 fn v1_6_client_parses_v1_6_summary_only_failed_envelope() {
     let parsed = parse_v1_6(&v1_6_summary_only_failed_sample_json());
-    assert_eq!(parsed.schema_version, "1.6");
+    assert_eq!(parsed.schema_version, "1.7");
     let files = parsed.files.expect("files present when failed N");
     assert_eq!(files.len(), 2);
 }
@@ -940,4 +944,124 @@ fn v1_6_summary_only_failed_wire_omits_all_detail_fields_across_entries() {
             );
         }
     }
+}
+
+// --- v1.7 forward-compat: renames hint -----------------------------------
+
+use gitless_sync::commands::scan::compare::RenamePair;
+
+/// V17 production caller — `renames` 필드를 strict struct로 받는다. v1.7
+/// caller migration 의무: 신규 envelope field 인지 + `RenamePair` 4 key
+/// (`from`/`to`/`sha`/`raw_equal`) 정합. V10~V16 client는 본 필드를 무시한다.
+#[derive(Debug, Deserialize)]
+struct V17ScanReport {
+    schema_version: String,
+    renames: Option<Vec<RenamePair>>,
+}
+
+/// v1.7 full-mode 샘플 — `renames` 배열에 Case A (`raw_equal:true`) + Case B
+/// (`raw_equal:false`) 한 쌍씩 박힘. 빈 배열 emit invariant은 별도 lock에서 cover.
+fn v1_7_full_sample_report() -> ScanReport {
+    ScanReport {
+        schema_version: SCHEMA_VERSION.to_string(),
+        scanned_at: ts(1_700_000_500),
+        repo: "owner/name".into(),
+        branch: "main".into(),
+        local_root: "/tmp/root".into(),
+        summary: Summary::default(),
+        files: Some(FilesView::Full(Vec::new())),
+        renames: Some(vec![
+            RenamePair {
+                from: "old/file.md".into(),
+                to: "new/file.md".into(),
+                sha: "abc".into(),
+                raw_equal: true,
+            },
+            RenamePair {
+                from: "old/has-bom.md".into(),
+                to: "new/no-bom.md".into(),
+                sha: "def".into(),
+                raw_equal: false,
+            },
+        ]),
+    }
+}
+
+fn v1_7_full_sample_json() -> String {
+    serialize(&v1_7_full_sample_report(), false).expect("serialize must succeed")
+}
+
+/// Spec v1.7 acceptance — `renames` envelope key는 full mode에서 항상 emit
+/// (매칭 0 인 경우도 빈 배열, key 부재 sentinel 분기 회피).
+#[test]
+fn v1_7_full_mode_emits_renames_key_even_when_empty() {
+    let report = ScanReport {
+        renames: Some(Vec::new()),
+        ..v1_7_full_sample_report()
+    };
+    let json = serialize(&report, false).expect("serialize");
+    let value: serde_json::Value = serde_json::from_str(&json).expect("parse");
+    let obj = value.as_object().expect("envelope object");
+    assert!(
+        obj.contains_key("renames"),
+        "renames key must be present in full mode"
+    );
+    let arr = value["renames"].as_array().expect("renames array");
+    assert!(arr.is_empty(), "empty when no matches");
+}
+
+/// Spec v1.7 acceptance — `--summary-only` 모드에서 `renames` 필드 omit. v1.6
+/// `files` omit policy mirror. caller는 `--summary-only` 자신의 argument 기준
+/// 으로 mode 분기 (응답 shape 추론 금지, Finding 3 강조).
+#[test]
+fn v1_7_summary_only_omits_renames_key() {
+    let json = v1_6_summary_only_failed_sample_json();
+    assert!(
+        !json.contains("\"renames\""),
+        "summary-only stdout must not include `renames` key (got: {json})"
+    );
+}
+
+/// Spec v1.7 acceptance — `RenamePair` 4 key 정합 + `raw_equal: bool` 박힘.
+/// Case A pair → `raw_equal: true`, Case B pair → `raw_equal: false`.
+#[test]
+fn v1_7_rename_pair_emits_four_keys_with_raw_equal_bool() {
+    let value: serde_json::Value = serde_json::from_str(&v1_7_full_sample_json()).expect("parse");
+    let pairs = value["renames"].as_array().expect("renames array");
+    assert_eq!(pairs.len(), 2);
+    for pair in pairs {
+        let obj = pair.as_object().expect("pair object");
+        assert_eq!(obj.len(), 4, "RenamePair must emit exactly 4 keys");
+        for key in ["from", "to", "sha", "raw_equal"] {
+            assert!(obj.contains_key(key), "RenamePair must carry {key}");
+        }
+    }
+    assert_eq!(pairs[0]["raw_equal"], serde_json::Value::Bool(true));
+    assert_eq!(pairs[1]["raw_equal"], serde_json::Value::Bool(false));
+}
+
+/// Spec v1.7 acceptance — V17 caller가 `renames` 필드를 strict struct로
+/// deserialize 정상. `RenamePair` 4 key (`from`/`to`/`sha`/`raw_equal`) 매칭.
+#[test]
+fn v1_7_client_parses_renames_array_with_strict_struct() {
+    let parsed: V17ScanReport =
+        serde_json::from_str(&v1_7_full_sample_json()).expect("v1.7 client must parse v1.7 JSON");
+    assert_eq!(parsed.schema_version, "1.7");
+    let renames = parsed.renames.expect("renames present");
+    assert_eq!(renames.len(), 2);
+    assert_eq!(renames[0].from, "old/file.md");
+    assert_eq!(renames[0].to, "new/file.md");
+    assert!(renames[0].raw_equal);
+    assert!(!renames[1].raw_equal);
+}
+
+/// v1.0~v1.6 caller가 v1.7 wire JSON 파싱 시 `renames` 필드 무시 + 기존 필드
+/// 정상 동작. V10/V16 두 baseline 만 lock (다른 caller는 같은 path 자연 cover).
+#[test]
+fn pre_v1_7_clients_ignore_renames_field_silently() {
+    let json = v1_7_full_sample_json();
+    let v10 = parse_v1_0(&json);
+    assert_eq!(v10.schema_version, "1.7");
+    let v16 = parse_v1_6(&json);
+    assert_eq!(v16.schema_version, "1.7");
 }

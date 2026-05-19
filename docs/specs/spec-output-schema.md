@@ -14,6 +14,8 @@
 > **v0.5.0 갱신 (2026-05-12)**: schema_version 1.4 → **1.5** (minor bump). `--summary-only` 모드 출력 contract 확장 — failed status entry 한정 `files[]`에 minimal entry (path + presence + failed_reason) emit. failed 0건이면 v1.4 baseline 유지 (`files` 필드 omit). 그 외 status entry (identical / local_only_changed / remote_only_changed / drift)는 summary-only에서 emit 안 함. post-v0.4.2 vault dogfood feedback F3 motivation (한 호출로 어떤 파일이 실패했는지 확인) 직접 해소. 신규 field/enum 0이지만 caller-visible behavior change이므로 minor. 결정 trail은 git history (`git log --grep="Phase 9"`) + `CHANGELOG.md` § [0.5.0].
 >
 > **v0.6.0 갱신 (2026-05-12)**: schema_version 1.5 → **1.6** (minor bump). `failed_reason == hash_io` entry 의 wire 형식 정합화 — v1.5 까지 `failed_reason` 필드를 omit (`Option::None` 특수 케이스 sentinel) 하던 hash_io entry 가 v1.6 부터 다른 reason entry 와 동일하게 `failed_reason: "hash_io"` 명시 emit. summary-only 모드 minimal entry shape 가 `path + presence + failed_reason` 3 field 로 일관 (v1.5 의 hash_io 2 field special case 제거). 전체 mode 에서도 hash_io entry wire 형식 변경 (sentinel omit → explicit emit). 신규 field 0 / 신규 enum 0 — `hash_io` 는 v1.2 부터 정의돼 있었으나 wire 형식만 변경. post-v0.5.0 clean-context audit Finding 2 motivation (`Option::None` sentinel 가 분기 모호 + caller 가 missing-key 분기를 신호 sentinel 로 오해 위험) 직접 해소. caller-visible wire shape change 이므로 minor. 결정 trail은 git history (`git log --grep="Phase 10"`) + `CHANGELOG.md` § [0.6.0].
+>
+> **v0.8.0 갱신 (2026-05-19)**: schema_version 1.6 → **1.7** (minor bump). 신규 최상위 field `renames: [RenamePair]` — 폴더 재배치/파일 이동 시나리오 hint. `local_only_changed` + `remote_only_changed` 쌍 중 (a) raw sha 동일(`local_sha == remote_sha`) 또는 (b) normalize 후 동일(cross-path normalize-equal — issue #1 cosmetic identical 검사를 cross-path 로 mirror)한 쌍을 도구가 후처리로 emit. caller(사람 또는 AI)가 hint 보고 `diff --remote-path <from> --remote-path <to>` 검증. `renames` 는 항상 emit (`--summary-only` 한정 omit) — 빈 배열도 key 존재 보장. RenamePair shape: `{from, to, sha, raw_equal: bool}` — `raw_equal == true` Case A(same-sha), `false` Case B(normalize-equal cross-path). caller 가 두 케이스 구분 분기 가능. 기존 field 변경 0 — backward-compat 보장. issue #15 regression. 결정 trail은 `C:\Users\admin\.claude\plans\staged-cuddling-deer.md` + `CHANGELOG.md` § [0.8.0].
 
 ## 현재 상태
 - `crates/gitless-sync/src/commands/scan/output.rs::{ScanReport, Summary}` 구조체 + serde 직렬화 완료 (v1.0).
@@ -24,13 +26,13 @@
 
 ## 작업 범위
 
-### 스키마 v1.6 (전체)
+### 스키마 v1.7 (전체)
 
-> 아래 sample은 `--summary-only` 미지정 시 전체 mode 출력. v1.6 는 전체 mode 에서 hash_io entry 의 wire 형식 변경 — v1.5 까지 omit 되던 `failed_reason: "hash_io"` 필드가 명시 emit (entry shape 일관화). 그 외 reason entry 및 비-Failed entry 는 v1.5 와 byte-identical (`schema_version` 값만 다름). summary-only mode shape 는 § `--summary-only` 출력 참조.
+> 아래 sample은 `--summary-only` 미지정 시 전체 mode 출력. v1.7 는 신규 최상위 field `renames: [RenamePair]` 추가 — 그 외 entry/field wire 형식은 v1.6 과 byte-identical (`schema_version` 값만 다름). summary-only mode shape 는 § `--summary-only` 출력 참조 (`renames` 필드 omit).
 
 ```json
 {
-  "schema_version": "1.6",
+  "schema_version": "1.7",
   "scanned_at": "2026-05-10T10:30:00Z",
   "repo": "owner/name",
   "branch": "main",
@@ -130,6 +132,20 @@
       "failed_reason": "memory_exceeded",
       "size_bytes": 62914560,
       "mode": "100644"
+    }
+  ],
+  "renames": [
+    {
+      "from": "tree-a/sub-x/file.md",
+      "to":   "tree-c/sub-x/file.md",
+      "sha":  "ghi...",
+      "raw_equal": true
+    },
+    {
+      "from": "old/has-bom.md",
+      "to":   "new/no-bom.md",
+      "sha":  "jkl...",
+      "raw_equal": false
     }
   ]
 }
@@ -282,8 +298,54 @@ backward-compat:
 
 향후 bump 도 동일 logic 일반화 — caller 자신의 명시 enum value 분기 (e.g., 명시 enum match arm, 명시 field value check) 또는 wire 형식 stable signal (e.g., `schema_version` 자체 분기) 에 의존하는 분기는 영향 0 — 면제 표 적용 대상 자체가 아니다 (매 bump 마다 정상 동작 보장).
 
+### v1.6 → v1.7 변경 (minor)
+
+v0.8.0 (issue #15) 폴더 재배치/파일 이동 hint 도입. 결정 trail은 `C:\Users\admin\.claude\plans\staged-cuddling-deer.md` + `CHANGELOG.md` § [0.8.0].
+
+추가 필드 (기존 필드 변경 0):
+
+- `renames: [RenamePair]` — 최상위 (envelope 레벨, `files` 다음). `local_only_changed` + `remote_only_changed` 쌍 중 도구가 hash-join 으로 매칭한 rename/move 후보 명단. 항상 emit (빈 배열도 key 존재 보장) — `--summary-only` mode 한정 omit. caller(사람 또는 AI) 가 hint 보고 `diff --remote-path <from> --remote-path <to>` 호출로 검증. 도구는 사실만 제공 (매핑 정합성/방향 판단은 caller).
+
+RenamePair shape:
+
+| field | JSON type | 의미 |
+|---|---|---|
+| `from` | `string` | `local_only_changed` entry 경로 (forward-slash 정규화 — `files[].path` 와 동일 정책). |
+| `to` | `string` | `remote_only_changed` entry 경로 (forward-slash 정규화). |
+| `sha` | `string` | 매칭의 키가 된 hash. Case A 는 `local_only.local_sha` (= `remote_only.remote_sha`), Case B 는 normalize 후 도출된 hash. |
+| `raw_equal` | `bool` | `true` = Case A (raw `local_sha == remote_sha`), `false` = Case B (raw 다르지만 normalize 후 동일 — issue #1 cosmetic identical 검사를 cross-path 로 mirror). caller 가 두 케이스 구분 분기 가능한 1-bit 신호. |
+
+매칭 정책:
+
+- **Case A (same-sha)**: `local_only.local_sha == remote_only.remote_sha` hash-join. 추가 비용 0.
+- **Case B (normalize-equal cross-path)**: Case A 로 unmatched 인 `remote_only_changed` entry 한정 — remote blob bytes 를 fetch → `prepare_for_hash` 동일 normalize 정책 적용 → hash 비교. 한 scan 내 동일 blob 중복 fetch 0 (기존 fetcher batch 동작 그대로 사용).
+
+비용 정책 (회귀 가드):
+
+- `local_only_changed` 개수 0 또는 `remote_only_changed` 개수 0 → Case A/B 둘 다 skip, blob fetch 0.
+- unmatched `remote_only_changed` 개수 임계(256) 초과 → Case B skip + stderr 진단 한 줄 (`"renames: Case B skipped, unmatched remote_only_changed=<N> exceeds cap=256"`). `renames` 는 Case A 결과만 emit.
+- 동기 fetch — 기존 fetcher concurrency 동작 그대로 사용 (별도 옵션 0).
+
+1:N / N:1 충돌:
+
+- 동일 hash 가 multiple `local_only_changed` 또는 multiple `remote_only_changed` 에 매칭되면 모든 쌍 emit. 도구는 사실만, 매핑 정합성 판단은 caller.
+
+backward-compat:
+
+- 추가 필드 1 + 추가 enum 0. v1.0~v1.6 호출자가 v1.7 JSON 파싱 시 `renames` 필드 무시 + 기존 필드 정상 동작. v1.6 까지 caller 코드가 `renames` 필드 부재 가정 분기를 도입하지 않았다면 영향 0.
+
+`--summary-only` 상호작용:
+
+- `--summary-only` 모드는 `renames` 필드 omit — summary-only 정체성 ("카운트 + 무엇이 실패했나 명단") 유지. PRD 검증 시나리오 13 (`"files"` 미포함) 동등 강도로 `"renames"` 미포함 보장.
+
+`--status` 필터 상호작용:
+
+- `renames` 는 `files[]` 와 직교 — `--status` 필터 무관 emit. `files[]` 가 필터링되어 일부 entry 가 빠지더라도 `renames` 의 `from`/`to` 는 원본 분류 (`local_only_changed`/`remote_only_changed`) 기준 그대로.
+
+**SemVer 면제 근거** — `renames` 필드 부재를 caller 가 분기 sentinel 로 사용한 경우 v1.6 시점 도입된 신규 가정이라 SemVer 보호 대상 아님 (§ 공통 면제 표 정합). 단 본 PR 시점 v1.6 까지 caller 가 `renames` 필드를 분기 sentinel 로 채택한 사례 0 으로 가정 — caller migration window 본 bump 가 첫 도입.
+
 ### 안정성 보장
-- `schema_version`: 호환성 깨는 변경 시 major 증가. v0.1은 `"1.0"`, Phase 5는 `"1.1"`, Phase 7은 `"1.2"`, Phase 8은 `"1.3"`, v0.4.2는 `"1.4"`, v0.5.0은 `"1.5"`, v0.6.0은 `"1.6"` (모두 minor — 신규 field 추가 또는 `Identical` 분류 정확화 또는 `--summary-only` 출력 contract 확장 또는 hash_io entry wire 형식 정합화, 기존 필드 변경 0).
+- `schema_version`: 호환성 깨는 변경 시 major 증가. v0.1은 `"1.0"`, Phase 5는 `"1.1"`, Phase 7은 `"1.2"`, Phase 8은 `"1.3"`, v0.4.2는 `"1.4"`, v0.5.0은 `"1.5"`, v0.6.0은 `"1.6"`, v0.8.0은 `"1.7"` (모두 minor — 신규 field 추가 또는 `Identical` 분류 정확화 또는 `--summary-only` 출력 contract 확장 또는 hash_io entry wire 형식 정합화 또는 `renames` hint 추가, 기존 필드 변경 0).
 - `status` enum 동결: `identical` / `local_only_changed` / `remote_only_changed` / `drift` / `failed`. 추가는 minor 버전, 제거·이름 변경은 major. **Phase 5에서 새 status 미추가** — LFS/submodule/symlink는 모두 `failed` + `failed_reason` 분류.
 - `failed_reason` enum 동결 정책: 추가는 minor, 제거·이름 변경은 major. Phase 5에서 정의된 9 reason (`hash_io` / `encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported`) 모두 구현 (Phase 5.13 task AA, 2026-05-09 — `compare.rs::FailedReason` 8 variant + `None` special case `hash_io`). Phase 7에서 2 reason 추가 — `file_too_large` + `memory_exceeded` (총 11 reason, `compare.rs::FailedReason` 10 variant + `None` special case). v0.6.0/Phase 10에서 `HashIo` explicit variant 추가 + `None` special case 제거 — 총 11 reason, `compare.rs::FailedReason` 11 variant + 0 special case (Finding 2 결정 trail, § v1.5 → v1.6 변경 + `spec-error-contracts.md` § Per-file Pitfall Reasons 정합).
 - 시간 필드: 모두 ISO-8601 UTC (`Z` suffix). 로컬 타임존 출력 금지.
@@ -301,9 +363,9 @@ backward-compat:
 
 ### `--summary-only` 출력
 
-v1.6부터 동작 (v1.5와의 차이는 § v1.5 → v1.6 변경 참조):
+v1.7부터 동작 (v1.6과의 차이: `renames` 필드도 omit. v1.6 까지 동작은 § v1.5 → v1.6 변경 참조):
 
-- 기본 — 전체 mode JSON에서 `files` 필드 자체를 omit (`null` 아니라 키 부재). `schema_version` / `scanned_at` / `repo` / `branch` / `local_root` / `summary` 등 다른 필드는 유지.
+- 기본 — 전체 mode JSON에서 `files` 필드와 `renames` 필드 둘 다 omit (`null` 아니라 키 부재). `schema_version` / `scanned_at` / `repo` / `branch` / `local_root` / `summary` 등 다른 필드는 유지.
 - failed status entry 존재 시 (`summary.failed > 0`) — `files[]`에 failed entry 한정 minimal 형식 emit. entry 한 개는 `path` + `presence` + `failed_reason` 세 field만 (sha/size/mode/diff_meaningful/lfs_pointer/size_bytes 등 detail field 모두 omit). 그 외 status entry (identical / local_only_changed / remote_only_changed / drift)는 emit 안 함.
 - `--status` filter 동시 지정 시 — summary-only 정체성 우선, status filter 무시 (summary 카운트 + failed entry 명단 contract 유지). 즉 `--summary-only --status drift` 호출도 동일하게 failed entry만 emit.
 - `failed_reason == hash_io` entry 도 다른 reason entry 와 동일하게 `failed_reason: "hash_io"` 명시 emit — v1.6 부터 wire 형식 일관화 (v1.5 까지의 omit special case 제거). v1.5 의 2 field special case 와의 차이는 § v1.5 → v1.6 변경 § 참조.
@@ -427,6 +489,22 @@ v0.6.0 (Phase 10) post-v0.5.0 clean-context audit Finding 2 결정 trail. 본 §
 - `[AUTO]` `--summary-only` + `summary.failed == N` (N > 0) + 그 외 reason entry (`encoding` / `submodule` / `symlink` / `lfs_pointer` / `long_path` / `nfd_collision` / `case_collision` / `gitattributes_unsupported` / `file_too_large` / `memory_exceeded`): `files[]` entry는 `path` + `presence` + `failed_reason: "<reason>"` 세 field 유지 (v1.5 와 byte-identical).
 - `[AUTO]` v1.5 caller 가 v1.6 JSON 파싱 시 hash_io entry 정상 deserialize — `failed_reason` 필드 값 `"hash_io"` 명시 등장. v1.5 caller 의 `failed_reason: Option<String>` 시그니처는 `Some("hash_io")` 로 deserialize 정상 (enum 매칭 우회, `tests/scan_output_backward_compat.rs` V15 client × v1.6 sample 패턴).
 - `[AUTO]` `--summary-only` `files[]` minimal entry 는 `status` 필드 omit 정책 유지 (Finding 3 강조 정합 — summary-only `files[]` entry 정의상 failed signal, caller 분기는 자신의 `--summary-only` argument 기준). v1.6 wire 형식 변경은 `failed_reason` 필드 한정.
+
+### v1.7 신규 (v0.8.0)
+
+v0.8.0 (issue #15) `renames` hint 도입. 본 § 는 spec authoritative — 코드 변경은 git history + `CHANGELOG.md` § [0.8.0] 참조.
+
+- `[AUTO]` `report.schema_version` == `"1.7"`.
+- `[AUTO]` `renames` 필드는 envelope 레벨 (최상위, `files` 다음) 에 항상 emit — `local_only_changed` / `remote_only_changed` 둘 다 0 인 케이스라도 빈 배열 (`renames: []`) 로 emit (key 부재 sentinel 분기 회피).
+- `[AUTO]` Case A — `local_only_changed.local_sha` == `remote_only_changed.remote_sha` 인 쌍 → `renames` 에 `{from, to, sha, raw_equal: true}` emit. `from` = local_only 경로, `to` = remote_only 경로, `sha` = 매칭의 키.
+- `[AUTO]` Case B — Case A unmatched `remote_only_changed` 의 remote blob bytes 를 fetch + `prepare_for_hash` normalize → `local_only_changed.local_sha` 와 일치하면 `renames` 에 `{from, to, sha, raw_equal: false}` emit. `sha` 는 normalize 후 hash 값.
+- `[AUTO]` `from` / `to` 는 `files[].path` 와 동일한 forward-slash 정규화 — backslash 가 OS 원본 경로에 있어도 hint 값은 `/` 정규화 (G-004 + PR #16 `diff --remote-path` 입력 호환).
+- `[AUTO]` 1:N / N:1 충돌 — 동일 hash 가 multiple `local_only_changed` 또는 multiple `remote_only_changed` 에 매칭되면 모든 쌍 emit.
+- `[AUTO]` short-circuit 1 — `local_only_changed` 개수 0 또는 `remote_only_changed` 개수 0 → Case A/B 둘 다 skip, blob fetch 0회, `renames: []` emit.
+- `[AUTO]` short-circuit 2 — unmatched `remote_only_changed` 개수 임계(256) 초과 → Case B skip + stderr 진단 한 줄 (`"renames: Case B skipped, unmatched remote_only_changed=<N> exceeds cap=256"`). `renames` 는 Case A 결과만 포함하여 emit.
+- `[AUTO]` `--summary-only` 모드 — `renames` 필드 omit (key 부재). PRD 검증 시나리오 13 등가 — stdout 출력에 문자열 `"renames"` 미포함.
+- `[AUTO]` `--status` 필터 — `renames` 는 `files[]` 와 직교, 필터 무관 emit. `files[]` 가 필터링되어 entry 일부가 빠지더라도 `renames.from` / `to` 는 원본 분류 기준 그대로.
+- `[AUTO]` v1.0~v1.6 호출자가 v1.7 JSON 파싱 시 `renames` 필드 무시 + 기존 필드 정상 동작 (`tests/scan_output_backward_compat.rs` V16+ client × v1.7 sample 패턴 정합).
 
 ## diff sub-schema
 

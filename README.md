@@ -134,6 +134,23 @@ gitless-sync scan --repo owner/name --local . -v
 
 Output schema and the four status values (`identical`, `local_only_changed`, `remote_only_changed`, `drift`, plus `failed` for partial failures) are defined in `docs/specs/spec-output-schema.md`.
 
+#### Output schema — SHA fields are not authoritative
+
+`local_sha` and `remote_sha` go through different normalize policies (`local_sha` = self-defined hash of `prepare_for_hash`-normalized local bytes; `remote_sha` = GitHub's raw blob SHA). A mismatch does NOT imply real content difference — BOM, CRLF / LF, and `.gitattributes` policy can produce cosmetic SHA drift between byte-identical files. **The authoritative answer is `status`** (`identical` covers cosmetic-only drift via `normalize_equal`). Do not compare the two SHA fields directly to infer drift — surface `status` to the user.
+
+#### Rename / move hints (v0.8.0+)
+
+`renames` (envelope-level array, schema v1.7) emits pairs across `local_only_changed` ↔ `remote_only_changed` entries when content matches under normalize. Caller (human or AI) uses the hint to drive `diff --remote-path <hint.from> --remote-path <hint.to>` for verification.
+
+```json
+{ "from": "old/file.md", "to": "new/file.md", "sha": "<hash>", "raw_equal": true }
+```
+
+- `raw_equal: true` — raw `local_sha == remote_sha` (Case A, cheap hash-join).
+- `raw_equal: false` — raw differ, post-normalize identical (Case B, mirrors the cosmetic-identical check across paths).
+
+The array is always emitted in full mode (empty `[]` when no matches), and omitted in `--summary-only`. Tool emits facts only; mapping direction and action stay with the caller.
+
 ### `diff` — single-file diff
 
 ```sh

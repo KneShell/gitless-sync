@@ -1,10 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
-use super::compare::Status;
+use super::compare::{RenamePair, Status};
 use super::summary_view::FilesView;
 
-pub const SCHEMA_VERSION: &str = "1.6";
+pub const SCHEMA_VERSION: &str = "1.7";
 
 #[derive(Debug, Default, Serialize)]
 pub struct Summary {
@@ -37,14 +37,18 @@ pub struct ScanReport {
     pub summary: Summary,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub files: Option<FilesView>,
+    /// Cross-path rename / move hint (`spec-output-schema.md` § v1.7).
+    /// `None` → omit (summary-only mirror of `files`); `Some(vec![])` →
+    /// emit empty array (key-existence guard for callers).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub renames: Option<Vec<RenamePair>>,
 }
 
 /// Serialize a [`ScanReport`] into the stdout JSON shape (`spec-output-schema.md`).
 ///
 /// # Errors
-/// Returns the underlying [`serde_json::Error`] if serialization fails.
-/// In practice the report is composed of `serde::Serialize` types with no
-/// fallible implementations, so callers may treat this as effectively total.
+/// Returns the underlying [`serde_json::Error`] on failure (effectively total
+/// for the current schema — composed types have no fallible `Serialize`).
 pub fn serialize(report: &ScanReport, pretty: bool) -> Result<String, serde_json::Error> {
     if pretty {
         serde_json::to_string_pretty(report)
@@ -52,9 +56,6 @@ pub fn serialize(report: &ScanReport, pretty: bool) -> Result<String, serde_json
         serde_json::to_string(report)
     }
 }
-
-// Backward-compat 회귀 가드 (v1.0/v1.1 client struct 모방) → integration test
-// `tests/scan_output_backward_compat.rs` (P task). 본 unit module은 직교 layer.
 
 #[cfg(test)]
 mod tests {
@@ -75,6 +76,7 @@ mod tests {
             local_root: "/r".into(),
             summary: Summary::default(),
             files: None,
+            renames: None,
         }
     }
 
@@ -125,17 +127,14 @@ mod tests {
         serde_json::from_str(&serialize(report, false).unwrap()).unwrap()
     }
 
-    /// Acceptance #1: `report.schema_version` == `"1.6"`. `SCHEMA_VERSION`
-    /// constant + `ScanReport` 직렬화 결과의 `schema_version` field 두 layer.
+    /// Acceptance: `SCHEMA_VERSION` const + serialized `schema_version` field both report `"1.7"`.
     #[test]
-    fn schema_version_field_serializes_as_1_6() {
-        assert_eq!(SCHEMA_VERSION, "1.6");
-        assert_eq!(parse(&empty_report())["schema_version"], "1.6");
+    fn schema_version_field_serializes_as_1_7() {
+        assert_eq!(SCHEMA_VERSION, "1.7");
+        assert_eq!(parse(&empty_report())["schema_version"], "1.7");
     }
 
-    /// Acceptance #2: `failed_reason` 12 케이스 cover (11 variant + `None` Failed
-    /// 외 entry omit). v1.6 Finding 2 — `HashIo`도 명시 wire 박힘 (v1.5까지 `None`
-    /// sentinel). `ScanReport` 안 entry 직렬화 시 wire `snake_case` 일관성 박음.
+    /// `failed_reason` 11 variant + `None` Failed-외 omit (v1.6 explicit `HashIo`).
     #[test]
     fn failed_reason_eleven_schema_values_serialize_within_scan_report() {
         let cases: [(Option<FailedReason>, Option<&str>); 12] = [

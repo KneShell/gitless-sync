@@ -1,6 +1,6 @@
 [package]
 name = "gitless-sync"
-version = "0.7.1"
+version = "0.8.0"
 description = "Read-only AI-friendly CLI for diffing a local directory against a GitHub repo without git"
 edition.workspace = true
 authors.workspace = true
