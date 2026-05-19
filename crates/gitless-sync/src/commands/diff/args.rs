@@ -15,6 +15,9 @@ pub struct DiffArgs {
     pub keep_bom: bool,
     /// Relative path (forward slash) of the file to diff.
     pub path: String,
+    /// Optional remote-side path override for cross-path comparison
+    /// (rename/move scenarios). `None` falls back to `path`.
+    pub remote_path: Option<String>,
     /// Emit `JSON` output instead of unified text (opt-in).
     pub json: bool,
 }

@@ -41,8 +41,11 @@
 - `--status <list>` — 콤마 구분 enum 필터. 예: `--status drift,local_only_changed`. 지정한 status 파일만 `files[]`에 포함.
 
 ### `diff` 전용 인자
-- `<path>` — 비교할 파일의 상대 경로 (forward slash).
+- `<path>` — 비교할 파일의 상대 경로 (forward slash). 기본적으로 로컬·원격 양쪽 lookup key로 동일 사용.
+- `--remote-path <rpath>` — 원격 측 lookup key override. rename / move 시나리오(같은 파일이 로컬·원격에서 다른 경로로 존재)에서 사용. 미명시 시 `<path>`와 동일하게 적용. 입력은 forward slash 권장이지만 backslash도 forward slash로 정규화된다 (로컬 측과 동일 정책). `--remote-path == <path>`이면 명시 안 한 경우와 동일 동작.
 - `--json` — diff 출력을 JSON 형식으로 전환 (opt-in). 미명시 시 기존 unified text stdout 유지 (default). 상세 스키마는 § diff --json 출력 형식.
+
+cross-path 모드에서 unified diff 헤더는 양쪽 키를 각각 표시한다: `--- a/<remote-path>` / `+++ b/<local-path>`. 양쪽 다 존재하지 않으면 에러 메시지에 양쪽 키가 모두 노출된다 (`path not found locally or remotely: local=<lpath> remote=<rpath>`).
 
 ### diff --json 출력 형식
 
@@ -128,6 +131,10 @@ CLI > env > `gitless-sync.toml` > 도구 내장 기본값. 자세한 건 `spec-c
 - `[AUTO]` `cargo run -- init` (--repo 미명시) → exit code 1, stdout 출력 0, stderr `error_code: "CONFIG"` JSON 한 줄.
 - `[AUTO]` init stdout 출력이 `toml::from_str::<Config>` 파싱 통과 + repo/branch/ignore 모든 필드가 입력 인자와 일치 (round-trip).
 - `[AUTO]` `cargo run -- diff --help`에 `--json` 플래그가 표시됨 (task N 구현 후).
+- `[AUTO]` `cargo run -- diff --help`에 `--remote-path` 플래그가 표시됨 (issue #14 구현 후).
+- `[AUTO]` `diff <path> --remote-path <rpath>`로 양쪽 경로가 다르면 unified diff 헤더가 `--- a/<rpath>` + `+++ b/<lpath>` 두 키를 각각 노출.
+- `[AUTO]` `diff <path> --remote-path <path>` (양쪽 동일)은 `--remote-path` 미지정과 동일하게 동작.
+- `[AUTO]` `diff <path> --remote-path "sub\\file"` (backslash 입력)은 `sub/file`로 정규화되어 Trees lookup 수행.
 - `[AUTO]` `diff <path>` (--json 미명시) → 기존 unified text stdout 또는 side marker stderr 동작 유지.
 - `[AUTO]` `diff <path> --json` → stdout 한 줄 JSON, stderr side marker 0 bytes.
 - `[AUTO]` `diff <path> --json` + local-only → `{"side":"local_only","unified":null,"raw":"<content>","binary":false}`.

@@ -19,6 +19,7 @@ pub(super) fn args_for(dir: &Path, path: &str) -> DiffArgs {
         local: dir.to_str().unwrap().to_string(),
         keep_bom: false,
         path: path.to_string(),
+        remote_path: None,
         json: false,
     }
 }
@@ -64,6 +65,12 @@ pub(super) fn blob_body_for(content: &[u8]) -> String {
 pub(super) fn stub_tree(mock: &mut MockGhClient, repo: &str, branch: &str, body: &str) {
     mock.stub(tree_args(repo, branch), ok_resp(body.as_bytes()));
 }
+
+pub(super) fn stub_empty_tree(mock: &mut MockGhClient) {
+    stub_tree(mock, "o/r", "main", EMPTY_TREE_BODY);
+}
+
+const EMPTY_TREE_BODY: &str = r#"{"sha":"x","tree":[],"truncated":false}"#;
 
 pub(super) fn stub_blob(mock: &mut MockGhClient, repo: &str, sha: &str, content: &[u8]) {
     mock.stub(

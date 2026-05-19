@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `diff --remote-path <RPATH>` — cross-path comparison for rename / move scenarios. The remote-side lookup key can now differ from the positional `<PATH>` (which still drives the local read). Unified diff headers show each side's key (`--- a/<remote>` / `+++ b/<local>`), and the "not found" error message lists both keys. Default behavior unchanged when the flag is omitted. Closes [#14](https://github.com/KneShell/gitless-sync/issues/14).
+
+### Changed
+
+- `render::both_sides` / `both_sides_json` — single `&str` key parameter replaced with a `DiffKey<'_>` value holding `local` + `remote` keys. Private `pub(super)` API; no caller-visible JSON shape change.
+
 ## [0.7.1] - 2026-05-13
 
 Release notes auto-generation via `softprops/action-gh-release`. No source-code or behavior changes vs v0.7.0.

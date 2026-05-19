@@ -24,6 +24,15 @@ pub(super) enum Side {
     RemoteOnly,
 }
 
+/// Local / remote keys for unified diff headers. Same value on both sides
+/// represents same-path comparison; distinct values represent cross-path
+/// (rename / move) comparison.
+#[derive(Copy, Clone, Debug)]
+pub(super) struct DiffKey<'a> {
+    pub local: &'a str,
+    pub remote: &'a str,
+}
+
 #[derive(Debug, Serialize)]
 struct DiffJson {
     side: Side,
@@ -46,7 +55,12 @@ pub(super) fn one_sided(content: &[u8], label: &'static str, keep_bom: bool) -> 
     }
 }
 
-pub(super) fn both_sides(local: &[u8], remote: &[u8], key: &str, keep_bom: bool) -> DiffOutcome {
+pub(super) fn both_sides(
+    local: &[u8],
+    remote: &[u8],
+    key: DiffKey<'_>,
+    keep_bom: bool,
+) -> DiffOutcome {
     if is_binary(local) || is_binary(remote) {
         return DiffOutcome {
             stdout: Vec::new(),
@@ -58,8 +72,8 @@ pub(super) fn both_sides(local: &[u8], remote: &[u8], key: &str, keep_bom: bool)
     let old_str = String::from_utf8_lossy(&old_bytes);
     let new_str = String::from_utf8_lossy(&new_bytes);
     let diff = TextDiff::from_lines(old_str.as_ref(), new_str.as_ref());
-    let header_a = format!("a/{key}");
-    let header_b = format!("b/{key}");
+    let header_a = format!("a/{}", key.remote);
+    let header_b = format!("b/{}", key.local);
     let mut unified = diff.unified_diff();
     unified.header(&header_a, &header_b);
     DiffOutcome {
@@ -92,7 +106,7 @@ pub(super) fn one_sided_json(content: &[u8], side: Side, keep_bom: bool) -> Diff
 pub(super) fn both_sides_json(
     local: &[u8],
     remote: &[u8],
-    key: &str,
+    key: DiffKey<'_>,
     keep_bom: bool,
 ) -> DiffOutcome {
     let payload = if is_binary(local) || is_binary(remote) {
@@ -111,8 +125,8 @@ pub(super) fn both_sides_json(
             String::new()
         } else {
             let diff = TextDiff::from_lines(old_str.as_ref(), new_str.as_ref());
-            let header_a = format!("a/{key}");
-            let header_b = format!("b/{key}");
+            let header_a = format!("a/{}", key.remote);
+            let header_b = format!("b/{}", key.local);
             let mut unified = diff.unified_diff();
             unified.header(&header_a, &header_b);
             unified.to_string()
@@ -149,7 +163,15 @@ mod tests {
 
     #[test]
     fn both_sides_json_normalize_equal_emits_empty_unified() {
-        let outcome = both_sides_json(b"hello\n", b"hello\n", "a.md", false);
+        let outcome = both_sides_json(
+            b"hello\n",
+            b"hello\n",
+            DiffKey {
+                local: "a.md",
+                remote: "a.md",
+            },
+            false,
+        );
         assert!(outcome.stderr_message.is_empty());
         let v = parse_json_stdout(&outcome);
         assert_eq!(v["side"], "both");
@@ -171,7 +193,15 @@ mod tests {
 
     #[test]
     fn both_sides_json_normalize_diff_populates_unified() {
-        let outcome = both_sides_json(b"alpha\nbeta\n", b"alpha\ngamma\n", "a.md", false);
+        let outcome = both_sides_json(
+            b"alpha\nbeta\n",
+            b"alpha\ngamma\n",
+            DiffKey {
+                local: "a.md",
+                remote: "a.md",
+            },
+            false,
+        );
         assert!(outcome.stderr_message.is_empty());
         let v = parse_json_stdout(&outcome);
         assert_eq!(v["side"], "both");
@@ -188,6 +218,25 @@ mod tests {
         assert!(unified.contains("+beta"), "missing local line: {unified}");
         assert_eq!(v["raw"], Value::Null);
         assert_eq!(v["binary"], false);
+    }
+
+    #[test]
+    fn both_sides_json_cross_path_headers_distinct() {
+        let key = DiffKey {
+            local: "tree-a/x/file.md",
+            remote: "tree-b/x/file.md",
+        };
+        let outcome = both_sides_json(b"alpha\nbeta\n", b"alpha\ngamma\n", key, false);
+        let v = parse_json_stdout(&outcome);
+        let unified = v["unified"].as_str().expect("unified must be a string");
+        assert!(
+            unified.contains("--- a/tree-b/x/file.md"),
+            "remote-side header missing: {unified}"
+        );
+        assert!(
+            unified.contains("+++ b/tree-a/x/file.md"),
+            "local-side header missing: {unified}"
+        );
     }
 
     #[test]

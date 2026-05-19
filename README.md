@@ -142,6 +142,12 @@ gitless-sync diff <relative/path> --repo owner/name --local .
 
 Both sides are LF-normalized and BOM-stripped before diffing (use `--keep-bom` to preserve UTF-8 BOM).
 
+For rename / move scenarios (the same file lives at different paths locally and remotely), pass `--remote-path <RPATH>` to override the remote-side lookup key. The default is the positional `<PATH>` applied to both sides.
+
+```sh
+gitless-sync diff <local/path> --remote-path <remote/path> --repo owner/name
+```
+
 #### Default output (unified text)
 
 The shape of the output depends on which sides exist and whether they normalize to the same content:
