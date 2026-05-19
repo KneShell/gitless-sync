@@ -10,6 +10,7 @@ git이 없는 로컬 디렉토리를 GitHub repo와 단방향으로 비교해 �
 - **Safety**: `#![forbid(unsafe_code)]` 워크스페이스 lint. release profile `panic = "abort"`.
 - **Cargo.lock**: binary CLI이므로 commit 대상.
 - **Test coverage**: 라인 커버리지 ≥ 80% (cargo-tarpaulin LLVM 백엔드).
+- **Pre-push checks**: 로컬에서 `cargo build/clippy/fmt/test` + `cargo xtask check-{cycles,line-limits,readme-examples}` + `cargo tarpaulin --engine llvm --fail-under 80` 8개 게이트 전부 통과 후 push. 정의: `docs/specs/spec-architecture.md` § Function-level complexity gates + § Workspace gates.
 - **Read-only (영구)**: 도구는 파일·원격을 절대 수정하지 않는다. write 작업은 호출자가 `gh`로 직접 처리 (ADR 0001).
 
 ## Architecture
