@@ -75,6 +75,11 @@ enum Commands {
         /// Relative path (forward slash) of the file to diff.
         path: String,
 
+        /// Remote-side path override for cross-path comparison
+        /// (rename/move scenarios). Defaults to <PATH>.
+        #[arg(long)]
+        remote_path: Option<String>,
+
         /// Emit JSON output instead of unified text (opt-in).
         #[arg(long)]
         json: bool,
@@ -123,13 +128,19 @@ fn dispatch(cli: Cli, client: &RealGhClient) -> Result<(), GitlessError> {
             };
             commands::scan::run_with_client(&scan_args, client)
         }
-        Commands::Diff { branch, path, json } => commands::diff::run_with_client(
+        Commands::Diff {
+            branch,
+            path,
+            remote_path,
+            json,
+        } => commands::diff::run_with_client(
             &commands::diff::DiffArgs {
                 repo: cli.repo,
                 branch,
                 local: cli.local,
                 keep_bom: cli.keep_bom,
                 path,
+                remote_path,
                 json,
             },
             client,

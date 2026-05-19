@@ -11,7 +11,9 @@ use crate::shared::github;
 
 use super::args::DiffArgs;
 use super::io::read_local_optional;
-use super::render::{DiffOutcome, Side, both_sides, both_sides_json, one_sided, one_sided_json};
+use super::render::{
+    DiffKey, DiffOutcome, Side, both_sides, both_sides_json, one_sided, one_sided_json,
+};
 
 /// Compute the diff between the local file and the remote blob for `args.path`
 /// without writing to stdout/stderr.
@@ -39,10 +41,14 @@ pub(crate) fn compute_diff<C: GhClient>(
         .to_string();
     let branch = &args.branch;
 
-    let key = args.path.replace('\\', "/");
+    let local_key = args.path.replace('\\', "/");
+    let remote_key = args
+        .remote_path
+        .as_deref()
+        .map_or_else(|| local_key.clone(), |p| p.replace('\\', "/"));
 
     let tree = github::fetch_tree_with_fallback(client, &repo, branch)?;
-    let remote_entry = tree.iter().find(|e| e.path == key);
+    let remote_entry = tree.iter().find(|e| e.path == remote_key);
 
     let local_abs = local_root.join(&args.path);
     let local_raw = read_local_optional(&local_abs)?;
@@ -52,17 +58,24 @@ pub(crate) fn compute_diff<C: GhClient>(
         None => None,
     };
 
+    let diff_key = DiffKey {
+        local: &local_key,
+        remote: &remote_key,
+    };
+
     match (local_raw, remote_raw, args.json) {
         (None, None, _) => Err(GitlessError::Config(format!(
-            "path not found locally or remotely: {key}"
+            "path not found locally or remotely: local={local_key} remote={remote_key}"
         ))),
         (Some(local), None, false) => Ok(one_sided(&local, "(local only)", args.keep_bom)),
         (Some(local), None, true) => Ok(one_sided_json(&local, Side::LocalOnly, args.keep_bom)),
         (None, Some(remote), false) => Ok(one_sided(&remote, "(remote only)", args.keep_bom)),
         (None, Some(remote), true) => Ok(one_sided_json(&remote, Side::RemoteOnly, args.keep_bom)),
-        (Some(local), Some(remote), false) => Ok(both_sides(&local, &remote, &key, args.keep_bom)),
+        (Some(local), Some(remote), false) => {
+            Ok(both_sides(&local, &remote, diff_key, args.keep_bom))
+        }
         (Some(local), Some(remote), true) => {
-            Ok(both_sides_json(&local, &remote, &key, args.keep_bom))
+            Ok(both_sides_json(&local, &remote, diff_key, args.keep_bom))
         }
     }
 }
@@ -77,7 +90,7 @@ mod tests {
     use crate::shared::gh::MockGhClient;
 
     use super::super::test_helpers::{
-        args_for, err_resp, stub_blob, stub_tree, tree_args, tree_body_with_blob,
+        args_for, err_resp, stub_blob, stub_empty_tree, stub_tree, tree_args, tree_body_with_blob,
     };
 
     #[test]
@@ -95,12 +108,7 @@ mod tests {
     fn compute_diff_neither_side_yields_config_error() {
         let dir = TempDir::new().unwrap();
         let mut mock = MockGhClient::new();
-        stub_tree(
-            &mut mock,
-            "o/r",
-            "main",
-            r#"{"sha":"x","tree":[],"truncated":false}"#,
-        );
+        stub_empty_tree(&mut mock);
 
         let args = args_for(dir.path(), "ghost.md");
         let err = compute_diff(&args, &mock).unwrap_err();
@@ -113,12 +121,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join("only_local.md"), "hello\n").unwrap();
         let mut mock = MockGhClient::new();
-        stub_tree(
-            &mut mock,
-            "o/r",
-            "main",
-            r#"{"sha":"x","tree":[],"truncated":false}"#,
-        );
+        stub_empty_tree(&mut mock);
 
         let args = args_for(dir.path(), "only_local.md");
         let outcome = compute_diff(&args, &mock).unwrap();
@@ -131,12 +134,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join("img.png"), [0u8, 1, 2, 3, 0, 5]).unwrap();
         let mut mock = MockGhClient::new();
-        stub_tree(
-            &mut mock,
-            "o/r",
-            "main",
-            r#"{"sha":"x","tree":[],"truncated":false}"#,
-        );
+        stub_empty_tree(&mut mock);
 
         let args = args_for(dir.path(), "img.png");
         let outcome = compute_diff(&args, &mock).unwrap();

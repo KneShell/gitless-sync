@@ -54,6 +54,7 @@ fn f3_local_only_with_json_emits_single_line_json_and_silent_stderr() {
         local: dir.path().to_str().unwrap().to_string(),
         keep_bom: false,
         path: "app.json".to_string(),
+        remote_path: None,
         json: true,
     };
 
