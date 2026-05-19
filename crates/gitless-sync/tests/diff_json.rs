@@ -50,7 +50,7 @@ fn f3_local_only_with_json_emits_single_line_json_and_silent_stderr() {
 
     let args = DiffArgs {
         repo: Some("o/r".to_string()),
-        branch: "main".to_string(),
+        branch: None,
         local: dir.path().to_str().unwrap().to_string(),
         keep_bom: false,
         path: "app.json".to_string(),

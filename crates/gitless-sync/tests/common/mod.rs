@@ -134,7 +134,7 @@ pub fn stub_blob(mock: &mut TestGhClient, repo: &str, sha: &str, content: &[u8])
 pub fn args_for(dir: &Path, repo: &str) -> ScanArgs {
     ScanArgs {
         repo: Some(repo.to_string()),
-        branch: "main".to_string(),
+        branch: None,
         local: dir.to_str().unwrap().to_string(),
         ignore: vec![],
         keep_bom: false,

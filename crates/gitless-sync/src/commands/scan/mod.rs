@@ -77,7 +77,7 @@ pub fn build_report<C: GhClient + Sync>(
         .or(cfg.repo.as_deref())
         .ok_or_else(|| GitlessError::Config("repo not specified".to_string()))?
         .to_string();
-    let branch = args.branch.clone();
+    let branch = config::resolve_branch(args.branch.as_deref(), cfg.branch.as_deref());
 
     let mut ignore_patterns = cfg.ignore.clone();
     ignore_patterns.extend(args.ignore.iter().cloned());
@@ -206,6 +206,72 @@ mod tests {
         let args = args_for(dir.path(), Some("cli-owner/cli-repo"));
         let (report, _) = build_report(&args, &mock).unwrap();
         assert_eq!(report.repo, "cli-owner/cli-repo");
+    }
+
+    #[test]
+    fn build_report_uses_toml_branch_when_cli_branch_absent() {
+        // `gitless-sync scan` without `--branch` (clap leaves `args.branch =
+        // None`). Toml-supplied branch must win over the built-in "main"
+        // fallback.
+        let dir = TempDir::new().unwrap();
+        fs::write(
+            dir.path().join("gitless-sync.toml"),
+            "repo = \"o/r\"\nbranch = \"toml-branch\"\n",
+        )
+        .unwrap();
+
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "toml-branch",
+            r#"{"sha":"x","tree":[],"truncated":false}"#,
+        );
+
+        let args = args_for(dir.path(), Some("o/r"));
+        let (report, _) = build_report(&args, &mock).unwrap();
+        assert_eq!(report.branch, "toml-branch");
+    }
+
+    #[test]
+    fn build_report_cli_branch_overrides_toml() {
+        let dir = TempDir::new().unwrap();
+        fs::write(
+            dir.path().join("gitless-sync.toml"),
+            "repo = \"o/r\"\nbranch = \"toml-branch\"\n",
+        )
+        .unwrap();
+
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "cli-branch",
+            r#"{"sha":"x","tree":[],"truncated":false}"#,
+        );
+
+        let mut args = args_for(dir.path(), Some("o/r"));
+        args.branch = Some("cli-branch".to_string());
+        let (report, _) = build_report(&args, &mock).unwrap();
+        assert_eq!(report.branch, "cli-branch");
+    }
+
+    #[test]
+    fn build_report_defaults_to_main_when_neither_cli_nor_toml_set_branch() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("gitless-sync.toml"), "repo = \"o/r\"\n").unwrap();
+
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            r#"{"sha":"x","tree":[],"truncated":false}"#,
+        );
+
+        let args = args_for(dir.path(), None);
+        let (report, _) = build_report(&args, &mock).unwrap();
+        assert_eq!(report.branch, "main");
     }
 
     // --- build_report error propagation ------------------------------------

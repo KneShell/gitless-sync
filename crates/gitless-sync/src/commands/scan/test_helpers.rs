@@ -28,7 +28,7 @@ pub(super) const COMMITS_BODY: &str = r#"[{
 pub(super) fn args_for(dir: &Path, repo: Option<&str>) -> ScanArgs {
     ScanArgs {
         repo: repo.map(String::from),
-        branch: "main".to_string(),
+        branch: None,
         local: dir.to_str().unwrap().to_string(),
         ignore: vec![],
         keep_bom: false,

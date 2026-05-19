@@ -45,7 +45,7 @@ fn stub_blob(mock: &mut TestGhClient, repo: &str, sha: &str, content: &[u8]) {
 fn args_for(dir: &std::path::Path, path: &str, remote_path: Option<&str>) -> DiffArgs {
     DiffArgs {
         repo: Some("o/r".to_string()),
-        branch: "main".to_string(),
+        branch: None,
         local: dir.to_str().unwrap().to_string(),
         keep_bom: false,
         path: path.to_string(),
