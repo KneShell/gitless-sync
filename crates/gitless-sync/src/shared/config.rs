@@ -13,6 +13,17 @@ pub struct Config {
     pub ignore: Vec<String>,
 }
 
+/// Resolve the effective branch name with precedence
+/// **CLI flag > `gitless-sync.toml` > built-in default `main`**.
+///
+/// Callers pass the CLI `--branch` and toml `branch` as `Option<&str>` so
+/// "absent" is represented uniformly. The built-in default stays here (one
+/// site) instead of being duplicated across `scan` / `diff`.
+#[must_use]
+pub fn resolve_branch(cli: Option<&str>, toml: Option<&str>) -> String {
+    cli.or(toml).unwrap_or("main").to_string()
+}
+
 /// Load a `gitless-sync.toml` config file.
 ///
 /// Returns [`Config::default`] when `path` is `None` or refers to a non-existent file.
@@ -45,6 +56,21 @@ mod tests {
     fn load_returns_default_when_path_is_none() {
         let cfg = load(None).expect("None should yield default");
         assert_eq!(cfg, Config::default());
+    }
+
+    #[test]
+    fn resolve_branch_prefers_cli_over_toml() {
+        assert_eq!(resolve_branch(Some("cli"), Some("toml")), "cli");
+    }
+
+    #[test]
+    fn resolve_branch_falls_back_to_toml_when_cli_absent() {
+        assert_eq!(resolve_branch(None, Some("toml")), "toml");
+    }
+
+    #[test]
+    fn resolve_branch_falls_back_to_main_when_neither_set() {
+        assert_eq!(resolve_branch(None, None), "main");
     }
 
     #[test]

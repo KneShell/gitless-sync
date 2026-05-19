@@ -21,6 +21,7 @@ struct Cli {
     command: Commands,
 
     /// GitHub repository to compare against, in owner/name format.
+    /// Overrides `repo` in `gitless-sync.toml`.
     #[arg(long, global = true)]
     repo: Option<String>,
 
@@ -55,9 +56,10 @@ enum Commands {
         long_about = "Compare local directory against remote repo, emit 4-state classification JSON.\n\nThe `status` field is the authoritative answer (identical / local_only_changed / remote_only_changed / drift / failed). Do not compare `local_sha` and `remote_sha` directly to infer content difference — they go through different normalize policies and a mismatch does NOT imply a real diff (see README \"Output Schema\")."
     )]
     Scan {
-        /// Branch to read from the repo.
-        #[arg(long, default_value = "main")]
-        branch: String,
+        /// Branch to read from the repo. Overrides `branch` in
+        /// `gitless-sync.toml`. Defaults to `main` when neither is set.
+        #[arg(long)]
+        branch: Option<String>,
 
         /// Emit only the summary object, omit the files array.
         #[arg(long)]
@@ -69,9 +71,10 @@ enum Commands {
     },
     #[command(about = "Show unified diff (or JSON) of a single file vs remote")]
     Diff {
-        /// Branch to read from the repo.
-        #[arg(long, default_value = "main")]
-        branch: String,
+        /// Branch to read from the repo. Overrides `branch` in
+        /// `gitless-sync.toml`. Defaults to `main` when neither is set.
+        #[arg(long)]
+        branch: Option<String>,
 
         /// Relative path (forward slash) of the file to diff.
         path: String,

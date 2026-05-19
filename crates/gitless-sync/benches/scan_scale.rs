@@ -165,7 +165,7 @@ fn tree_args(repo: &str, branch: &str) -> Vec<String> {
 fn args_for(dir: &Path) -> ScanArgs {
     ScanArgs {
         repo: Some(REPO.to_string()),
-        branch: BRANCH.to_string(),
+        branch: Some(BRANCH.to_string()),
         local: dir.to_str().expect("utf-8 path").to_string(),
         ignore: vec![],
         keep_bom: false,

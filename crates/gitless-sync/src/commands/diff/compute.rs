@@ -39,7 +39,7 @@ pub(crate) fn compute_diff<C: GhClient>(
         .or(cfg.repo.as_deref())
         .ok_or_else(|| GitlessError::Config("repo not specified".to_string()))?
         .to_string();
-    let branch = &args.branch;
+    let branch = config::resolve_branch(args.branch.as_deref(), cfg.branch.as_deref());
 
     let local_key = args.path.replace('\\', "/");
     let remote_key = args
@@ -47,7 +47,7 @@ pub(crate) fn compute_diff<C: GhClient>(
         .as_deref()
         .map_or_else(|| local_key.clone(), |p| p.replace('\\', "/"));
 
-    let tree = github::fetch_tree_with_fallback(client, &repo, branch)?;
+    let tree = github::fetch_tree_with_fallback(client, &repo, &branch)?;
     let remote_entry = tree.iter().find(|e| e.path == remote_key);
 
     let local_abs = local_root.join(&args.path);

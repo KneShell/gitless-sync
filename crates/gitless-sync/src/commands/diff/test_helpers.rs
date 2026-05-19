@@ -15,7 +15,7 @@ use super::args::DiffArgs;
 pub(super) fn args_for(dir: &Path, path: &str) -> DiffArgs {
     DiffArgs {
         repo: Some("o/r".to_string()),
-        branch: "main".to_string(),
+        branch: None,
         local: dir.to_str().unwrap().to_string(),
         keep_bom: false,
         path: path.to_string(),

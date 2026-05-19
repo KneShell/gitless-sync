@@ -7,8 +7,9 @@
 pub struct DiffArgs {
     /// `GitHub` repository (`owner/name`). `None` falls back to env / config.
     pub repo: Option<String>,
-    /// Branch name to compare against (defaults to `main` upstream).
-    pub branch: String,
+    /// Branch name to compare against. `None` falls back to
+    /// `gitless-sync.toml`'s `branch`, then to `main`.
+    pub branch: Option<String>,
     /// Local directory the file is read from.
     pub local: String,
     /// Preserve `UTF-8` BOM when reading text files.

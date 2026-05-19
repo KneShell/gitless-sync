@@ -60,7 +60,8 @@ pub fn to_status(filter: StatusFilter) -> Status {
 #[derive(Debug)]
 pub struct ScanArgs {
     pub repo: Option<String>,
-    pub branch: String,
+    /// `None` falls back to `gitless-sync.toml`'s `branch`, then to `main`.
+    pub branch: Option<String>,
     pub local: String,
     pub ignore: Vec<String>,
     pub keep_bom: bool,
