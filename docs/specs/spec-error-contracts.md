@@ -52,7 +52,7 @@ variant 의미:
 ### Exit Code 매핑
 | Code | 의미 | Variant |
 |------|------|---------|
-| 0 | 정상 (drift 존재 여부와 무관) | `Ok(())` |
+| 0 | 정상 (drift 존재 여부와 무관), 또는 출력 소비자가 파이프를 조기 종료 (`… \| head`, issue #25) | `Ok(())`, `BrokenPipe` |
 | 1 | 사용자 입력 오류 / gh 미설치 / 5xx 등 기타 HTTP | `Config`, `Io`, `Http` |
 | 2 | 인증 실패 | `AuthFailed` |
 | 3 | GitHub API rate limit | `RateLimitExceeded` |
