@@ -4,7 +4,8 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::thread;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 mod parser;
 
@@ -110,21 +111,43 @@ pub(crate) fn make_temp_dir() -> Result<PathBuf, Error> {
     Ok(dir)
 }
 
+// On Linux, exec'ing a freshly written/built executable can transiently fail
+// with ETXTBSY ("Text file busy") when another thread's concurrent `fork()`
+// (e.g. a parallel test or build spawning a process) still holds a write file
+// descriptor to it. `std::io::ErrorKind::ExecutableFileBusy` surfaces this.
+// Retry with a short linear backoff so the rare race resolves instead of
+// failing the run; the happy path returns on the first attempt with no sleep.
+const BUSY_MAX_RETRIES: u32 = 12;
+const BUSY_BACKOFF_MS: u64 = 50;
+
+fn run_capturing_with_busy_retry(binary: &Path, args: &[&str]) -> Result<Output, Error> {
+    let mut attempt: u32 = 0;
+    loop {
+        match Command::new(binary).args(args).output() {
+            Ok(output) => return Ok(output),
+            Err(e)
+                if e.kind() == io::ErrorKind::ExecutableFileBusy
+                    && attempt < BUSY_MAX_RETRIES =>
+            {
+                attempt += 1;
+                thread::sleep(Duration::from_millis(BUSY_BACKOFF_MS * u64::from(attempt)));
+            }
+            Err(e) => return Err(Error::Io(e)),
+        }
+    }
+}
+
 pub(crate) fn execute_init(
     binary: &Path,
     cmd: &ParsedCommand,
     redirect_dir: &Path,
 ) -> Result<(), Error> {
     let cli_args: Vec<&str> = cmd.args.iter().skip(1).map(String::as_str).collect();
-    let output = Command::new(binary)
-        .args(&cli_args)
-        .output()
-        .map_err(Error::Io)?;
     let Output {
         status,
         stdout,
         stderr,
-    } = output;
+    } = run_capturing_with_busy_retry(binary, &cli_args)?;
     if !status.success() {
         return Err(Error::CommandFailed {
             command: format!("{} {}", binary.display(), cli_args.join(" ")),
