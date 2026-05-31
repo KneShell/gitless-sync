@@ -30,21 +30,27 @@ pub use self::build::build_report;
 use crate::shared::error::GitlessError;
 use crate::shared::gh::GhClient;
 
-/// Run `scan` and write JSON to stdout. Inject `RealGhClient` (prod) or
-/// `MockGhClient` (tests).
+/// Run `scan` and write JSON to the provided `stdout` writer. Inject
+/// `RealGhClient` + `std::io::stdout().lock()` (prod) or `MockGhClient` +
+/// a `Vec<u8>` writer (tests).
+///
+/// Writing via an injected writer (mirroring the `diff` / `init` slices) lets
+/// a closed downstream pipe surface as `GitlessError::BrokenPipe` through `?`
+/// instead of panicking inside `println!` (issue #25).
 ///
 /// # Errors
-/// `GitlessError` from config / GitHub API / local IO. `PartialFailure`
-/// when files fail to hash. `Config` for JSON serialize failure (unreachable
-/// for current schema).
-pub fn run_with_client<C: GhClient + Sync>(
+/// `GitlessError` from config / GitHub API / local IO. `BrokenPipe` when the
+/// consumer closes stdout early. `PartialFailure` when files fail to hash.
+/// `Config` for JSON serialize failure (unreachable for current schema).
+pub fn run_with_client<C: GhClient + Sync, W: std::io::Write>(
     args: &ScanArgs,
     client: &C,
+    stdout: &mut W,
 ) -> Result<(), GitlessError> {
     let (report, failed_count) = build_report(args, client)?;
     let json = output::serialize(&report, args.pretty)
         .map_err(|e| GitlessError::Config(format!("ScanReport JSON serialization failed: {e}")))?;
-    println!("{json}");
+    writeln!(stdout, "{json}")?;
     if failed_count > 0 {
         return Err(GitlessError::PartialFailure { failed_count });
     }
@@ -75,7 +81,7 @@ mod tests {
             r#"{"sha":"x","tree":[],"truncated":false}"#,
         );
         let args = args_for(dir.path(), Some("o/r"));
-        run_with_client(&args, &mock).unwrap();
+        run_with_client(&args, &mock, &mut Vec::new()).unwrap();
     }
 
     #[test]
@@ -90,8 +96,62 @@ mod tests {
         );
         stub_truncated_fallback_chain(&mut mock, "o/r", "main");
         let args = args_for(dir.path(), Some("o/r"));
-        let err = run_with_client(&args, &mock).unwrap_err();
+        let err = run_with_client(&args, &mock, &mut Vec::new()).unwrap_err();
         assert!(matches!(err, GitlessError::TreesTruncated));
         assert_eq!(err.exit_code(), 5);
+    }
+
+    /// A writer whose every `write` fails with `BrokenPipe`, emulating a
+    /// downstream consumer (`| head`) that closed stdout early.
+    struct BrokenWriter;
+
+    impl std::io::Write for BrokenWriter {
+        fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe))
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    // issue #25: writing into a closed pipe must surface as
+    // `GitlessError::BrokenPipe` (exit 0), NOT panic inside the write.
+    #[test]
+    fn run_with_client_maps_broken_pipe_writer_to_broken_pipe_error() {
+        let dir = TempDir::new().unwrap();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            r#"{"sha":"x","tree":[],"truncated":false}"#,
+        );
+        let args = args_for(dir.path(), Some("o/r"));
+        let err = run_with_client(&args, &mock, &mut BrokenWriter).unwrap_err();
+        assert!(
+            matches!(err, GitlessError::BrokenPipe),
+            "broken-pipe write must map to GitlessError::BrokenPipe, got {err:?}"
+        );
+        assert_eq!(err.exit_code(), 0);
+    }
+
+    // A normal writer captures the serialized report: valid JSON + trailing newline.
+    #[test]
+    fn run_with_client_writes_valid_json_line_to_writer() {
+        let dir = TempDir::new().unwrap();
+        let mut mock = MockGhClient::new();
+        stub_tree(
+            &mut mock,
+            "o/r",
+            "main",
+            r#"{"sha":"x","tree":[],"truncated":false}"#,
+        );
+        let args = args_for(dir.path(), Some("o/r"));
+        let mut out = Vec::new();
+        run_with_client(&args, &mock, &mut out).unwrap();
+        assert!(out.ends_with(b"\n"), "output must end with a newline");
+        let parsed: serde_json::Value =
+            serde_json::from_slice(&out).expect("scan output must be valid JSON");
+        assert_eq!(parsed["repo"], "o/r");
     }
 }

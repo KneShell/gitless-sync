@@ -26,10 +26,30 @@ pub enum GitlessError {
     Http(String),
 
     #[error("I/O error: {0}")]
-    Io(#[from] std::io::Error),
+    Io(std::io::Error),
+
+    /// Downstream consumer closed the output pipe early (e.g. `| head`).
+    /// Not a failure — a Unix-style CLI treats this as "seen enough" and
+    /// exits cleanly. See issue #25.
+    #[error("downstream pipe closed")]
+    BrokenPipe,
 
     #[error("Partial failure: {failed_count} files could not be hashed")]
     PartialFailure { failed_count: usize },
+}
+
+// issue #25: a closed output pipe surfaces as `ErrorKind::BrokenPipe` (EPIPE on
+// Unix, ERROR_BROKEN_PIPE / os error 109 on Windows). Route it to the dedicated
+// `BrokenPipe` variant so the top-level handler can exit 0 instead of treating
+// it as a real I/O failure. Every `?` on a write inherits this mapping.
+impl From<std::io::Error> for GitlessError {
+    fn from(err: std::io::Error) -> Self {
+        if err.kind() == std::io::ErrorKind::BrokenPipe {
+            Self::BrokenPipe
+        } else {
+            Self::Io(err)
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -44,6 +64,8 @@ impl GitlessError {
     #[must_use]
     pub fn exit_code(&self) -> u8 {
         match self {
+            // BrokenPipe is a normal termination, not an error (issue #25).
+            Self::BrokenPipe => 0,
             Self::Config(_) | Self::Io(_) => 1,
             Self::AuthFailed => 2,
             Self::RateLimitExceeded { .. } | Self::Http(_) => 3,
@@ -61,6 +83,7 @@ impl GitlessError {
             Self::TreesTruncated => "TREES_TRUNCATED",
             Self::Http(_) => "HTTP_ERROR",
             Self::Io(_) => "IO_ERROR",
+            Self::BrokenPipe => "BROKEN_PIPE",
             Self::PartialFailure { .. } => "PARTIAL_FAILURE",
         }
     }
@@ -81,5 +104,37 @@ impl GitlessError {
             message: self.to_string(),
             context,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // issue #25: a BrokenPipe io::Error must map to the dedicated variant that
+    // exits 0, NOT to a generic Io failure.
+    #[test]
+    fn broken_pipe_io_error_maps_to_clean_exit() {
+        let io_err = std::io::Error::from(std::io::ErrorKind::BrokenPipe);
+        let err: GitlessError = io_err.into();
+        assert!(
+            matches!(err, GitlessError::BrokenPipe),
+            "BrokenPipe io::Error must convert to GitlessError::BrokenPipe, got {err:?}"
+        );
+        assert_eq!(err.exit_code(), 0);
+        assert_eq!(err.error_code(), "BROKEN_PIPE");
+    }
+
+    // Regression: non-pipe io::Errors must keep the generic Io mapping (exit 1).
+    #[test]
+    fn other_io_error_keeps_generic_io_mapping() {
+        let io_err = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        let err: GitlessError = io_err.into();
+        assert!(
+            matches!(err, GitlessError::Io(_)),
+            "non-pipe io::Error must stay GitlessError::Io, got {err:?}"
+        );
+        assert_eq!(err.exit_code(), 1);
+        assert_eq!(err.error_code(), "IO_ERROR");
     }
 }

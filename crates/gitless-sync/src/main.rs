@@ -106,7 +106,10 @@ fn main() -> ExitCode {
     };
     let client = RealGhClient::new();
     match dispatch(cli, &client) {
-        Ok(()) => ExitCode::SUCCESS,
+        // issue #25: a closed downstream pipe (e.g. `| head`) is a normal
+        // termination, not a failure — exit 0 silently, no stderr payload,
+        // same as a clean success.
+        Ok(()) | Err(GitlessError::BrokenPipe) => ExitCode::SUCCESS,
         Err(err) => emit_error(&err),
     }
 }
@@ -130,7 +133,7 @@ fn dispatch(cli: Cli, client: &RealGhClient) -> Result<(), GitlessError> {
                 backend: cli.backend,
                 verbose: cli.verbose,
             };
-            commands::scan::run_with_client(&scan_args, client)
+            commands::scan::run_with_client(&scan_args, client, &mut std::io::stdout().lock())
         }
         Commands::Diff {
             branch,

@@ -168,7 +168,7 @@ fn scenario_15_partial_failure_when_local_file_unreadable() {
     assert_eq!(files[0]["status"], "failed");
 
     // (b) run_with_client는 failed_count > 0을 PartialFailure로 매핑 (exit 4).
-    let err = run_with_client(&args, &mock)
+    let err = run_with_client(&args, &mock, &mut Vec::new())
         .expect_err("run_with_client should map failed_count > 0 to PartialFailure");
     match err {
         GitlessError::PartialFailure { failed_count } => assert_eq!(failed_count, 1),
