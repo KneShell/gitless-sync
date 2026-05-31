@@ -126,8 +126,7 @@ fn run_capturing_with_busy_retry(binary: &Path, args: &[&str]) -> Result<Output,
         match Command::new(binary).args(args).output() {
             Ok(output) => return Ok(output),
             Err(e)
-                if e.kind() == io::ErrorKind::ExecutableFileBusy
-                    && attempt < BUSY_MAX_RETRIES =>
+                if e.kind() == io::ErrorKind::ExecutableFileBusy && attempt < BUSY_MAX_RETRIES =>
             {
                 attempt += 1;
                 thread::sleep(Duration::from_millis(BUSY_BACKOFF_MS * u64::from(attempt)));
