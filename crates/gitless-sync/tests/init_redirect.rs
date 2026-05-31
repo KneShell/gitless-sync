@@ -140,6 +140,6 @@ fn scenario_19_init_output_round_trips_into_scan_run() {
     let mut args = args_for(dir.path(), "rt-owner/rt-repo");
     args.repo = None;
 
-    run_with_client(&args, &mock)
+    run_with_client(&args, &mock, &mut Vec::new())
         .expect("scan should load repo from emitted toml and succeed against the stub");
 }

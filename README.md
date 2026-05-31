@@ -209,7 +209,7 @@ Authoritative schema: `docs/specs/spec-cli-interface.md` § diff --json 출력 �
 
 | Code | Meaning |
 |------|---------|
-| 0 | Normal (drift may exist; the result is still considered success) |
+| 0 | Normal (drift may exist; the result is still considered success), or the output consumer closed the pipe early — e.g. `… \| head` (issue #25) |
 | 1 | User input / config error, including `gh` not installed |
 | 2 | Authentication failed (`gh: Bad credentials`) |
 | 3 | GitHub API rate limit hit, or other non-classified `gh` error |
