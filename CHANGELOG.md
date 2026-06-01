@@ -9,6 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 _(none)_
 
+## [0.8.2] - 2026-06-01
+
+### Fixed
+
+- **Issue #25**: `scan` no longer panics when the output pipe is closed early by the consumer (the canonical case is `gitless-sync scan --pretty | head`). `scan` emitted its JSON report with `println!`, whose internal `.unwrap()` panics on a `BrokenPipe` write error (`os error 109` / `ERROR_BROKEN_PIPE` on Windows, `EPIPE` on Unix). A closed pipe is a normal "seen enough" signal, not a failure — and the panic + non-zero exit misled downstream consumers (including LLM agents) into treating it as a real error. Closes [#25](https://github.com/KneShell/gitless-sync/issues/25).
+
+### Changed
+
+- New `GitlessError::BrokenPipe` variant (exit code **0**, error_code `"BROKEN_PIPE"`). The derived `#[from] std::io::Error` was replaced with a manual `From` that routes `io::ErrorKind::BrokenPipe` to the new variant and everything else to `Io` (unchanged). `main` maps `BrokenPipe` to a silent `ExitCode::SUCCESS` (no stderr payload). `scan::run_with_client` now writes through an injected `Write` and emits via `writeln!(..)?`, matching the `diff` / `init` slices, so a closed pipe propagates instead of panicking. `diff` / `init` also now exit 0 on a closed pipe (previously a generic IO error → exit 1), consistent with the "closed pipe ≠ error" philosophy. All in safe Rust — the workspace forbids `unsafe`, so the SIGPIPE-reset approach is neither used nor needed.
+- `xtask check-readme-examples` executor retries on Linux `ETXTBSY` ("Text file busy") when exec'ing a freshly written binary, de-flaking CI.
+
+### Infrastructure
+
+- deps: bump `serde_json` 1.0.149 → 1.0.150 ([#24](https://github.com/KneShell/gitless-sync/pull/24)), `similar` 3.1.0 → 3.1.1 ([#23](https://github.com/KneShell/gitless-sync/pull/23)), and `actions/attest-build-provenance` 3 → 4 ([#22](https://github.com/KneShell/gitless-sync/pull/22)).
+- `.gitignore` ignores local `.claude/` runtime artifacts.
+
+## [0.8.1] - 2026-05-19
+
+### Fixed
+
+- **Issue #19**: `scan` / `diff` now honor the `branch` key from `gitless-sync.toml` when the `--branch` CLI flag is absent (previously the toml value was ignored and `main` was always used). Closes [#19](https://github.com/KneShell/gitless-sync/pull/19).
+
+### Infrastructure
+
+- `.gitattributes` pins LF line endings on repo blobs so SHA computation is stable across platforms ([#21](https://github.com/KneShell/gitless-sync/pull/21)).
+- `commands/scan/build.rs` extracted from `mod.rs` (orchestrator split to keep each file under the 300 LOC gate); no behavior change.
+
 ## [0.8.0] - 2026-05-19
 
 ### Added
