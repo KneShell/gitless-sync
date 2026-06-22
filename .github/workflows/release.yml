@@ -23,7 +23,7 @@ jobs:
     name: Version sanity (Cargo.toml vs tag)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Verify ref is a tag and Cargo.toml version matches
         shell: bash
@@ -92,7 +92,7 @@ jobs:
             ext: tar.gz
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
